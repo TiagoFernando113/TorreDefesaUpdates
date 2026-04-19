@@ -1,5 +1,5 @@
 {
-  "versao": 6,
-  "url": "https://raw.githubusercontent.com/TiagoFernando113/TorreDefesaUpdates/main/patch_v6.pck",
-  "notas": "Teste OTA"
-}
+    "versao": 6,
+    "url": "https://github.com/TiagoFernando113/TorreDefesaUpdates/releases/download/v6/TorreDefesa.apk",
+    "notas": "Login por email, save na nuvem"
+  }
