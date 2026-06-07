@@ -1,6 +1,5 @@
- {
-      "versao": 9,
-      "url": "https://github.com/TiagoFernando113/TorreDefesaUpdates/releases/latest",
-      "notas": "- CORREÇÃO DO SLOW DE GELO (80%)\n- RENOMEAÇÃO DE NOME NO SERVIDOR\n- AJUSTE DOS BOTÕES DE AVALIAÇÃO E TALENTOS\n- NOVO
-   LOGO CYRON\n- ajuste de compatibilidade 64bit\n- ajuste do ranking"
-  }
+{
+  "versao": 10,
+  "url": "https://github.com/TiagoFernando113/TorreDefesaUpdates/releases/latest",
+  "notas": "- Novo sistema de atualizacao de conteudo via GitHub.\n- Preparado para baixar packs de mapas, sprites, musicas e balanceamento sem trocar o APK inteiro.\n- Mantem atualizacao de APK/EXE apenas para builds de teste fora da loja."
+}
