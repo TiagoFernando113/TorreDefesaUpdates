@@ -1,5 +1,5 @@
 {
-  "versao": 10,
+  "versao": 11,
   "url": "https://github.com/TiagoFernando113/TorreDefesaUpdates/releases/latest",
   "notas": "- Novo sistema de atualizacao de conteudo via GitHub.\n- Preparado para baixar packs de mapas, sprites, musicas e balanceamento sem trocar o APK inteiro.\n- Mantem atualizacao de APK/EXE apenas para builds de teste fora da loja."
 }
