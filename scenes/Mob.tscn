@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://cmob0000001"]
+
+[ext_resource type="Script" uid="uid://dcgd43vsgqwly" path="res://scripts/mob.gd" id="1_mob001"]
+
+[node name="Mob" type="Node2D" unique_id=1888065497]
+script = ExtResource("1_mob001")

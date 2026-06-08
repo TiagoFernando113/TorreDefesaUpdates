@@ -1,0 +1,591 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Cyron Defense - Talent System V4</title>
+  <style>
+    :root {
+      --bg: #02050c;
+      --panel: rgba(3, 8, 18, .82);
+      --line: rgba(130, 185, 255, .18);
+      --text: #edf5ff;
+      --muted: #91a5c4;
+      --cyan: #27e9ff;
+      --blue: #48a6ff;
+      --gold: #ffd35a;
+      --orange: #ff8830;
+      --green: #49f28a;
+      --purple: #b362ff;
+      --red: #ff4f45;
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+      background: #000;
+      color: var(--text);
+      font-family: "Segoe UI", Arial, sans-serif;
+    }
+
+    body {
+      display: block;
+      background:
+        radial-gradient(circle at 50% 50%, rgba(50, 120, 255, .08), transparent 30%),
+        radial-gradient(circle at 14% 28%, rgba(158, 68, 255, .16), transparent 25%),
+        radial-gradient(circle at 86% 72%, rgba(0, 230, 255, .10), transparent 22%),
+        linear-gradient(180deg, #030716, #010309 66%, #000);
+    }
+
+    .stage {
+      position: relative;
+      width: min(1280px, 100vw);
+      height: min(720px, 100vh);
+      margin: 0;
+      overflow: hidden;
+      border: 1px solid rgba(79, 150, 255, .28);
+      background:
+        radial-gradient(circle at 52% 48%, rgba(255, 211, 90, .11), transparent 20%),
+        radial-gradient(circle at 62% 22%, rgba(179, 98, 255, .10), transparent 26%),
+        repeating-linear-gradient(90deg, rgba(255,255,255,.018) 0 1px, transparent 1px 110px),
+        #02050c;
+      box-shadow: 0 0 0 1px rgba(39,233,255,.12), 0 0 70px rgba(80,40,190,.16) inset;
+    }
+
+    .stage::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background-image:
+        radial-gradient(circle, rgba(255,255,255,.95) 0 1px, transparent 1.5px),
+        radial-gradient(circle, rgba(61,174,255,.65) 0 1px, transparent 1.5px),
+        radial-gradient(circle, rgba(190,80,255,.50) 0 1px, transparent 1.5px);
+      background-size: 96px 96px, 151px 151px, 235px 235px;
+      background-position: 0 0, 42px 21px, 89px 70px;
+      opacity: .26;
+      pointer-events: none;
+    }
+
+    .hud {
+      position: absolute;
+      inset: 22px 24px auto 24px;
+      height: 86px;
+      display: grid;
+      grid-template-columns: 280px 1fr 310px;
+      align-items: start;
+      z-index: 10;
+    }
+
+    .kicker {
+      color: var(--gold);
+      font-size: 11px;
+      font-weight: 900;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+    }
+
+    h1 {
+      margin: -2px 0 0;
+      color: #f4f0ff;
+      text-align: center;
+      font-size: 42px;
+      line-height: .95;
+      letter-spacing: 3px;
+      text-shadow: 0 0 18px rgba(179,98,255,.58);
+    }
+
+    .sub {
+      width: 530px;
+      max-width: 100%;
+      height: 30px;
+      margin: 9px auto 0;
+      display: grid;
+      place-items: center;
+      color: #80e7ff;
+      border: 1px solid rgba(39,233,255,.35);
+      border-radius: 8px;
+      background: rgba(1, 10, 24, .72);
+      font-size: 17px;
+      font-weight: 850;
+      box-shadow: 0 0 18px rgba(39,233,255,.10) inset;
+    }
+
+    .wallet {
+      display: flex;
+      justify-content: flex-end;
+      gap: 12px;
+    }
+
+    .wallet-card {
+      min-width: 132px;
+      height: 44px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 0 14px;
+      border: 2px solid var(--cyan);
+      background: rgba(2, 15, 28, .88);
+      color: #eef6ff;
+      font-size: 18px;
+      font-weight: 900;
+      clip-path: polygon(0 0, 88% 0, 100% 34%, 100% 100%, 12% 100%, 0 66%);
+      box-shadow: 0 0 18px rgba(39,233,255,.28) inset, 0 0 14px rgba(39,233,255,.18);
+    }
+
+    .wallet-card.gold {
+      border-color: var(--gold);
+      box-shadow: 0 0 18px rgba(255,211,90,.30) inset, 0 0 14px rgba(255,211,90,.20);
+    }
+
+    .coin {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      border: 2px solid currentColor;
+      box-shadow: 0 0 10px currentColor;
+    }
+
+    .panel {
+      position: absolute;
+      z-index: 8;
+      border: 1px solid rgba(255,211,90,.35);
+      background: linear-gradient(180deg, rgba(5,9,18,.91), rgba(2,5,12,.74));
+      box-shadow: 0 0 36px rgba(255,211,90,.08) inset;
+    }
+
+    .info {
+      left: 24px;
+      top: 126px;
+      bottom: 84px;
+      width: 260px;
+      padding: 20px 18px;
+      clip-path: polygon(0 0, 86% 0, 100% 28px, 100% 100%, 0 100%);
+    }
+
+    .points {
+      position: absolute;
+      top: -22px;
+      left: 24px;
+      width: 88px;
+      height: 70px;
+      display: grid;
+      place-items: center;
+      border: 1px solid rgba(255,211,90,.55);
+      background: rgba(0,0,0,.82);
+      color: var(--gold);
+      font-size: 32px;
+      font-weight: 950;
+      box-shadow: 0 0 24px rgba(255,211,90,.18);
+    }
+
+    .info h2 {
+      margin: 54px 0 2px;
+      color: #fff4b6;
+      font-size: 25px;
+      line-height: 1;
+      letter-spacing: 1px;
+    }
+
+    .info .school {
+      color: var(--orange);
+      font-size: 13px;
+      font-weight: 950;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+    }
+
+    .info p {
+      margin: 18px 0 0;
+      color: #c8d4e8;
+      font-size: 14px;
+      font-weight: 700;
+      line-height: 1.42;
+    }
+
+    .state {
+      margin-top: 24px;
+      color: #75ffa8;
+      font-size: 13px;
+      font-weight: 950;
+      text-transform: uppercase;
+    }
+
+    .req {
+      margin-top: 7px;
+      color: #d8e0f5;
+      font-size: 13px;
+      font-weight: 750;
+      line-height: 1.35;
+    }
+
+    .action {
+      position: absolute;
+      left: 18px;
+      right: 18px;
+      bottom: 18px;
+      height: 42px;
+      display: grid;
+      place-items: center;
+      border: 1px solid var(--gold);
+      color: #ffe673;
+      background: rgba(255,211,90,.08);
+      font-size: 14px;
+      font-weight: 950;
+      letter-spacing: 1px;
+    }
+
+    .board {
+      position: absolute;
+      left: 300px;
+      right: 300px;
+      top: 116px;
+      bottom: 92px;
+      z-index: 5;
+    }
+
+    .orbit {
+      position: absolute;
+      inset: 26px;
+      border: 1px solid rgba(255,211,90,.13);
+      border-radius: 50%;
+      opacity: .75;
+    }
+
+    .orbit.o2 { inset: 86px; border-color: rgba(39,233,255,.12); }
+    .orbit.o3 { inset: 150px; border-color: rgba(179,98,255,.13); }
+
+    svg.links {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      overflow: visible;
+    }
+
+    .core {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: 104px;
+      height: 104px;
+      transform: translate(-50%, -50%);
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      color: var(--gold);
+      border: 2px solid var(--gold);
+      background: radial-gradient(circle, rgba(255,211,90,.24), rgba(0,0,0,.86) 64%);
+      box-shadow: 0 0 38px rgba(255,211,90,.55), 0 0 18px rgba(255,211,90,.25) inset;
+      font-size: 46px;
+      font-weight: 900;
+      z-index: 3;
+    }
+
+    .node {
+      position: absolute;
+      width: 68px;
+      height: 68px;
+      transform: translate(-50%, -50%);
+      display: grid;
+      place-items: center;
+      border-radius: 50%;
+      border: 2px solid currentColor;
+      background: rgba(0,0,0,.72);
+      color: var(--cyan);
+      box-shadow: 0 0 18px rgba(39,233,255,.22);
+      z-index: 4;
+    }
+
+    .node::before {
+      content: "";
+      position: absolute;
+      inset: 8px;
+      border-radius: 50%;
+      border: 1px solid currentColor;
+      opacity: .42;
+    }
+
+    .node strong {
+      font-size: 15px;
+      font-weight: 950;
+      letter-spacing: .5px;
+    }
+
+    .node small {
+      position: absolute;
+      left: 50%;
+      top: 73px;
+      min-width: 112px;
+      transform: translateX(-50%);
+      color: #d9e8ff;
+      text-align: center;
+      font-size: 11px;
+      font-weight: 850;
+      text-shadow: 0 1px 5px #000;
+    }
+
+    .node.bought {
+      background: currentColor;
+      color: #061117;
+      border-color: #fff;
+    }
+
+    .node.open {
+      box-shadow: 0 0 20px currentColor;
+    }
+
+    .node.locked {
+      color: #566071;
+      border-color: #454c5a;
+      box-shadow: none;
+      opacity: .75;
+    }
+
+    .branch-label {
+      position: absolute;
+      transform: translate(-50%, -50%);
+      color: currentColor;
+      font-size: 19px;
+      font-weight: 950;
+      letter-spacing: 1px;
+      text-align: center;
+      z-index: 6;
+      text-shadow: 0 0 12px currentColor, 0 2px 8px #000;
+    }
+
+    .branch-label span {
+      display: block;
+      margin-top: 2px;
+      color: #aebfe0;
+      font-size: 10px;
+      letter-spacing: 1px;
+    }
+
+    .fusion {
+      position: absolute;
+      width: 104px;
+      height: 44px;
+      display: grid;
+      place-items: center;
+      border: 1px solid var(--gold);
+      color: var(--gold);
+      background: rgba(0,0,0,.72);
+      font-size: 12px;
+      font-weight: 950;
+      letter-spacing: 1px;
+      z-index: 5;
+      clip-path: polygon(14% 0, 100% 0, 86% 100%, 0 100%);
+      box-shadow: 0 0 16px rgba(255,211,90,.20);
+    }
+
+    .loadout {
+      position: absolute;
+      left: 318px;
+      right: 318px;
+      bottom: 22px;
+      height: 64px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      border: 1px solid rgba(39,233,255,.24);
+      background: rgba(4,9,19,.78);
+      box-shadow: 0 0 24px rgba(39,233,255,.08) inset;
+      z-index: 9;
+    }
+
+    .loadout-title {
+      color: #9bb6d9;
+      font-size: 12px;
+      font-weight: 950;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+    }
+
+    .chip {
+      min-width: 80px;
+      height: 36px;
+      display: grid;
+      place-items: center;
+      padding: 0 10px;
+      border: 1px solid currentColor;
+      color: var(--cyan);
+      background: rgba(0,0,0,.45);
+      font-size: 12px;
+      font-weight: 900;
+      border-radius: 6px;
+    }
+
+    .right {
+      right: 24px;
+      top: 126px;
+      bottom: 84px;
+      width: 260px;
+      padding: 18px;
+      border-color: rgba(39,233,255,.35);
+      clip-path: polygon(0 0, 100% 0, 100% 100%, 14% 100%, 0 calc(100% - 28px));
+    }
+
+    .right h3 {
+      margin: 0 0 14px;
+      color: #bfefff;
+      font-size: 16px;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+    }
+
+    .build {
+      margin-bottom: 13px;
+      padding: 10px;
+      border: 1px solid rgba(255,255,255,.12);
+      background: rgba(255,255,255,.035);
+    }
+
+    .build strong {
+      display: block;
+      color: #fff;
+      font-size: 13px;
+      margin-bottom: 4px;
+    }
+
+    .build span {
+      color: #aebfe0;
+      font-size: 12px;
+      line-height: 1.35;
+      font-weight: 700;
+    }
+
+    .back {
+      position: absolute;
+      left: 50%;
+      bottom: 22px;
+      width: 190px;
+      height: 46px;
+      transform: translateX(-50%);
+      display: none;
+      place-items: center;
+      border: 1px solid rgba(255,255,255,.45);
+      background: rgba(25,27,36,.86);
+      border-radius: 7px;
+      color: #edf4ff;
+      font-size: 21px;
+      font-weight: 950;
+      z-index: 10;
+    }
+
+    .caption {
+      position: absolute;
+      left: 314px;
+      right: 314px;
+      top: 92px;
+      text-align: center;
+      color: #a9b7d4;
+      font-size: 13px;
+      font-weight: 800;
+      z-index: 8;
+    }
+  </style>
+</head>
+<body>
+  <main class="stage">
+    <header class="hud">
+      <div>
+        <div class="kicker">Sistema novo</div>
+        <div style="margin-top:7px;color:#d9e6ff;font-size:17px;font-weight:900">Trilhas Orbitais + Loadout</div>
+      </div>
+      <div>
+        <h1>CENTRO DE TECNOLOGIA</h1>
+        <div class="sub">25 tecnologias grandes - 59 pontos internos - 8 slots ativos</div>
+      </div>
+      <div class="wallet">
+        <div class="wallet-card gold"><span class="coin"></span>145.0K</div>
+        <div class="wallet-card"><span class="coin"></span>3012</div>
+      </div>
+    </header>
+
+    <aside class="panel info">
+      <div class="points">14</div>
+      <h2>Canhao Duplo</h2>
+      <div class="school">Arsenal / Tier II</div>
+      <p>As tecnologias comecam sempre no nucleo e avancam em linhas curtas. Cada no tem niveis internos, entao o jogador entende a rota sem virar bagunca visual.</p>
+      <p>Depois de desbloquear, o jogador equipa so algumas tecnologias no loadout da run. Isso cria builds sem deixar uma conta full destruir o balanceamento.</p>
+      <div class="state">LIBERADO</div>
+      <div class="req">Requer: Fogo Interior nv. 3<br>Custo: 2 pontos + 59 cristais</div>
+      <div class="action">COMPRAR / EQUIPAR</div>
+    </aside>
+
+    <div class="caption">Cinco trilhas claras. Fusoes aparecem quando duas trilhas vizinhas chegam no mesmo tier.</div>
+
+    <section class="board">
+      <div class="orbit"></div>
+      <div class="orbit o2"></div>
+      <div class="orbit o3"></div>
+      <svg class="links" viewBox="0 0 680 500" preserveAspectRatio="none" aria-hidden="true">
+        <g fill="none" stroke-width="3" stroke-linecap="round" opacity=".78">
+          <path d="M340 250 L248 205 L170 160 L92 118" stroke="#ff8830"/>
+          <path d="M340 250 L284 142 L246 74 L196 36" stroke="#48a6ff"/>
+          <path d="M340 250 L414 132 L486 74 L590 40" stroke="#27e9ff"/>
+          <path d="M340 250 L454 292 L548 326 L632 370" stroke="#ffd35a"/>
+          <path d="M340 250 L294 334 L246 408 L186 462" stroke="#b362ff"/>
+          <path d="M248 205 C280 164 320 140 414 132" stroke="#ffd35a" opacity=".52"/>
+          <path d="M454 292 C400 340 335 360 294 334" stroke="#ffd35a" opacity=".46"/>
+          <path d="M284 142 C345 100 430 92 486 74" stroke="#27e9ff" opacity=".32"/>
+        </g>
+      </svg>
+
+      <div class="core">*</div>
+
+      <div class="branch-label" style="left:112px;top:80px;color:var(--orange)">ARSENAL<span>Dano e alvo</span></div>
+      <div class="branch-label" style="left:178px;top:24px;color:var(--blue)">BASTION<span>Defesa e boss</span></div>
+      <div class="branch-label" style="left:582px;top:42px;color:var(--cyan)">CONTROLE<span>Gelo, raio e veneno</span></div>
+      <div class="branch-label" style="left:636px;top:418px;color:var(--gold)">LOGISTICA<span>Cytron e cartas</span></div>
+      <div class="branch-label" style="left:170px;top:478px;color:var(--purple)">ANOMALIA<span>Risco e caos</span></div>
+
+      <div class="node bought" style="left:248px;top:205px;color:var(--orange)"><strong>A</strong><small>Fogo Interior</small></div>
+      <div class="node open" style="left:170px;top:160px;color:var(--orange)"><strong>A2</strong><small>Canhao Duplo</small></div>
+      <div class="node locked" style="left:92px;top:118px"><strong>A3</strong><small>Arsenal Pesado</small></div>
+
+      <div class="node bought" style="left:284px;top:142px;color:var(--blue)"><strong>B</strong><small>Escamas</small></div>
+      <div class="node open" style="left:246px;top:74px;color:var(--blue)"><strong>B2</strong><small>Coracao</small></div>
+      <div class="node locked" style="left:196px;top:36px"><strong>B3</strong><small>Fenix</small></div>
+
+      <div class="node bought" style="left:414px;top:132px;color:var(--cyan)"><strong>C</strong><small>Condutor</small></div>
+      <div class="node open" style="left:486px;top:74px;color:var(--cyan)"><strong>C2</strong><small>Glacial</small></div>
+      <div class="node locked" style="left:590px;top:40px"><strong>C3</strong><small>Tempestade</small></div>
+
+      <div class="node bought" style="left:454px;top:292px;color:var(--gold)"><strong>L</strong><small>Coletor</small></div>
+      <div class="node open" style="left:548px;top:326px;color:var(--gold)"><strong>L2</strong><small>Scanner</small></div>
+      <div class="node locked" style="left:632px;top:370px"><strong>L3</strong><small>Banco</small></div>
+
+      <div class="node open" style="left:294px;top:334px;color:var(--purple)"><strong>X</strong><small>Furia</small></div>
+      <div class="node locked" style="left:246px;top:408px"><strong>X2</strong><small>Caos</small></div>
+      <div class="node locked" style="left:186px;top:462px"><strong>X3</strong><small>Anomalia</small></div>
+
+      <div class="fusion" style="left:304px;top:104px">TITA</div>
+      <div class="fusion" style="left:394px;top:345px">CRIO</div>
+      <div class="fusion" style="left:466px;top:166px">CAMPO</div>
+    </section>
+
+    <aside class="panel right">
+      <h3>Por que funciona</h3>
+      <div class="build"><strong>Clareza</strong><span>O jogador ve caminho, tier e requisito em segundos. Nada de 59 bolinhas soltas.</span></div>
+      <div class="build"><strong>Builds</strong><span>Unlock permanente + slots ativos cria pergunta boa: "o que eu levo para esta run?"</span></div>
+      <div class="build"><strong>Balanceamento</strong><span>Conta full fica forte, mas nao vira tudo ligado ao mesmo tempo.</span></div>
+      <div class="build"><strong>Expansao</strong><span>Dá para adicionar novas trilhas, chefes, cartas e comandantes sem quebrar a tela.</span></div>
+    </aside>
+
+    <div class="loadout">
+      <div class="loadout-title">Loadout ativo 5/8</div>
+      <div class="chip" style="color:var(--orange)">Canhao</div>
+      <div class="chip" style="color:var(--cyan)">Raio</div>
+      <div class="chip" style="color:var(--blue)">Fenix</div>
+      <div class="chip" style="color:var(--gold)">Coletor</div>
+      <div class="chip" style="color:var(--purple)">Caos</div>
+    </div>
+  </main>
+</body>
+</html>

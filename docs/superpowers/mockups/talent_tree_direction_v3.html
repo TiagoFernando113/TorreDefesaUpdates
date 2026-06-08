@@ -1,0 +1,588 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Cyron Defense - Doutrinas Tecnologicas</title>
+  <style>
+    :root {
+      --bg: #02050d;
+      --panel: rgba(4, 9, 19, .82);
+      --text: #eef6ff;
+      --muted: #93a7c7;
+      --cyan: #26e7ff;
+      --gold: #ffd45a;
+      --purple: #b765ff;
+      --orange: #ff8a24;
+      --blue: #46a8ff;
+      --green: #3ff28b;
+      --red: #ff4d38;
+      --line: rgba(160, 210, 255, .22);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      overflow: hidden;
+      color: var(--text);
+      font-family: "Segoe UI", Arial, sans-serif;
+      background:
+        radial-gradient(circle at 50% 55%, rgba(38,231,255,.08), transparent 22%),
+        radial-gradient(circle at 18% 28%, rgba(183,101,255,.18), transparent 27%),
+        radial-gradient(circle at 84% 18%, rgba(255,212,90,.10), transparent 25%),
+        radial-gradient(circle at 77% 82%, rgba(255,77,56,.10), transparent 24%),
+        linear-gradient(180deg, #060a15 0%, #02050d 64%, #000 100%);
+    }
+
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      background-image:
+        radial-gradient(circle, rgba(255,255,255,.9) 0 1px, transparent 1.5px),
+        radial-gradient(circle, rgba(50,180,255,.65) 0 1px, transparent 1.6px),
+        radial-gradient(circle, rgba(188,86,255,.50) 0 1px, transparent 1.6px);
+      background-size: 92px 92px, 141px 141px, 227px 227px;
+      background-position: 0 0, 40px 25px, 92px 80px;
+      opacity: .30;
+      pointer-events: none;
+    }
+
+    .screen {
+      position: fixed;
+      inset: 18px;
+      border: 1px solid rgba(105, 70, 255, .40);
+      box-shadow: 0 0 0 1px rgba(38,231,255,.10), 0 0 55px rgba(109,54,255,.15) inset;
+      background:
+        linear-gradient(90deg, rgba(0,0,0,.68), transparent 24%, transparent 76%, rgba(0,0,0,.58)),
+        repeating-linear-gradient(90deg, rgba(255,255,255,.025) 0 1px, transparent 1px 120px);
+    }
+
+    .top {
+      position: absolute;
+      top: 18px;
+      left: 30px;
+      right: 30px;
+      display: grid;
+      grid-template-columns: 330px 1fr 330px;
+      align-items: start;
+      z-index: 10;
+    }
+
+    .label {
+      color: var(--gold);
+      font-size: 13px;
+      font-weight: 950;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      opacity: .95;
+    }
+
+    .title {
+      text-align: center;
+      font-size: 35px;
+      line-height: 1;
+      color: #c987ff;
+      font-weight: 950;
+      letter-spacing: 4px;
+      text-shadow: 0 0 18px rgba(183,101,255,.78);
+    }
+
+    .bar {
+      width: 420px;
+      height: 28px;
+      margin: 9px auto 0;
+      border: 1px solid rgba(38,231,255,.35);
+      border-radius: 9px;
+      background: rgba(0, 8, 18, .75);
+      position: relative;
+      overflow: hidden;
+      color: #87edff;
+      text-align: center;
+      font-size: 17px;
+      font-weight: 900;
+      line-height: 26px;
+    }
+
+    .bar::before {
+      content: "";
+      position: absolute;
+      inset: 0 auto 0 0;
+      width: 28%;
+      background: linear-gradient(90deg, rgba(183,101,255,.92), rgba(38,231,255,.7));
+      box-shadow: 0 0 18px rgba(183,101,255,.9);
+      opacity: .6;
+    }
+
+    .bar span { position: relative; z-index: 2; }
+
+    .wallet {
+      justify-self: end;
+      display: flex;
+      gap: 10px;
+    }
+
+    .wallet-card {
+      height: 42px;
+      min-width: 125px;
+      padding: 0 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      border: 1px solid currentColor;
+      color: var(--cyan);
+      background: rgba(0,0,0,.70);
+      clip-path: polygon(12px 0, 100% 0, 100% calc(100% - 12px), calc(100% - 12px) 100%, 0 100%, 0 12px);
+      font-size: 16px;
+      font-weight: 950;
+      box-shadow: 0 0 16px color-mix(in srgb, currentColor 42%, transparent);
+    }
+
+    .wallet-card.gold { color: var(--gold); }
+
+    .coin {
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      border: 2px solid currentColor;
+      background: radial-gradient(circle at 38% 28%, white, currentColor 36%, #05080f 70%);
+      box-shadow: 0 0 12px currentColor;
+    }
+
+    .info {
+      position: absolute;
+      top: 165px;
+      left: 28px;
+      width: 300px;
+      min-height: 540px;
+      padding: 24px 22px;
+      background:
+        radial-gradient(circle at 50% 0, rgba(255,212,90,.16), transparent 32%),
+        linear-gradient(180deg, rgba(4,9,19,.93), rgba(3,7,15,.77));
+      border: 1px solid rgba(255,212,90,.46);
+      box-shadow: 0 0 32px rgba(255,170,32,.13);
+      clip-path: polygon(0 18px, 18px 0, calc(100% - 18px) 0, 100% 18px, 100% calc(100% - 18px), calc(100% - 18px) 100%, 18px 100%, 0 calc(100% - 18px));
+      z-index: 5;
+    }
+
+    .info .tier {
+      width: 76px;
+      height: 76px;
+      margin: 0 auto 14px;
+      display: grid;
+      place-items: center;
+      border: 2px solid var(--gold);
+      border-radius: 50%;
+      color: var(--gold);
+      font-size: 33px;
+      font-weight: 950;
+      text-shadow: 0 0 14px rgba(255,212,90,.7);
+      box-shadow: 0 0 22px rgba(255,212,90,.25) inset, 0 0 18px rgba(255,212,90,.25);
+    }
+
+    .info h2 {
+      margin: 0;
+      color: var(--cyan);
+      text-align: center;
+      font-size: 24px;
+      line-height: 1.1;
+    }
+
+    .info .school {
+      margin-top: 5px;
+      color: #aabadd;
+      text-align: center;
+      font-size: 13px;
+      font-weight: 900;
+      letter-spacing: .5px;
+    }
+
+    .info p {
+      margin: 22px 0;
+      color: #d8e5f6;
+      font-size: 15px;
+      line-height: 1.48;
+      font-weight: 680;
+    }
+
+    .info .state {
+      margin-top: 20px;
+      color: var(--green);
+      font-size: 14px;
+      font-weight: 950;
+      letter-spacing: .5px;
+    }
+
+    .info .cost {
+      margin-top: 10px;
+      color: #aebdd8;
+      font-size: 13px;
+      line-height: 1.45;
+      font-weight: 800;
+    }
+
+    .reset {
+      position: absolute;
+      left: 22px;
+      right: 22px;
+      bottom: 22px;
+      height: 42px;
+      display: grid;
+      place-items: center;
+      border: 1px solid var(--gold);
+      color: var(--gold);
+      background: rgba(255,212,90,.08);
+      border-radius: 4px;
+      font-weight: 950;
+    }
+
+    .matrix {
+      position: absolute;
+      inset: 105px 34px 76px 350px;
+      z-index: 2;
+      display: grid;
+      grid-template-columns: 82px repeat(5, minmax(142px, 1fr));
+      gap: 12px;
+      align-items: stretch;
+    }
+
+    .tiers {
+      display: grid;
+      grid-template-rows: 110px 86px 86px 86px 86px 108px;
+      gap: 12px;
+      padding-top: 48px;
+    }
+
+    .tier-label {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #8396bb;
+      font-size: 12px;
+      font-weight: 950;
+      letter-spacing: 1px;
+      writing-mode: vertical-rl;
+      text-transform: uppercase;
+      border-right: 1px solid rgba(255,255,255,.10);
+      opacity: .78;
+    }
+
+    .lane {
+      position: relative;
+      display: grid;
+      grid-template-rows: 48px 110px 86px 86px 86px 86px 108px;
+      gap: 12px;
+    }
+
+    .lane::before {
+      content: "";
+      position: absolute;
+      top: 54px;
+      bottom: 74px;
+      left: 50%;
+      width: 2px;
+      transform: translateX(-50%);
+      background: linear-gradient(180deg, transparent, currentColor 12%, currentColor 88%, transparent);
+      opacity: .50;
+      filter: drop-shadow(0 0 10px currentColor);
+    }
+
+    .lane-head {
+      position: relative;
+      color: currentColor;
+      border: 1px solid currentColor;
+      background: rgba(0,0,0,.52);
+      clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px);
+      display: grid;
+      align-content: center;
+      justify-items: center;
+      box-shadow: 0 0 16px color-mix(in srgb, currentColor 36%, transparent);
+    }
+
+    .lane-head strong {
+      font-size: 17px;
+      line-height: 1;
+      font-weight: 950;
+      letter-spacing: .7px;
+    }
+
+    .lane-head span {
+      margin-top: 4px;
+      color: #c5d5ee;
+      font-size: 10px;
+      font-weight: 900;
+      opacity: .78;
+    }
+
+    .slot {
+      position: relative;
+      min-height: 76px;
+      padding: 12px 10px 10px;
+      border: 1px solid rgba(255,255,255,.12);
+      background:
+        radial-gradient(circle at 50% 15%, color-mix(in srgb, currentColor 14%, transparent), transparent 62%),
+        rgba(1, 5, 13, .68);
+      clip-path: polygon(10px 0, calc(100% - 10px) 0, 100% 10px, 100% calc(100% - 10px), calc(100% - 10px) 100%, 10px 100%, 0 calc(100% - 10px), 0 10px);
+      display: grid;
+      grid-template-columns: 46px 1fr;
+      align-items: center;
+      gap: 9px;
+      color: currentColor;
+      z-index: 2;
+    }
+
+    .slot.open,
+    .slot.bought {
+      border-color: currentColor;
+      box-shadow: 0 0 15px color-mix(in srgb, currentColor 30%, transparent);
+    }
+
+    .slot.locked {
+      color: #555d6c;
+      opacity: .74;
+      filter: saturate(.35);
+    }
+
+    .node {
+      width: 42px;
+      height: 42px;
+      border: 2px solid currentColor;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      background: rgba(0,0,0,.45);
+      box-shadow: 0 0 14px color-mix(in srgb, currentColor 60%, transparent);
+      font-weight: 950;
+      font-size: 14px;
+    }
+
+    .slot.bought .node {
+      background: currentColor;
+      color: #041014;
+      border-color: #fff;
+    }
+
+    .slot strong {
+      display: block;
+      color: #eef6ff;
+      font-size: 13px;
+      line-height: 1.05;
+    }
+
+    .slot small {
+      display: block;
+      margin-top: 4px;
+      color: #a9b9d6;
+      font-size: 10px;
+      line-height: 1.15;
+      font-weight: 800;
+    }
+
+    .capstone {
+      grid-template-columns: 1fr;
+      text-align: center;
+      padding: 14px 12px;
+      align-content: center;
+    }
+
+    .capstone .node {
+      width: 58px;
+      height: 58px;
+      margin: 0 auto 9px;
+      border-radius: 16px;
+      transform: rotate(45deg);
+    }
+
+    .capstone .node span {
+      transform: rotate(-45deg);
+    }
+
+    .fusion-row {
+      position: absolute;
+      left: 370px;
+      right: 50px;
+      top: 418px;
+      height: 74px;
+      z-index: 4;
+      pointer-events: none;
+    }
+
+    .fusion-line {
+      position: absolute;
+      top: 36px;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, var(--gold), transparent);
+      filter: drop-shadow(0 0 10px var(--gold));
+      opacity: .70;
+    }
+
+    .fusion {
+      position: absolute;
+      top: 8px;
+      width: 58px;
+      height: 58px;
+      display: grid;
+      place-items: center;
+      border: 2px solid var(--gold);
+      color: var(--gold);
+      background: rgba(0,0,0,.78);
+      transform: rotate(45deg);
+      box-shadow: 0 0 18px rgba(255,212,90,.42);
+      font-size: 11px;
+      font-weight: 950;
+    }
+
+    .fusion span { transform: rotate(-45deg); }
+
+    .back {
+      position: absolute;
+      left: 50%;
+      bottom: 17px;
+      transform: translateX(-50%);
+      width: 230px;
+      height: 48px;
+      display: grid;
+      place-items: center;
+      border: 1px solid rgba(255,255,255,.46);
+      background: rgba(25, 27, 36, .84);
+      border-radius: 8px;
+      color: #e8edf6;
+      font-size: 24px;
+      font-weight: 950;
+      letter-spacing: 1px;
+      z-index: 9;
+    }
+
+    .legend {
+      position: absolute;
+      right: 36px;
+      bottom: 26px;
+      display: flex;
+      gap: 15px;
+      color: #a9b9d5;
+      font-size: 13px;
+      font-weight: 850;
+      z-index: 9;
+    }
+
+    .legend span::before {
+      content: "";
+      display: inline-block;
+      width: 11px;
+      height: 11px;
+      margin-right: 6px;
+      border: 1px solid currentColor;
+      border-radius: 50%;
+      vertical-align: -1px;
+    }
+
+    @media (max-width: 1100px) {
+      .matrix { grid-template-columns: 60px repeat(5, 1fr); left: 315px; }
+      .slot { grid-template-columns: 38px 1fr; padding: 9px 7px; }
+      .node { width: 36px; height: 36px; }
+      .slot strong { font-size: 11px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="screen">
+    <header class="top">
+      <div class="label">Novo sistema: Doutrinas</div>
+      <div>
+        <div class="title">CENTRO DE TECNOLOGIA</div>
+        <div class="bar"><span>12 pontos gastos · Tier 3 liberado</span></div>
+      </div>
+      <div class="wallet">
+        <div class="wallet-card gold"><span class="coin"></span>145.0K</div>
+        <div class="wallet-card"><span class="coin"></span>3012</div>
+      </div>
+    </header>
+
+    <aside class="info">
+      <div class="tier">III</div>
+      <h2>Canhao Duplo</h2>
+      <div class="school">DOUTRINA ARSENAL</div>
+      <p>O jogador nao precisa decifrar uma teia. Ele escolhe uma doutrina, avanca por tiers e pega tecnologias que mudam a partida de verdade.</p>
+      <p>Fusoes aparecem quando dois caminhos evoluem juntos. Isso cria builds: Arsenal + Bastion vira tanque pesado; Controle + Economia vira farming; Arsenal + Controle vira dano elemental.</p>
+      <div class="state">LIBERADO PARA COMPRAR</div>
+      <div class="cost">Requer: 4 pontos em Arsenal<br>Custo: 59 cristais</div>
+      <div class="reset">REDEFINIR PONTOS</div>
+    </aside>
+
+    <section class="matrix">
+      <div class="tiers">
+        <div class="tier-label">Nucleo</div>
+        <div class="tier-label">Tier I</div>
+        <div class="tier-label">Tier II</div>
+        <div class="tier-label">Tier III</div>
+        <div class="tier-label">Tier IV</div>
+        <div class="tier-label">Dominio</div>
+      </div>
+
+      <div class="lane" style="color:var(--orange)">
+        <div class="lane-head"><strong>ARSENAL</strong><span>dano · cadencia · alvo</span></div>
+        <div class="slot bought"><div class="node">A</div><div><strong>Fogo Interior</strong><small>+dano base permanente</small></div></div>
+        <div class="slot open"><div class="node">A1</div><div><strong>Disparo Rapido</strong><small>cadencia e conforto</small></div></div>
+        <div class="slot open"><div class="node">A2</div><div><strong>Canhao Duplo</strong><small>mira em 2 alvos</small></div></div>
+        <div class="slot locked"><div class="node">A3</div><div><strong>Arsenal Pesado</strong><small>salto grande de dano</small></div></div>
+        <div class="slot capstone locked"><div class="node"><span>AR</span></div><strong>Lenda do Canhao</strong><small>projeteis queimam e atravessam</small></div>
+      </div>
+
+      <div class="lane" style="color:var(--blue)">
+        <div class="lane-head"><strong>BASTION</strong><span>vida · escudo · boss</span></div>
+        <div class="slot bought"><div class="node">B</div><div><strong>Escamas de Aco</strong><small>menos dano recebido</small></div></div>
+        <div class="slot open"><div class="node">B1</div><div><strong>Coracao Arcano</strong><small>regeneracao continua</small></div></div>
+        <div class="slot locked"><div class="node">B2</div><div><strong>Fenix</strong><small>sobrevive 1x por run</small></div></div>
+        <div class="slot locked"><div class="node">B3</div><div><strong>Muralha Viva</strong><small>mais HP maximo</small></div></div>
+        <div class="slot capstone locked"><div class="node"><span>BG</span></div><strong>Guardiao Estelar</strong><small>bloqueia golpe de boss</small></div>
+      </div>
+
+      <div class="lane" style="color:var(--cyan)">
+        <div class="lane-head"><strong>CONTROLE</strong><span>raio · gelo · veneno</span></div>
+        <div class="slot bought"><div class="node">C</div><div><strong>Condutor Arcano</strong><small>raio desde wave 1</small></div></div>
+        <div class="slot open"><div class="node">C1</div><div><strong>Vantagem Glacial</strong><small>lentos tomam mais dano</small></div></div>
+        <div class="slot open"><div class="node">C2</div><div><strong>Toque Sombrio</strong><small>veneno vira base</small></div></div>
+        <div class="slot locked"><div class="node">C3</div><div><strong>Tempestade</strong><small>habilidades recarregam</small></div></div>
+        <div class="slot capstone locked"><div class="node"><span>CT</span></div><strong>Campo Total</strong><small>controle elemental em cadeia</small></div>
+      </div>
+
+      <div class="lane" style="color:var(--gold)">
+        <div class="lane-head"><strong>LOGISTICA</strong><span>cytron · cristais · cartas</span></div>
+        <div class="slot bought"><div class="node">L</div><div><strong>Coletor de Cytron</strong><small>economia por kill</small></div></div>
+        <div class="slot open"><div class="node">L1</div><div><strong>Credito de Campo</strong><small>comeca mais forte</small></div></div>
+        <div class="slot locked"><div class="node">L2</div><div><strong>Scanner de Cartas</strong><small>mais escolhas por wave</small></div></div>
+        <div class="slot locked"><div class="node">L3</div><div><strong>Mineracao Cristalina</strong><small>cristais ao fim da run</small></div></div>
+        <div class="slot capstone locked"><div class="node"><span>BC</span></div><strong>Banco Cristalino</strong><small>conta acelera progresso</small></div>
+      </div>
+
+      <div class="lane" style="color:var(--purple)">
+        <div class="lane-head"><strong>RISCO</strong><span>caos · berserker · tempo</span></div>
+        <div class="slot open"><div class="node">R</div><div><strong>Furia de Sangue</strong><small>mais dano com pouco HP</small></div></div>
+        <div class="slot locked"><div class="node">R1</div><div><strong>Dados do Caos</strong><small>alto risco, alto ganho</small></div></div>
+        <div class="slot locked"><div class="node">R2</div><div><strong>Fluxo Lento</strong><small>controle do ritmo</small></div></div>
+        <div class="slot locked"><div class="node">R3</div><div><strong>Retrocesso</strong><small>recupera wave perdida</small></div></div>
+        <div class="slot capstone locked"><div class="node"><span>RX</span></div><strong>Anomalia Final</strong><small>builds estranhas e fortes</small></div>
+      </div>
+    </section>
+
+    <div class="fusion-row">
+      <div class="fusion-line" style="left:4%;width:42%"></div>
+      <div class="fusion-line" style="left:31%;width:42%"></div>
+      <div class="fusion-line" style="left:58%;width:34%"></div>
+      <div class="fusion" style="left:18%"><span>TITA</span></div>
+      <div class="fusion" style="left:45%"><span>CRIO</span></div>
+      <div class="fusion" style="left:72%"><span>CAOS</span></div>
+    </div>
+
+    <div class="back">VOLTAR</div>
+    <div class="legend">
+      <span style="color:#555d6c">bloqueado</span>
+      <span style="color:#26e7ff">liberado</span>
+      <span style="color:#ffd45a">comprado</span>
+    </div>
+  </main>
+</body>
+</html>

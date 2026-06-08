@@ -1,0 +1,507 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Cyron Defense - Talent System V6</title>
+  <style>
+    :root {
+      --bg: #02050c;
+      --panel: rgba(4, 8, 18, .88);
+      --text: #edf5ff;
+      --muted: #9aabc8;
+      --cyan: #23e8ff;
+      --blue: #4aa8ff;
+      --gold: #ffd35a;
+      --orange: #ff842d;
+      --green: #58f28c;
+      --purple: #b66dff;
+      --red: #ff4f45;
+      --locked: #404755;
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+      background: #000;
+      color: var(--text);
+      font-family: "Segoe UI", Arial, sans-serif;
+    }
+
+    .stage {
+      position: relative;
+      width: 1280px;
+      height: 720px;
+      overflow: hidden;
+      border: 1px solid rgba(39, 232, 255, .22);
+      background:
+        radial-gradient(circle at 57% 50%, rgba(70, 145, 255, .12), transparent 34%),
+        radial-gradient(circle at 19% 20%, rgba(180, 90, 255, .12), transparent 21%),
+        radial-gradient(circle at 89% 78%, rgba(0, 220, 255, .08), transparent 22%),
+        linear-gradient(180deg, #030713, #010309 72%, #000);
+    }
+
+    .stage::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background-image:
+        radial-gradient(circle, rgba(255,255,255,.92) 0 1px, transparent 1.6px),
+        radial-gradient(circle, rgba(39,232,255,.55) 0 1px, transparent 1.6px),
+        radial-gradient(circle, rgba(180,90,255,.48) 0 1px, transparent 1.6px);
+      background-size: 94px 94px, 155px 155px, 231px 231px;
+      background-position: 15px 20px, 62px 80px, 120px 32px;
+      opacity: .18;
+      pointer-events: none;
+    }
+
+    .top {
+      position: absolute;
+      left: 24px;
+      right: 24px;
+      top: 18px;
+      height: 86px;
+      display: grid;
+      grid-template-columns: 280px 1fr 315px;
+      z-index: 10;
+    }
+
+    .label {
+      color: var(--gold);
+      font-size: 11px;
+      font-weight: 950;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+    }
+
+    .mode {
+      margin-top: 7px;
+      color: #eaf4ff;
+      font-size: 17px;
+      font-weight: 900;
+      letter-spacing: .5px;
+    }
+
+    h1 {
+      margin: 0;
+      color: #f6f0ff;
+      text-align: center;
+      font-size: 40px;
+      line-height: .95;
+      letter-spacing: 3px;
+      text-shadow: 0 0 18px rgba(182,109,255,.54);
+    }
+
+    .sub {
+      width: 520px;
+      height: 29px;
+      margin: 9px auto 0;
+      display: grid;
+      place-items: center;
+      color: #80e7ff;
+      border: 1px solid rgba(39,232,255,.35);
+      background: rgba(1, 12, 25, .78);
+      border-radius: 8px;
+      font-size: 15px;
+      font-weight: 900;
+    }
+
+    .wallet {
+      display: flex;
+      justify-content: flex-end;
+      gap: 12px;
+    }
+
+    .wallet-card {
+      min-width: 132px;
+      height: 44px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 0 14px;
+      color: var(--cyan);
+      border: 2px solid currentColor;
+      background: rgba(2, 14, 28, .84);
+      clip-path: polygon(0 0, 88% 0, 100% 34%, 100% 100%, 12% 100%, 0 66%);
+      font-size: 18px;
+      font-weight: 950;
+    }
+
+    .wallet-card.gold { color: var(--gold); }
+
+    .coin {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      border: 2px solid currentColor;
+      box-shadow: 0 0 10px currentColor;
+    }
+
+    .panel {
+      position: absolute;
+      z-index: 8;
+      border: 1px solid rgba(255,211,90,.38);
+      background: linear-gradient(180deg, rgba(6, 10, 20, .92), rgba(2, 5, 12, .72));
+      box-shadow: 0 0 28px rgba(255,211,90,.07) inset;
+    }
+
+    .details {
+      left: 24px;
+      top: 130px;
+      bottom: 86px;
+      width: 260px;
+      padding: 18px;
+      clip-path: polygon(0 0, 86% 0, 100% 26px, 100% 100%, 0 100%);
+    }
+
+    .points {
+      width: 76px;
+      height: 54px;
+      display: grid;
+      place-items: center;
+      border: 1px solid rgba(255,211,90,.62);
+      background: rgba(0,0,0,.76);
+      color: var(--gold);
+      font-size: 28px;
+      font-weight: 950;
+    }
+
+    .details h2 {
+      margin: 18px 0 0;
+      color: #fff4bd;
+      font-size: 26px;
+      line-height: 1.05;
+    }
+
+    .details .school {
+      margin-top: 4px;
+      color: var(--cyan);
+      font-size: 12px;
+      font-weight: 950;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+    }
+
+    .details p {
+      margin: 14px 0 0;
+      color: #cbd7eb;
+      font-size: 12.4px;
+      line-height: 1.38;
+      font-weight: 750;
+    }
+
+    .state {
+      margin-top: 18px;
+      color: var(--green);
+      font-size: 13px;
+      font-weight: 950;
+      text-transform: uppercase;
+    }
+
+    .req {
+      margin-top: 7px;
+      color: #dde6f7;
+      font-size: 11.4px;
+      line-height: 1.34;
+      font-weight: 750;
+    }
+
+    .action {
+      position: absolute;
+      left: 18px;
+      right: 18px;
+      bottom: 14px;
+      height: 38px;
+      display: grid;
+      place-items: center;
+      color: #ffe976;
+      border: 1px solid var(--gold);
+      background: rgba(255,211,90,.09);
+      font-size: 13px;
+      font-weight: 950;
+      letter-spacing: 1px;
+    }
+
+    .map {
+      position: absolute;
+      left: 306px;
+      right: 24px;
+      top: 120px;
+      bottom: 88px;
+      z-index: 5;
+      border: 1px solid rgba(39,232,255,.12);
+      background:
+        radial-gradient(circle at 34% 50%, rgba(255,211,90,.10), transparent 22%),
+        radial-gradient(circle at 72% 23%, rgba(182,109,255,.08), transparent 20%),
+        rgba(0,0,0,.16);
+    }
+
+    .lane-label {
+      position: absolute;
+      left: 34px;
+      width: 140px;
+      color: currentColor;
+      font-size: 15px;
+      font-weight: 950;
+      letter-spacing: 1px;
+      text-shadow: 0 0 10px currentColor;
+    }
+
+    .lane-label span {
+      display: block;
+      margin-top: 2px;
+      color: #98aac8;
+      font-size: 10px;
+      letter-spacing: 1px;
+    }
+
+    .node {
+      position: absolute;
+      transform: translate(-50%, -50%);
+      width: 54px;
+      height: 54px;
+      display: grid;
+      place-items: center;
+      border-radius: 50%;
+      border: 2px solid currentColor;
+      background: rgba(0,0,0,.76);
+      color: var(--cyan);
+      font-size: 13px;
+      font-weight: 950;
+      z-index: 4;
+    }
+
+    .node.big {
+      width: 82px;
+      height: 82px;
+      font-size: 14px;
+    }
+
+    .node.open {
+      box-shadow: 0 0 16px currentColor;
+    }
+
+    .node.bought {
+      background: radial-gradient(circle, currentColor, rgba(0,0,0,.76) 64%);
+      color: #eefaff;
+      border-color: #fff;
+    }
+
+    .node.locked {
+      color: var(--locked);
+      border-color: #303846;
+      opacity: .72;
+    }
+
+    .node small {
+      position: absolute;
+      left: 50%;
+      top: 59px;
+      min-width: 100px;
+      transform: translateX(-50%);
+      color: #dbe8ff;
+      text-align: center;
+      font-size: 10px;
+      line-height: 1.1;
+      text-shadow: 0 1px 5px #000;
+    }
+
+    .fusion {
+      border-radius: 20%;
+      clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%);
+      color: var(--gold);
+      width: 78px;
+      height: 78px;
+      font-size: 11px;
+      text-transform: uppercase;
+      box-shadow: 0 0 18px rgba(255,211,90,.32);
+    }
+
+    .start {
+      width: 92px;
+      height: 92px;
+      color: var(--gold);
+      font-size: 12px;
+      line-height: 1.1;
+      text-align: center;
+      border-width: 2px;
+      background: radial-gradient(circle, rgba(255,211,90,.18), rgba(0,0,0,.78) 68%);
+    }
+
+    svg {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      overflow: visible;
+      z-index: 2;
+    }
+
+    .route {
+      fill: none;
+      stroke-width: 4;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      opacity: .82;
+    }
+
+    .route.locked {
+      stroke: rgba(92,104,126,.36);
+      stroke-width: 3;
+      opacity: .72;
+    }
+
+    .route.thin {
+      stroke-width: 2;
+      opacity: .42;
+    }
+
+    .legend {
+      position: absolute;
+      left: 306px;
+      bottom: 22px;
+      width: 530px;
+      height: 46px;
+      display: flex;
+      align-items: center;
+      gap: 13px;
+      padding: 0 14px;
+      border: 1px solid rgba(39,232,255,.22);
+      background: rgba(4,9,19,.78);
+      color: #aebfe0;
+      font-size: 12px;
+      font-weight: 850;
+      z-index: 9;
+    }
+
+    .dot {
+      width: 13px;
+      height: 13px;
+      border-radius: 50%;
+      border: 2px solid currentColor;
+      display: inline-block;
+      vertical-align: middle;
+      margin-right: 5px;
+    }
+
+    .back {
+      position: absolute;
+      right: 24px;
+      bottom: 22px;
+      width: 200px;
+      height: 46px;
+      display: grid;
+      place-items: center;
+      border: 1px solid rgba(255,255,255,.48);
+      background: rgba(28,30,40,.84);
+      border-radius: 7px;
+      color: #edf4ff;
+      font-size: 20px;
+      font-weight: 950;
+      z-index: 10;
+    }
+  </style>
+</head>
+<body>
+  <main class="stage">
+    <header class="top">
+      <div>
+        <div class="label">Direcao V6</div>
+        <div class="mode">Mapa de rotas com fusoes</div>
+      </div>
+      <div>
+        <h1>CENTRO DE TECNOLOGIA</h1>
+        <div class="sub">inicio simples - rotas paralelas - fusoes por requisito cruzado</div>
+      </div>
+      <div class="wallet">
+        <div class="wallet-card gold"><span class="coin"></span>145.0K</div>
+        <div class="wallet-card"><span class="coin"></span>3012</div>
+      </div>
+    </header>
+
+    <aside class="panel details">
+      <div class="points">14</div>
+      <h2>Fusao Crio-Plasma</h2>
+      <div class="school">Controle + Arsenal</div>
+      <p>O jogador comeca no nucleo e escolhe uma das tres rotas principais: Arsenal, Controle ou Bastion.</p>
+      <p>Fusoes exigem duas rotas chegando no mesmo ponto. Elas viram os poderes grandes da conta e criam builds de verdade.</p>
+      <div class="state">LIBERADO PARA COMPRAR</div>
+      <div class="req">Requer: Canhao Duplo nv. 2 + Raio Glacial nv. 2<br>Custo: 2 pontos + 59 cristais</div>
+      <div class="action">COMPRAR FUSAO</div>
+    </aside>
+
+    <section class="map">
+      <div class="lane-label" style="top:62px;color:var(--orange)">ARSENAL<span>dano e projeteis</span></div>
+      <div class="lane-label" style="top:242px;color:var(--cyan)">CONTROLE<span>gelo, raio e veneno</span></div>
+      <div class="lane-label" style="top:424px;color:var(--blue)">BASTION<span>defesa e economia</span></div>
+
+      <svg viewBox="0 0 950 512" preserveAspectRatio="none" aria-hidden="true">
+        <path class="route" stroke="#ffd35a" d="M58 256 L150 256 L150 128 L248 128 L248 62 L370 62 L488 114"/>
+        <path class="route" stroke="#ffd35a" d="M58 256 L150 256 L150 388 L248 388 L248 456 L370 456 L590 456 L770 388"/>
+        <path class="route" stroke="#23e8ff" d="M58 256 L150 256 L370 256 L488 256 L770 256 L904 256"/>
+        <path class="route" stroke="#ff842d" d="M150 128 L248 128 L370 128 L488 114 L590 62 L704 62 L818 62 L896 114"/>
+        <path class="route" stroke="#23e8ff" d="M370 128 L488 256 L590 150 L662 226 L818 226 L896 114"/>
+        <path class="route" stroke="#4aa8ff" d="M248 388 L370 388 L662 226 L770 256 L896 388"/>
+        <path class="route" stroke="#b66dff" d="M248 388 L488 256 L590 330 L770 388 L896 388"/>
+        <path class="route locked" d="M818 62 L904 62 L930 96"/>
+        <path class="route locked" d="M818 226 L904 226 L940 226"/>
+        <path class="route locked" d="M896 388 L904 456 L940 456"/>
+        <path class="route thin" stroke="#ffd35a" d="M488 114 L590 150"/>
+        <path class="route thin" stroke="#ffd35a" d="M590 330 L590 456"/>
+      </svg>
+
+      <div class="node start bought" style="left:58px;top:256px">TALENTO<br>INICIAL</div>
+
+      <div class="node bought" style="left:150px;top:128px;color:var(--orange)">T1<small>Fogo Interior</small></div>
+      <div class="node bought" style="left:150px;top:256px;color:var(--cyan)">T2<small>Nucleo Condutor</small></div>
+      <div class="node bought" style="left:150px;top:388px;color:var(--blue)">T3<small>Escudo Base</small></div>
+
+      <div class="node open" style="left:248px;top:128px;color:var(--orange)">T4<small>Canhao Duplo</small></div>
+      <div class="node locked" style="left:248px;top:62px">T5<small>Plasma</small></div>
+      <div class="node open" style="left:248px;top:388px;color:var(--blue)">T6<small>Armadura Lunar</small></div>
+      <div class="node locked" style="left:248px;top:456px">T7<small>Banco Orbital</small></div>
+
+      <div class="node locked" style="left:370px;top:62px">T8<small>Projeteis</small></div>
+      <div class="node open" style="left:370px;top:128px;color:var(--orange)">T9<small>Superaquecido</small></div>
+      <div class="node open" style="left:370px;top:256px;color:var(--cyan)">T10<small>Raio Glacial</small></div>
+      <div class="node open" style="left:370px;top:388px;color:var(--blue)">T11<small>Regenerador</small></div>
+      <div class="node locked" style="left:370px;top:456px">T12<small>Seguro</small></div>
+
+      <div class="node fusion open" style="left:488px;top:114px">FUSAO<small>Crio-Plasma</small></div>
+      <div class="node fusion open" style="left:488px;top:256px">FUSAO<small>Raio Escudo</small></div>
+
+      <div class="node locked" style="left:590px;top:62px">T13<small>Arsenal Pesado</small></div>
+      <div class="node locked" style="left:590px;top:150px">T14<small>Onda Congelante</small></div>
+      <div class="node open" style="left:662px;top:226px;color:var(--cyan)">T15<small>Paralisia</small></div>
+      <div class="node locked" style="left:704px;top:62px">T16<small>Canhao Orbital</small></div>
+      <div class="node open" style="left:590px;top:330px;color:var(--purple)">T17<small>Vazio</small></div>
+      <div class="node locked" style="left:590px;top:456px">T18<small>Reserva</small></div>
+
+      <div class="node locked" style="left:818px;top:62px">T19<small>Execucao</small></div>
+      <div class="node locked" style="left:818px;top:226px">T20<small>Choque Final</small></div>
+      <div class="node open" style="left:770px;top:256px;color:var(--cyan)">T21<small>Campo Defletor</small></div>
+      <div class="node open" style="left:770px;top:388px;color:var(--blue)">T22<small>Coracao Estelar</small></div>
+      <div class="node locked" style="left:904px;top:456px">T23<small>Sorteio</small></div>
+
+      <div class="node fusion locked" style="left:896px;top:114px">FUSAO<small>Tita</small></div>
+      <div class="node fusion locked" style="left:896px;top:388px">FUSAO<small>Abismo</small></div>
+      <div class="node locked" style="left:904px;top:62px">T25<small>Dominio</small></div>
+      <div class="node locked" style="left:904px;top:226px">T26<small>Tempestade</small></div>
+      <div class="node locked" style="left:904px;top:320px">T27<small>Ascensao</small></div>
+    </section>
+
+    <div class="legend">
+      <span style="color:var(--green)"><i class="dot"></i>comprado</span>
+      <span style="color:var(--cyan)"><i class="dot"></i>liberado</span>
+      <span style="color:#697487"><i class="dot"></i>bloqueado</span>
+      <span style="color:var(--gold)"><i class="dot"></i>fusao exige duas rotas</span>
+    </div>
+
+    <div class="back">VOLTAR</div>
+  </main>
+</body>
+</html>

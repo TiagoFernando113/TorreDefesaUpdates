@@ -1,0 +1,12 @@
+Windows Registry Editor Version 5.00
+
+[HKEY_CURRENT_USER\Software\Classes\cyrondefense]
+@="URL:Cyron Defense Protocol"
+"URL Protocol"=""
+
+[HKEY_CURRENT_USER\Software\Classes\cyrondefense\shell]
+
+[HKEY_CURRENT_USER\Software\Classes\cyrondefense\shell\open]
+
+[HKEY_CURRENT_USER\Software\Classes\cyrondefense\shell\open\command]
+@="\"C:\\Users\\senha\\Downloads\\Godot_v4.6.2-stable_win64.exe\\Godot_v4.6.2-stable_win64_console.exe\" --path \"C:\\Users\\senha\\TorreDefesa\" \"%1\""

@@ -1,0 +1,555 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Cyron Defense - Mockup Centro de Tecnologia</title>
+  <style>
+    :root {
+      --bg: #020611;
+      --panel: rgba(3, 8, 18, 0.76);
+      --line: rgba(110, 190, 255, 0.35);
+      --text: #e9f2ff;
+      --muted: #93a7c3;
+      --gold: #ffd34a;
+      --cyan: #20e8ff;
+      --purple: #b35cff;
+      --green: #38f58a;
+      --red: #ff523d;
+      --orange: #ff9a1d;
+      --blue: #4aa3ff;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      overflow: hidden;
+      background:
+        radial-gradient(circle at 50% 52%, rgba(255, 200, 74, 0.16), transparent 13%),
+        radial-gradient(circle at 20% 32%, rgba(179, 92, 255, 0.18), transparent 24%),
+        radial-gradient(circle at 82% 26%, rgba(32, 232, 255, 0.14), transparent 22%),
+        radial-gradient(circle at 70% 78%, rgba(255, 82, 61, 0.12), transparent 20%),
+        linear-gradient(180deg, #040711 0%, #020611 60%, #000 100%);
+      color: var(--text);
+      font-family: "Segoe UI", Arial, sans-serif;
+    }
+
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      background-image:
+        radial-gradient(circle, rgba(255,255,255,.88) 0 1px, transparent 1.5px),
+        radial-gradient(circle, rgba(70,180,255,.65) 0 1px, transparent 1.6px),
+        radial-gradient(circle, rgba(190,80,255,.55) 0 1px, transparent 1.4px);
+      background-size: 90px 90px, 137px 137px, 211px 211px;
+      background-position: 0 0, 30px 20px, 80px 60px;
+      opacity: .36;
+      pointer-events: none;
+    }
+
+    .frame {
+      position: fixed;
+      inset: 22px;
+      border: 1px solid rgba(117, 82, 255, .42);
+      box-shadow: 0 0 0 1px rgba(32,232,255,.11), 0 0 42px rgba(84,30,255,.18) inset;
+      background: radial-gradient(circle at 50% 50%, rgba(27, 19, 58, .14), transparent 45%);
+    }
+
+    .hud {
+      position: absolute;
+      top: 18px;
+      left: 0;
+      right: 0;
+      display: grid;
+      grid-template-columns: 330px 1fr 330px;
+      align-items: start;
+      padding: 0 28px;
+      gap: 20px;
+      pointer-events: none;
+      z-index: 5;
+    }
+
+    .title {
+      text-align: center;
+      font-weight: 900;
+      letter-spacing: 4px;
+      color: #c58aff;
+      font-size: 34px;
+      line-height: 1;
+      text-shadow: 0 0 18px rgba(179,92,255,.7);
+    }
+
+    .subtitle {
+      margin: 10px auto 0;
+      width: 380px;
+      padding: 4px 18px 6px;
+      border: 1px solid rgba(32,232,255,.35);
+      border-radius: 8px;
+      background: rgba(4, 12, 24, .7);
+      color: #84ecff;
+      text-align: center;
+      font-size: 18px;
+      font-weight: 700;
+    }
+
+    .wallet {
+      justify-self: end;
+      display: flex;
+      gap: 8px;
+    }
+
+    .pill {
+      min-width: 116px;
+      height: 40px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 0 12px;
+      border: 1px solid currentColor;
+      background: rgba(0,0,0,.55);
+      color: var(--cyan);
+      clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px);
+      box-shadow: 0 0 16px color-mix(in srgb, currentColor 45%, transparent);
+      font-weight: 800;
+    }
+
+    .pill.gold { color: var(--gold); }
+
+    .coin {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      border: 2px solid currentColor;
+      box-shadow: 0 0 14px currentColor inset, 0 0 12px currentColor;
+    }
+
+    .side {
+      position: absolute;
+      left: 28px;
+      top: 245px;
+      width: 285px;
+      min-height: 420px;
+      padding: 26px 24px;
+      background: linear-gradient(180deg, rgba(4, 8, 16, .92), rgba(1, 3, 9, .78));
+      border: 1px solid rgba(255, 211, 74, .46);
+      box-shadow: 0 0 26px rgba(255, 170, 30, .14);
+      clip-path: polygon(0 18px, 18px 0, calc(100% - 18px) 0, 100% 18px, 100% calc(100% - 18px), calc(100% - 18px) 100%, 18px 100%, 0 calc(100% - 18px));
+      z-index: 3;
+    }
+
+    .side h2 {
+      margin: 0;
+      color: var(--gold);
+      font-size: 34px;
+      line-height: 1;
+      text-align: center;
+    }
+
+    .side h3 {
+      margin: 18px 0 4px;
+      font-size: 20px;
+      color: var(--cyan);
+      text-align: center;
+    }
+
+    .side small {
+      display: block;
+      color: var(--muted);
+      text-align: center;
+      font-weight: 700;
+    }
+
+    .side p {
+      margin: 22px 0;
+      color: #d5e3f5;
+      font-size: 15px;
+      line-height: 1.45;
+      font-weight: 650;
+    }
+
+    .state {
+      margin-top: 18px;
+      color: var(--green);
+      font-weight: 900;
+      letter-spacing: .4px;
+    }
+
+    .reset {
+      position: absolute;
+      left: 24px;
+      right: 24px;
+      bottom: 22px;
+      height: 42px;
+      border: 1px solid var(--gold);
+      color: var(--gold);
+      background: rgba(255, 211, 74, .08);
+      font-weight: 900;
+      display: grid;
+      place-items: center;
+      border-radius: 4px;
+    }
+
+    .tree-wrap {
+      position: absolute;
+      inset: 116px 26px 78px 318px;
+      z-index: 2;
+    }
+
+    svg { width: 100%; height: 100%; display: block; }
+
+    .orbit {
+      fill: none;
+      stroke: rgba(255, 211, 74, .12);
+      stroke-width: 1;
+    }
+
+    .link {
+      fill: none;
+      stroke-width: 3;
+      stroke-linecap: round;
+      filter: drop-shadow(0 0 7px currentColor);
+      opacity: .7;
+    }
+
+    .link.locked {
+      opacity: .22;
+      stroke-width: 2;
+      filter: none;
+    }
+
+    .node .halo {
+      fill: rgba(255,255,255,.02);
+      stroke: currentColor;
+      stroke-width: 2;
+      opacity: .48;
+    }
+
+    .node .dot {
+      fill: #06101d;
+      stroke: currentColor;
+      stroke-width: 2.5;
+      filter: drop-shadow(0 0 12px currentColor);
+    }
+
+    .node.locked {
+      color: #495060;
+      opacity: .72;
+      filter: none;
+    }
+
+    .node.open {
+      opacity: 1;
+    }
+
+    .node.bought .dot {
+      fill: currentColor;
+      stroke: #fff;
+    }
+
+    .node.major .dot { stroke-width: 3; }
+    .node.major .halo { opacity: .38; }
+
+    .node text {
+      fill: #f4f9ff;
+      font-size: 10px;
+      font-weight: 900;
+      text-anchor: middle;
+      dominant-baseline: middle;
+      pointer-events: none;
+    }
+
+    .branch-label {
+      font-weight: 900;
+      font-size: 18px;
+      letter-spacing: .5px;
+      text-shadow: 0 0 12px currentColor;
+    }
+
+    .branch-sub {
+      font-size: 11px;
+      font-weight: 800;
+      opacity: .86;
+    }
+
+    .auto-label {
+      font-size: 20px;
+      font-weight: 900;
+      letter-spacing: .4px;
+      text-anchor: middle;
+      text-shadow: 0 0 12px currentColor, 0 0 26px currentColor;
+    }
+
+    .auto-sub {
+      font-size: 11px;
+      font-weight: 900;
+      text-anchor: middle;
+      opacity: .86;
+    }
+
+    .rule {
+      fill: rgba(0,0,0,.52);
+      stroke: rgba(32,232,255,.25);
+      stroke-width: 1;
+    }
+
+    .note {
+      fill: #a9bfdc;
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .fusion-label {
+      fill: var(--gold);
+      font-size: 13px;
+      font-weight: 900;
+      text-anchor: middle;
+      filter: drop-shadow(0 0 8px rgba(255,211,74,.65));
+    }
+
+    .bottom {
+      position: absolute;
+      left: 50%;
+      bottom: 18px;
+      transform: translateX(-50%);
+      width: 230px;
+      height: 50px;
+      display: grid;
+      place-items: center;
+      border: 1px solid rgba(255,255,255,.48);
+      border-radius: 8px;
+      background: rgba(20, 22, 32, .78);
+      color: #e8edf7;
+      font-size: 24px;
+      font-weight: 900;
+      letter-spacing: 1px;
+      z-index: 6;
+    }
+
+    .legend {
+      position: absolute;
+      right: 42px;
+      bottom: 34px;
+      display: flex;
+      gap: 16px;
+      color: #b8cae6;
+      font-size: 13px;
+      font-weight: 700;
+      z-index: 6;
+      opacity: .88;
+    }
+
+    .legend span::before {
+      content: "";
+      display: inline-block;
+      width: 10px;
+      height: 10px;
+      margin-right: 6px;
+      border-radius: 50%;
+      border: 1px solid currentColor;
+      vertical-align: -1px;
+    }
+  </style>
+</head>
+<body>
+  <div class="frame">
+    <div class="hud">
+      <div></div>
+      <div>
+        <div class="title">CENTRO DE TECNOLOGIA</div>
+        <div class="subtitle">1 / 59 tecnologias</div>
+      </div>
+      <div class="wallet">
+        <div class="pill gold"><span class="coin"></span><span>145.0K</span></div>
+        <div class="pill"><span class="coin"></span><span>3012</span></div>
+      </div>
+    </div>
+
+    <aside class="side">
+      <h2>10</h2>
+      <h3>Canhao Orbital</h3>
+      <small>Orion / Arsenal</small>
+      <p>Projeteis causam mais dano e ganham chance de atravessar alvos. Esse e o primeiro caminho ofensivo da conta.</p>
+      <div class="state">LIBERADO PARA COMPRAR</div>
+      <p style="margin-top:10px;color:#94a9c9;">Requer: Nucleo ativo<br>Custo: 59 cristais</p>
+      <div class="reset">REDEFINIR PONTOS</div>
+    </aside>
+
+    <div class="tree-wrap">
+      <svg viewBox="0 0 1180 690" role="img" aria-label="Mockup de arvore de talentos do Centro de Tecnologia">
+        <defs>
+          <radialGradient id="coreGlow" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stop-color="#fff7a2" stop-opacity="1"/>
+            <stop offset="35%" stop-color="#ffd34a" stop-opacity=".9"/>
+            <stop offset="100%" stop-color="#ffd34a" stop-opacity="0"/>
+          </radialGradient>
+          <filter id="softGlow">
+            <feGaussianBlur stdDeviation="3" result="blur"/>
+            <feMerge>
+              <feMergeNode in="blur"/>
+              <feMergeNode in="SourceGraphic"/>
+            </feMerge>
+          </filter>
+        </defs>
+
+        <g transform="translate(640 362)">
+          <circle class="orbit" r="92"/>
+          <circle class="orbit" r="164"/>
+          <circle class="orbit" r="244"/>
+          <circle class="orbit" r="324"/>
+          <circle class="orbit" r="402"/>
+        </g>
+
+        <g id="links"></g>
+        <g id="nodes"></g>
+
+        <g transform="translate(640 362)" filter="url(#softGlow)">
+          <circle r="42" fill="url(#coreGlow)"/>
+          <circle r="22" fill="#071018" stroke="#f9f871" stroke-width="3"/>
+          <path d="M0 -24 L0 24 M-24 0 L24 0 M-17 -17 L17 17 M17 -17 L-17 17" stroke="#f9f871" stroke-width="3" stroke-linecap="round"/>
+        </g>
+
+        <text x="640" y="430" class="fusion-label">NUCLEO</text>
+        <text x="640" y="449" class="note" text-anchor="middle">ramos iniciam perto do centro e crescem para fora</text>
+
+        <text x="640" y="84" class="note" text-anchor="middle">A tela mostra as constelacoes; os nomes dos talentos aparecem no painel ao selecionar.</text>
+      </svg>
+    </div>
+
+    <div class="bottom">VOLTAR</div>
+    <div class="legend">
+      <span style="color:#495060">bloqueado</span>
+      <span style="color:#20e8ff">liberado</span>
+      <span style="color:#ffd34a">comprado</span>
+    </div>
+  </div>
+
+  <script>
+    const cx = 640;
+    const cy = 372;
+    const branches = [
+      { id:"orion", name:"ORION", sub:"ARSENAL", color:"#ff9a1d", angle:-90, nodes:[88,148,210,270], majors:[3], label:"AR" },
+      { id:"touro", name:"TOURO", sub:"FORTUNA", color:"#ffd34a", angle:-45, nodes:[94,160,224,286], majors:[2], label:"$" },
+      { id:"ursa", name:"URSA", sub:"GLACIAL", color:"#4aa3ff", angle:0, nodes:[98,170,236,302], majors:[1], label:"GL" },
+      { id:"andromeda", name:"ANDROMEDA", sub:"SOMBRA", color:"#b35cff", angle:45, nodes:[94,160,224,286], majors:[2], label:"SM" },
+      { id:"virgem", name:"VIRGEM", sub:"MAESTRIA", color:"#20f0c0", angle:90, nodes:[88,148,210,270], majors:[3], label:"MA" },
+      { id:"pegasus", name:"PEGASUS", sub:"ENERGIA", color:"#20e8ff", angle:135, nodes:[94,160,224,286], majors:[1], label:"EN" },
+      { id:"cetus", name:"CETUS", sub:"CAOS", color:"#20f0c0", angle:180, nodes:[98,170,236,302], majors:[3], label:"CX" },
+      { id:"leao", name:"LEAO", sub:"DEFESA", color:"#4aa3ff", angle:225, nodes:[94,160,224,286], majors:[2], label:"DF" },
+    ];
+
+    const links = document.getElementById("links");
+    const nodes = document.getElementById("nodes");
+    const all = [];
+    const rad = deg => deg * Math.PI / 180;
+
+    function pt(angle, radius) {
+      const a = rad(angle);
+      return [cx + Math.cos(a) * radius, cy + Math.sin(a) * radius];
+    }
+
+    function addLine(a, b, color, locked=false) {
+      const p = document.createElementNS("http://www.w3.org/2000/svg", "path");
+      p.setAttribute("d", `M${a[0]} ${a[1]} C ${(a[0]+cx)/2} ${(a[1]+cy)/2}, ${(b[0]+cx)/2} ${(b[1]+cy)/2}, ${b[0]} ${b[1]}`);
+      p.setAttribute("stroke", color);
+      p.setAttribute("class", `link${locked ? " locked" : ""}`);
+      p.style.color = color;
+      links.appendChild(p);
+    }
+
+    function addNode(x, y, color, state, major=false, label="") {
+      const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
+      g.setAttribute("class", `node ${state}${major ? " major" : ""}`);
+      g.setAttribute("transform", `translate(${x} ${y})`);
+      g.style.color = color;
+
+      const halo = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+      halo.setAttribute("r", major ? 28 : 18);
+      halo.setAttribute("class", "halo");
+      g.appendChild(halo);
+
+      const dot = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+      dot.setAttribute("r", major ? 20 : 12);
+      dot.setAttribute("class", "dot");
+      g.appendChild(dot);
+
+      const mark = document.createElementNS("http://www.w3.org/2000/svg", "path");
+      mark.setAttribute("d", major ? "M0 -10 L0 10 M-10 0 L10 0 M-7 -7 L7 7 M7 -7 L-7 7" : "M0 -6 L0 6 M-6 0 L6 0");
+      mark.setAttribute("stroke", state === "locked" ? "#777" : "#fff");
+      mark.setAttribute("stroke-width", major ? 2.4 : 1.8);
+      mark.setAttribute("stroke-linecap", "round");
+      g.appendChild(mark);
+
+      if (label) {
+        const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+        text.textContent = label;
+        text.setAttribute("y", major ? 36 : 28);
+        g.appendChild(text);
+      }
+
+      nodes.appendChild(g);
+    }
+
+    function addLabel(branch) {
+      const p = pt(branch.angle, branch.nodes[branch.nodes.length - 1] + 40);
+      const group = document.createElementNS("http://www.w3.org/2000/svg", "g");
+      group.style.color = branch.color;
+      const title = document.createElementNS("http://www.w3.org/2000/svg", "text");
+      title.textContent = branch.name;
+      title.setAttribute("x", p[0]);
+      title.setAttribute("y", p[1]);
+      title.setAttribute("fill", branch.color);
+      title.setAttribute("class", "auto-label");
+      const sub = document.createElementNS("http://www.w3.org/2000/svg", "text");
+      sub.textContent = branch.sub;
+      sub.setAttribute("x", p[0]);
+      sub.setAttribute("y", p[1] + 18);
+      sub.setAttribute("fill", branch.color);
+      sub.setAttribute("class", "auto-sub");
+      group.appendChild(title);
+      group.appendChild(sub);
+      nodes.appendChild(group);
+    }
+
+    branches.forEach((branch, branchIndex) => {
+      let prev = [cx, cy];
+      branch.nodes.forEach((radius, index) => {
+        const wobble = (index % 2 === 0 ? -1 : 1) * (branchIndex % 2) * 5;
+        const p = pt(branch.angle + wobble, radius);
+        const state = index === 0 ? "open" : (index === 1 && branchIndex < 3 ? "open" : "locked");
+        const major = branch.majors.includes(index);
+        addLine(prev, p, branch.color, state === "locked");
+        addNode(p[0], p[1], branch.color, state, major, major ? branch.label : "");
+        all.push({ branch, index, p, state, major });
+        prev = p;
+      });
+      addLabel(branch);
+    });
+
+    const fusions = [
+      ["orion", 1, "touro", 1, "#ffd34a", "FUSAO"],
+      ["leao", 1, "cetus", 1, "#20e8ff", "FUSAO"],
+      ["pegasus", 1, "virgem", 1, "#20e8ff", "FUSAO"],
+      ["andromeda", 1, "virgem", 1, "#b35cff", "FUSAO"],
+      ["orion", 0, "ursa", 0, "#ff9a1d", "FUSAO"],
+      ["cetus", 1, "leao", 1, "#20f0c0", "FUSAO"],
+    ];
+
+    function find(branchId, index) {
+      return all.find(n => n.branch.id === branchId && n.index === index);
+    }
+
+    fusions.forEach(([a, ai, b, bi, color, label], i) => {
+      const n1 = find(a, ai);
+      const n2 = find(b, bi);
+      const mx = (n1.p[0] + n2.p[0]) / 2;
+      const my = (n1.p[1] + n2.p[1]) / 2;
+      addLine(n1.p, [mx, my], color, false);
+      addLine([mx, my], n2.p, color, false);
+      addNode(mx, my, color, "open", true, i === 0 ? label : "");
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://b71m5c4na1p0u"]
+
+[ext_resource type="Script" path="res://tests/test_atualizador_conteudo.gd" id="1"]
+
+[node name="TestAtualizadorConteudo" type="Node"]
+script = ExtResource("1")

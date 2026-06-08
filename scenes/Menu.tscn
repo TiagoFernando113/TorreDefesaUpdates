@@ -1,0 +1,10 @@
+[gd_scene format=3 uid="uid://cmenu000001"]
+
+[ext_resource type="Script" uid="uid://crfmnmrfgct60" path="res://scripts/background.gd" id="1_back1"]
+[ext_resource type="Script" uid="uid://cpjbo40g3ocxq" path="res://scripts/menu.gd" id="2_menu1"]
+
+[node name="Menu" type="Node2D" unique_id=1387264261]
+script = ExtResource("2_menu1")
+
+[node name="Background" type="Node2D" parent="." unique_id=1139306441]
+script = ExtResource("1_back1")

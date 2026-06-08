@@ -1,0 +1,629 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Cyron Defense - Mockup Centro de Tecnologia V2</title>
+  <style>
+    :root {
+      --bg: #02050d;
+      --text: #eef6ff;
+      --muted: #91a4c6;
+      --cyan: #28e8ff;
+      --blue: #45a6ff;
+      --gold: #ffd45c;
+      --orange: #ff8b24;
+      --purple: #b764ff;
+      --green: #41f48e;
+      --red: #ff4c35;
+      --panel: rgba(3, 8, 18, .83);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      overflow: hidden;
+      color: var(--text);
+      font-family: "Segoe UI", Arial, sans-serif;
+      background:
+        radial-gradient(circle at 50% 50%, rgba(255, 210, 75, .10), transparent 18%),
+        radial-gradient(circle at 26% 24%, rgba(110, 50, 255, .20), transparent 26%),
+        radial-gradient(circle at 80% 28%, rgba(32, 232, 255, .12), transparent 24%),
+        radial-gradient(circle at 78% 80%, rgba(255, 86, 38, .10), transparent 24%),
+        linear-gradient(180deg, #060914 0%, #02050d 68%, #000 100%);
+    }
+
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      background-image:
+        radial-gradient(circle, rgba(255,255,255,.9) 0 1px, transparent 1.5px),
+        radial-gradient(circle, rgba(88,171,255,.65) 0 1px, transparent 1.7px),
+        radial-gradient(circle, rgba(185,97,255,.5) 0 1px, transparent 1.5px);
+      background-size: 88px 88px, 137px 137px, 221px 221px;
+      background-position: 0 0, 36px 22px, 90px 76px;
+      opacity: .31;
+    }
+
+    .screen {
+      position: fixed;
+      inset: 18px;
+      border: 1px solid rgba(120, 70, 255, .38);
+      background:
+        linear-gradient(90deg, rgba(0,0,0,.62), transparent 22%, transparent 78%, rgba(0,0,0,.55)),
+        radial-gradient(circle at 50% 50%, rgba(40,232,255,.035), transparent 52%);
+      box-shadow: 0 0 0 1px rgba(40,232,255,.12), 0 0 54px rgba(119,59,255,.16) inset;
+    }
+
+    .screen::before,
+    .screen::after {
+      content: "";
+      position: absolute;
+      left: 22px;
+      right: 22px;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(40,232,255,.42), transparent);
+    }
+    .screen::before { top: 48px; }
+    .screen::after { bottom: 58px; }
+
+    .top {
+      position: absolute;
+      top: 18px;
+      left: 28px;
+      right: 28px;
+      display: grid;
+      grid-template-columns: 280px 1fr 290px;
+      align-items: start;
+      z-index: 6;
+      pointer-events: none;
+    }
+
+    .kicker {
+      margin-top: 2px;
+      color: var(--gold);
+      font-size: 14px;
+      font-weight: 900;
+      letter-spacing: 2px;
+      opacity: .9;
+    }
+
+    .title {
+      text-align: center;
+      font-size: 36px;
+      line-height: 1;
+      color: #be7cff;
+      font-weight: 950;
+      letter-spacing: 4px;
+      text-shadow: 0 0 18px rgba(183,100,255,.75);
+    }
+
+    .subtitle {
+      width: 370px;
+      margin: 8px auto 0;
+      padding: 5px 16px 6px;
+      border: 1px solid rgba(40,232,255,.34);
+      border-radius: 8px;
+      background: rgba(3, 13, 26, .76);
+      color: #88ecff;
+      text-align: center;
+      font-size: 18px;
+      font-weight: 850;
+      letter-spacing: .3px;
+    }
+
+    .wallet {
+      justify-self: end;
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .wallet-card {
+      min-width: 122px;
+      height: 42px;
+      padding: 0 13px;
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      justify-content: center;
+      color: var(--cyan);
+      background: rgba(0, 0, 0, .72);
+      border: 1px solid currentColor;
+      clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 12px), calc(100% - 12px) 100%, 0 100%, 0 10px);
+      box-shadow: 0 0 16px color-mix(in srgb, currentColor 40%, transparent);
+      font-size: 16px;
+      font-weight: 900;
+    }
+
+    .wallet-card.gold { color: var(--gold); }
+
+    .orb {
+      width: 25px;
+      height: 25px;
+      border-radius: 50%;
+      border: 2px solid currentColor;
+      background: radial-gradient(circle at 35% 30%, #fff, currentColor 34%, #070b12 70%);
+      box-shadow: 0 0 12px currentColor;
+    }
+
+    .panel {
+      position: absolute;
+      top: 188px;
+      left: 26px;
+      width: 292px;
+      min-height: 510px;
+      padding: 24px 22px;
+      z-index: 5;
+      background:
+        linear-gradient(180deg, rgba(3,8,18,.92), rgba(3,8,18,.74)),
+        radial-gradient(circle at 50% 0, rgba(255,212,92,.16), transparent 30%);
+      border: 1px solid rgba(255,212,92,.46);
+      box-shadow: 0 0 30px rgba(255,170,30,.12);
+      clip-path: polygon(0 16px, 16px 0, calc(100% - 16px) 0, 100% 16px, 100% calc(100% - 16px), calc(100% - 16px) 100%, 16px 100%, 0 calc(100% - 16px));
+    }
+
+    .panel .number {
+      color: var(--gold);
+      font-size: 34px;
+      font-weight: 950;
+      text-align: center;
+      line-height: 1;
+      text-shadow: 0 0 14px rgba(255,212,92,.55);
+    }
+
+    .panel h2 {
+      margin: 14px 0 2px;
+      color: var(--cyan);
+      text-align: center;
+      font-size: 22px;
+      line-height: 1.08;
+    }
+
+    .panel .school {
+      color: #a9badd;
+      text-align: center;
+      font-weight: 850;
+      font-size: 13px;
+      letter-spacing: .4px;
+    }
+
+    .panel p {
+      margin: 22px 0;
+      color: #d5e4f7;
+      font-size: 15px;
+      line-height: 1.48;
+      font-weight: 680;
+    }
+
+    .panel .status {
+      margin-top: 16px;
+      color: var(--green);
+      font-size: 14px;
+      font-weight: 950;
+      letter-spacing: .5px;
+    }
+
+    .panel .cost {
+      margin-top: 10px;
+      color: #aabbd7;
+      font-size: 13px;
+      line-height: 1.45;
+      font-weight: 800;
+    }
+
+    .reset {
+      position: absolute;
+      left: 22px;
+      right: 22px;
+      bottom: 22px;
+      height: 42px;
+      display: grid;
+      place-items: center;
+      color: var(--gold);
+      border: 1px solid var(--gold);
+      background: rgba(255,212,92,.08);
+      border-radius: 4px;
+      font-weight: 950;
+    }
+
+    .map {
+      position: absolute;
+      inset: 86px 20px 70px 310px;
+      z-index: 2;
+    }
+
+    svg {
+      width: 100%;
+      height: 100%;
+      display: block;
+      overflow: visible;
+    }
+
+    .route {
+      fill: none;
+      stroke-width: 3;
+      stroke-linecap: round;
+      filter: drop-shadow(0 0 9px currentColor);
+      opacity: .78;
+    }
+
+    .route.locked {
+      opacity: .18;
+      filter: none;
+      stroke-width: 2;
+    }
+
+    .board-bg {
+      fill: rgba(1, 5, 13, .80);
+      stroke: currentColor;
+      stroke-width: 1.4;
+      filter: drop-shadow(0 0 14px currentColor);
+    }
+
+    .board-inner {
+      fill: rgba(255,255,255,.025);
+      stroke: rgba(255,255,255,.10);
+      stroke-width: 1;
+    }
+
+    .board-title {
+      font-size: 18px;
+      font-weight: 950;
+      letter-spacing: .8px;
+      fill: currentColor;
+      text-shadow: 0 0 12px currentColor;
+    }
+
+    .board-sub {
+      font-size: 10px;
+      fill: currentColor;
+      opacity: .78;
+      font-weight: 900;
+    }
+
+    .node {
+      fill: #060b14;
+      stroke: currentColor;
+      stroke-width: 2.4;
+      filter: drop-shadow(0 0 9px currentColor);
+    }
+
+    .node.open {
+      fill: rgba(40,232,255,.16);
+    }
+
+    .node.bought {
+      fill: currentColor;
+      stroke: #fff;
+    }
+
+    .node.locked {
+      fill: #090d13;
+      stroke: #485061;
+      filter: none;
+      opacity: .75;
+    }
+
+    .node.major {
+      stroke-width: 3;
+    }
+
+    .node-label {
+      fill: #fff;
+      font-size: 9px;
+      text-anchor: middle;
+      dominant-baseline: central;
+      font-weight: 950;
+      pointer-events: none;
+    }
+
+    .gate-label {
+      fill: #dfeaff;
+      font-size: 10px;
+      font-weight: 950;
+      letter-spacing: .5px;
+      text-anchor: middle;
+    }
+
+    .fusion {
+      fill: rgba(255,212,92,.08);
+      stroke: var(--gold);
+      stroke-width: 2;
+      filter: drop-shadow(0 0 12px rgba(255,212,92,.8));
+    }
+
+    .fusion-text {
+      fill: var(--gold);
+      font-size: 11px;
+      font-weight: 950;
+      text-anchor: middle;
+      dominant-baseline: central;
+    }
+
+    .core-ring {
+      fill: rgba(4, 10, 19, .88);
+      stroke: var(--gold);
+      stroke-width: 2.5;
+      filter: drop-shadow(0 0 18px rgba(255,212,92,.9));
+    }
+
+    .core-star {
+      stroke: #fff28f;
+      stroke-width: 3;
+      stroke-linecap: round;
+      filter: drop-shadow(0 0 12px #ffd45c);
+    }
+
+    .hint {
+      fill: #9fb4d2;
+      font-size: 13px;
+      font-weight: 800;
+      text-anchor: middle;
+      opacity: .95;
+    }
+
+    .back {
+      position: absolute;
+      left: 50%;
+      bottom: 18px;
+      width: 230px;
+      height: 48px;
+      transform: translateX(-50%);
+      display: grid;
+      place-items: center;
+      border: 1px solid rgba(255,255,255,.48);
+      border-radius: 8px;
+      background: rgba(24, 26, 35, .84);
+      color: #e9edf5;
+      font-size: 24px;
+      font-weight: 950;
+      letter-spacing: 1px;
+      z-index: 6;
+    }
+
+    .legend {
+      position: absolute;
+      right: 34px;
+      bottom: 26px;
+      display: flex;
+      gap: 17px;
+      color: #a9bad6;
+      font-size: 13px;
+      font-weight: 850;
+      z-index: 6;
+    }
+
+    .legend span::before {
+      content: "";
+      display: inline-block;
+      width: 11px;
+      height: 11px;
+      margin-right: 6px;
+      border-radius: 50%;
+      border: 1px solid currentColor;
+      vertical-align: -1px;
+    }
+
+    @media (max-width: 980px) {
+      .panel { width: 245px; }
+      .map { left: 260px; }
+      .title { font-size: 28px; }
+      .subtitle { width: 300px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="screen">
+    <header class="top">
+      <div class="kicker">MAPA DE SETORES</div>
+      <div>
+        <div class="title">CENTRO DE TECNOLOGIA</div>
+        <div class="subtitle">1 / 59 tecnologias</div>
+      </div>
+      <div class="wallet">
+        <div class="wallet-card gold"><span class="orb"></span><span>145.0K</span></div>
+        <div class="wallet-card"><span class="orb"></span><span>3012</span></div>
+      </div>
+    </header>
+
+    <aside class="panel">
+      <div class="number">10</div>
+      <h2>Canhao Orbital</h2>
+      <div class="school">SETOR ORION / ARSENAL</div>
+      <p>Um setor tem poucos pontos visiveis e uma linha clara. O jogador entende onde comeca, onde termina e qual e o premio grande.</p>
+      <div class="status">LIBERADO PARA COMPRAR</div>
+      <div class="cost">Requer: Nucleo ativo<br>Custo: 59 cristais</div>
+      <div class="reset">REDEFINIR PONTOS</div>
+    </aside>
+
+    <section class="map">
+      <svg viewBox="0 0 1180 690" aria-label="Mockup V2 do Centro de Tecnologia">
+        <defs>
+          <radialGradient id="core" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stop-color="#fff9a8"/>
+            <stop offset="42%" stop-color="#ffd45c"/>
+            <stop offset="100%" stop-color="#ffd45c" stop-opacity="0"/>
+          </radialGradient>
+          <filter id="blurGlow">
+            <feGaussianBlur stdDeviation="3" result="b"/>
+            <feMerge>
+              <feMergeNode in="b"/>
+              <feMergeNode in="SourceGraphic"/>
+            </feMerge>
+          </filter>
+        </defs>
+
+        <g id="routes"></g>
+        <g id="boards"></g>
+
+        <g id="core" transform="translate(594 356)">
+          <circle r="72" fill="url(#core)" opacity=".36"/>
+          <circle class="core-ring" r="40"/>
+          <circle r="25" fill="rgba(255,212,92,.08)" stroke="rgba(255,212,92,.7)" stroke-width="1.5"/>
+          <path class="core-star" d="M0 -25 L0 25 M-25 0 L25 0 M-18 -18 L18 18 M18 -18 L-18 18"/>
+          <text y="70" class="gate-label" fill="#ffd45c">NUCLEO</text>
+        </g>
+
+        <text x="594" y="448" class="hint">Cada setor nasce do nucleo. Fusoes so aparecem onde dois setores se encontram.</text>
+      </svg>
+    </section>
+
+    <div class="back">VOLTAR</div>
+    <div class="legend">
+      <span style="color:#485061">bloqueado</span>
+      <span style="color:#28e8ff">liberado</span>
+      <span style="color:#ffd45c">comprado</span>
+    </div>
+  </main>
+
+  <script>
+    const svgNS = "http://www.w3.org/2000/svg";
+    const routes = document.getElementById("routes");
+    const boards = document.getElementById("boards");
+    const core = { x: 594, y: 356 };
+
+    const sectors = [
+      {
+        id: "arsenal", title: "ORION", sub: "ARSENAL", color: "#ff8b24",
+        x: 438, y: 86, w: 220, h: 142, gate: "bottom", progress: "1/7",
+        nodes: [[110,118,"bought",""], [78,88,"open",""], [142,88,"locked",""], [52,52,"locked",""], [110,44,"open","AR"], [168,52,"locked",""]]
+      },
+      {
+        id: "defesa", title: "LEAO", sub: "DEFESA", color: "#45a6ff",
+        x: 182, y: 184, w: 214, h: 142, gate: "right", progress: "0/7",
+        nodes: [[184,72,"open",""], [138,42,"locked",""], [138,104,"locked",""], [88,72,"locked",""], [48,42,"locked","DF"], [48,104,"locked",""]]
+      },
+      {
+        id: "fortuna", title: "TOURO", sub: "FORTUNA", color: "#ffd45c",
+        x: 782, y: 184, w: 214, h: 142, gate: "left", progress: "0/7",
+        nodes: [[30,72,"open",""], [76,42,"locked",""], [76,104,"locked",""], [124,72,"locked",""], [166,42,"locked","$"], [166,104,"locked",""]]
+      },
+      {
+        id: "energia", title: "PEGASUS", sub: "ENERGIA", color: "#28e8ff",
+        x: 230, y: 398, w: 220, h: 142, gate: "right", progress: "0/7",
+        nodes: [[190,72,"open",""], [146,46,"open",""], [146,100,"locked",""], [92,72,"locked","EN"], [52,42,"locked",""], [52,106,"locked",""]]
+      },
+      {
+        id: "sombra", title: "ANDROMEDA", sub: "SOMBRA", color: "#b764ff",
+        x: 728, y: 398, w: 220, h: 142, gate: "left", progress: "0/7",
+        nodes: [[30,72,"open",""], [74,46,"locked",""], [74,100,"locked",""], [128,72,"locked","SM"], [168,42,"locked",""], [168,106,"locked",""]]
+      },
+      {
+        id: "glacial", title: "URSA", sub: "GLACIAL", color: "#76d7ff",
+        x: 506, y: 526, w: 214, h: 128, gate: "top", progress: "0/6",
+        nodes: [[107,24,"open",""], [70,60,"locked",""], [144,60,"locked",""], [48,98,"locked","GL"], [107,100,"locked",""], [166,98,"locked",""]]
+      }
+    ];
+
+    const fusionNodes = [
+      { x: 470, y: 326, a: "defesa", b: "energia", color: "#45a6ff", label: "FUSAO" },
+      { x: 738, y: 326, a: "fortuna", b: "sombra", color: "#ffd45c", label: "FUSAO" },
+      { x: 594, y: 498, a: "energia", b: "sombra", color: "#28e8ff", label: "PROTO" },
+      { x: 594, y: 248, a: "arsenal", b: "fortuna", color: "#ff8b24", label: "FUSAO" }
+    ];
+
+    function el(name, attrs = {}) {
+      const node = document.createElementNS(svgNS, name);
+      Object.entries(attrs).forEach(([k, v]) => node.setAttribute(k, v));
+      return node;
+    }
+
+    function boardPath(x, y, w, h) {
+      const c = 16;
+      return `M${x+c} ${y} H${x+w-c} L${x+w} ${y+c} V${y+h-c} L${x+w-c} ${y+h} H${x+c} L${x} ${y+h-c} V${y+c} Z`;
+    }
+
+    function gatePoint(s) {
+      if (s.gate === "bottom") return { x: s.x + s.w / 2, y: s.y + s.h };
+      if (s.gate === "top") return { x: s.x + s.w / 2, y: s.y };
+      if (s.gate === "left") return { x: s.x, y: s.y + s.h / 2 };
+      return { x: s.x + s.w, y: s.y + s.h / 2 };
+    }
+
+    function line(a, b, color, locked = false) {
+      const path = el("path", {
+        d: `M${a.x} ${a.y} C ${(a.x + core.x) / 2} ${(a.y + core.y) / 2}, ${(b.x + core.x) / 2} ${(b.y + core.y) / 2}, ${b.x} ${b.y}`,
+        stroke: color,
+        class: `route${locked ? " locked" : ""}`
+      });
+      path.style.color = color;
+      routes.appendChild(path);
+    }
+
+    function straight(a, b, color, locked = false) {
+      const path = el("path", {
+        d: `M${a.x} ${a.y} L${b.x} ${b.y}`,
+        stroke: color,
+        class: `route${locked ? " locked" : ""}`
+      });
+      path.style.color = color;
+      routes.appendChild(path);
+    }
+
+    function addNode(group, x, y, color, state, label, major=false) {
+      const r = major ? 17 : 11;
+      const c = el("circle", { cx: x, cy: y, r, class: `node ${state}${major ? " major" : ""}` });
+      c.style.color = color;
+      group.appendChild(c);
+      const mark = el("path", {
+        d: major ? `M${x} ${y-9} L${x} ${y+9} M${x-9} ${y} L${x+9} ${y} M${x-6} ${y-6} L${x+6} ${y+6} M${x+6} ${y-6} L${x-6} ${y+6}` : `M${x} ${y-5} L${x} ${y+5} M${x-5} ${y} L${x+5} ${y}`,
+        stroke: state === "locked" ? "#6d7481" : "#fff",
+        "stroke-width": major ? 2.3 : 1.8,
+        "stroke-linecap": "round"
+      });
+      group.appendChild(mark);
+      if (label) {
+        const t = el("text", { x, y: y + 27, class: "node-label" });
+        t.textContent = label;
+        group.appendChild(t);
+      }
+      return { x, y };
+    }
+
+    sectors.forEach((s) => {
+      const gp = gatePoint(s);
+      line(core, gp, s.color, false);
+
+      const g = el("g");
+      g.__origin = { x: s.x, y: s.y };
+      g.style.color = s.color;
+
+      g.appendChild(el("path", { d: boardPath(s.x, s.y, s.w, s.h), class: "board-bg" }));
+      g.appendChild(el("path", { d: boardPath(s.x + 12, s.y + 28, s.w - 24, s.h - 40), class: "board-inner" }));
+
+      const title = el("text", { x: s.x + 18, y: s.y + 22, class: "board-title" });
+      title.textContent = s.title;
+      g.appendChild(title);
+
+      const sub = el("text", { x: s.x + 18, y: s.y + 38, class: "board-sub" });
+      sub.textContent = `${s.sub}  ${s.progress}`;
+      g.appendChild(sub);
+
+      let prev = null;
+      s.nodes.forEach((n, idx) => {
+        const [nx, ny, state, label] = n;
+        const actual = addNode(g, s.x + nx, s.y + ny, s.color, state, label, idx === 4 || label);
+        if (prev) straight(prev, actual, s.color, state === "locked");
+        prev = actual;
+      });
+
+      boards.appendChild(g);
+    });
+
+    fusionNodes.forEach((f) => {
+      const g = el("g");
+      g.style.color = f.color;
+      const diamond = el("path", { d: `M${f.x} ${f.y-23} L${f.x+23} ${f.y} L${f.x} ${f.y+23} L${f.x-23} ${f.y} Z`, class: "fusion" });
+      g.appendChild(diamond);
+      const t = el("text", { x: f.x, y: f.y, class: "fusion-text" });
+      t.textContent = f.label;
+      g.appendChild(t);
+      boards.appendChild(g);
+    });
+  </script>
+</body>
+</html>

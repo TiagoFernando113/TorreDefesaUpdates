@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "packs": [
+    {
+      "id": "mapas",
+      "version": 1,
+      "kind": "assets",
+      "url": "https://github.com/TiagoFernando113/TorreDefesaUpdates/releases/download/conteudo-v1/mapas_v1.pck",
+      "sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+    },
+    {
+      "id": "musicas",
+      "version": 1,
+      "kind": "assets",
+      "url": "https://github.com/TiagoFernando113/TorreDefesaUpdates/releases/download/conteudo-v1/musicas_v1.pck",
+      "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    }
+  ]
+}

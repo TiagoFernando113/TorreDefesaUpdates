@@ -1,0 +1,555 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Cyron Defense - Talent System V5</title>
+  <style>
+    :root {
+      --bg: #030712;
+      --panel: rgba(4, 9, 19, .88);
+      --panel2: rgba(9, 15, 30, .74);
+      --line: rgba(117, 165, 240, .18);
+      --text: #edf5ff;
+      --muted: #94a8c9;
+      --cyan: #27e9ff;
+      --blue: #48a6ff;
+      --gold: #ffd35a;
+      --orange: #ff8233;
+      --green: #57f08f;
+      --purple: #b96cff;
+      --red: #ff4a40;
+    }
+
+    * { box-sizing: border-box; }
+    html, body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+      background: #000;
+      color: var(--text);
+      font-family: "Segoe UI", Arial, sans-serif;
+    }
+
+    body {
+      background:
+        radial-gradient(circle at 50% 44%, rgba(72,166,255,.13), transparent 31%),
+        radial-gradient(circle at 78% 24%, rgba(185,108,255,.12), transparent 21%),
+        linear-gradient(180deg, #020510, #000 72%);
+    }
+
+    .stage {
+      position: relative;
+      width: 1280px;
+      height: 720px;
+      overflow: hidden;
+      background:
+        radial-gradient(circle at 50% 50%, rgba(255,211,90,.09), transparent 17%),
+        repeating-linear-gradient(90deg, rgba(255,255,255,.016) 0 1px, transparent 1px 118px),
+        #02050d;
+      border: 1px solid rgba(39,233,255,.22);
+    }
+
+    .stage::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background-image:
+        radial-gradient(circle, rgba(255,255,255,.92) 0 1px, transparent 1.5px),
+        radial-gradient(circle, rgba(39,233,255,.55) 0 1px, transparent 1.5px);
+      background-size: 95px 95px, 183px 183px;
+      background-position: 17px 31px, 61px 22px;
+      opacity: .20;
+      pointer-events: none;
+    }
+
+    .top {
+      position: absolute;
+      left: 24px;
+      right: 24px;
+      top: 20px;
+      height: 82px;
+      display: grid;
+      grid-template-columns: 300px 1fr 330px;
+      align-items: start;
+      z-index: 10;
+    }
+
+    .brand {
+      color: var(--gold);
+      font-size: 11px;
+      font-weight: 950;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+    }
+
+    .mode {
+      margin-top: 6px;
+      color: #e7f2ff;
+      font-size: 18px;
+      font-weight: 950;
+      letter-spacing: .5px;
+    }
+
+    h1 {
+      margin: 0;
+      color: #f5f0ff;
+      text-align: center;
+      font-size: 40px;
+      line-height: .95;
+      letter-spacing: 3px;
+      text-shadow: 0 0 18px rgba(185,108,255,.52);
+    }
+
+    .progress {
+      width: 520px;
+      height: 28px;
+      margin: 9px auto 0;
+      display: grid;
+      grid-template-columns: 1fr auto;
+      align-items: center;
+      gap: 10px;
+      padding: 0 10px;
+      border: 1px solid rgba(39,233,255,.34);
+      background: rgba(3,12,25,.72);
+      border-radius: 8px;
+    }
+
+    .bar {
+      height: 8px;
+      border: 1px solid rgba(185,108,255,.55);
+      background: rgba(185,108,255,.10);
+      overflow: hidden;
+    }
+
+    .bar span {
+      display: block;
+      width: 31%;
+      height: 100%;
+      background: linear-gradient(90deg, var(--purple), #fff);
+    }
+
+    .progress b {
+      color: #80e7ff;
+      font-size: 13px;
+      white-space: nowrap;
+    }
+
+    .wallet {
+      display: flex;
+      justify-content: flex-end;
+      gap: 12px;
+    }
+
+    .wallet-card {
+      min-width: 132px;
+      height: 44px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 0 14px;
+      border: 2px solid currentColor;
+      background: rgba(2, 15, 28, .86);
+      color: var(--cyan);
+      font-size: 18px;
+      font-weight: 900;
+      clip-path: polygon(0 0, 88% 0, 100% 34%, 100% 100%, 12% 100%, 0 66%);
+    }
+
+    .wallet-card.gold { color: var(--gold); }
+    .coin {
+      width: 27px;
+      height: 27px;
+      border-radius: 50%;
+      border: 2px solid currentColor;
+      box-shadow: 0 0 10px currentColor;
+    }
+
+    .panel {
+      position: absolute;
+      z-index: 8;
+      border: 1px solid rgba(255,211,90,.36);
+      background: linear-gradient(180deg, rgba(5,9,18,.92), rgba(3,6,13,.78));
+      box-shadow: 0 0 28px rgba(255,211,90,.07) inset;
+    }
+
+    .details {
+      left: 24px;
+      top: 126px;
+      bottom: 88px;
+      width: 280px;
+      padding: 20px 18px;
+      clip-path: polygon(0 0, 88% 0, 100% 28px, 100% 100%, 0 100%);
+    }
+
+    .points {
+      width: 82px;
+      height: 58px;
+      display: grid;
+      place-items: center;
+      border: 1px solid rgba(255,211,90,.62);
+      color: var(--gold);
+      background: rgba(0,0,0,.72);
+      font-size: 29px;
+      font-weight: 950;
+    }
+
+    .details h2 {
+      margin: 18px 0 0;
+      color: #fff6c8;
+      font-size: 28px;
+      line-height: 1;
+    }
+
+    .details .type {
+      margin-top: 5px;
+      color: var(--cyan);
+      font-size: 12px;
+      font-weight: 950;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+    }
+
+    .details p {
+      margin: 20px 0 0;
+      color: #cbd7eb;
+      font-size: 14px;
+      line-height: 1.45;
+      font-weight: 750;
+    }
+
+    .state {
+      margin-top: 22px;
+      color: var(--green);
+      font-size: 13px;
+      font-weight: 950;
+      text-transform: uppercase;
+    }
+
+    .req {
+      margin-top: 7px;
+      color: #dde6f7;
+      font-size: 13px;
+      line-height: 1.35;
+      font-weight: 750;
+    }
+
+    .buy {
+      position: absolute;
+      left: 18px;
+      right: 18px;
+      bottom: 18px;
+      height: 42px;
+      display: grid;
+      place-items: center;
+      color: #ffe976;
+      border: 1px solid var(--gold);
+      background: rgba(255,211,90,.09);
+      font-size: 14px;
+      font-weight: 950;
+      letter-spacing: 1px;
+    }
+
+    .lab {
+      position: absolute;
+      left: 326px;
+      right: 326px;
+      top: 120px;
+      bottom: 104px;
+      z-index: 5;
+    }
+
+    .lab-grid {
+      position: absolute;
+      inset: 22px 0 0 0;
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 14px;
+    }
+
+    .column {
+      position: relative;
+      padding-top: 42px;
+    }
+
+    .column-title {
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: 0;
+      text-align: center;
+      font-size: 18px;
+      font-weight: 950;
+      letter-spacing: 1px;
+      text-shadow: 0 0 12px currentColor;
+    }
+
+    .column-title span {
+      display: block;
+      color: #9eb2d1;
+      font-size: 10px;
+      letter-spacing: 1px;
+    }
+
+    .tech-card {
+      position: relative;
+      height: 76px;
+      margin-bottom: 12px;
+      padding: 11px 12px 9px 58px;
+      border: 1px solid currentColor;
+      color: var(--cyan);
+      background: linear-gradient(135deg, rgba(255,255,255,.045), rgba(0,0,0,.55));
+      clip-path: polygon(0 0, 90% 0, 100% 18%, 100% 100%, 10% 100%, 0 82%);
+    }
+
+    .tech-card.locked {
+      color: #556074;
+      opacity: .72;
+    }
+
+    .tech-card.open {
+      box-shadow: 0 0 18px currentColor;
+    }
+
+    .badge {
+      position: absolute;
+      left: 12px;
+      top: 16px;
+      width: 36px;
+      height: 36px;
+      display: grid;
+      place-items: center;
+      border: 2px solid currentColor;
+      border-radius: 50%;
+      font-weight: 950;
+      background: rgba(0,0,0,.58);
+    }
+
+    .tech-card h3 {
+      margin: 0;
+      color: #f5fbff;
+      font-size: 14px;
+      line-height: 1.05;
+    }
+
+    .tech-card p {
+      margin: 5px 0 0;
+      color: #aebcda;
+      font-size: 11px;
+      line-height: 1.2;
+      font-weight: 750;
+    }
+
+    .lvl {
+      position: absolute;
+      right: 11px;
+      bottom: 7px;
+      color: currentColor;
+      font-size: 11px;
+      font-weight: 950;
+    }
+
+    .fusion-row {
+      position: absolute;
+      left: 22px;
+      right: 22px;
+      bottom: -16px;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 14px;
+    }
+
+    .fusion {
+      height: 44px;
+      display: grid;
+      place-items: center;
+      border: 1px solid var(--gold);
+      color: var(--gold);
+      background: rgba(0,0,0,.68);
+      font-size: 12px;
+      font-weight: 950;
+      letter-spacing: 1px;
+      clip-path: polygon(12% 0, 100% 0, 88% 100%, 0 100%);
+    }
+
+    .right {
+      right: 24px;
+      top: 126px;
+      bottom: 88px;
+      width: 280px;
+      padding: 18px;
+      border-color: rgba(39,233,255,.34);
+      clip-path: polygon(0 0, 100% 0, 100% 100%, 13% 100%, 0 calc(100% - 28px));
+    }
+
+    .right h3 {
+      margin: 0 0 14px;
+      color: #c3efff;
+      font-size: 17px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    .slot {
+      height: 54px;
+      margin-bottom: 10px;
+      padding: 9px 10px;
+      border: 1px solid rgba(255,255,255,.12);
+      background: rgba(255,255,255,.035);
+    }
+
+    .slot strong {
+      display: block;
+      color: #fff;
+      font-size: 13px;
+      margin-bottom: 3px;
+    }
+
+    .slot span {
+      color: #aebfe0;
+      font-size: 12px;
+      line-height: 1.25;
+      font-weight: 750;
+    }
+
+    .bottom {
+      position: absolute;
+      left: 326px;
+      right: 326px;
+      bottom: 22px;
+      height: 58px;
+      display: grid;
+      grid-template-columns: 150px 1fr 150px;
+      align-items: center;
+      gap: 10px;
+      z-index: 11;
+    }
+
+    .nav {
+      height: 44px;
+      display: grid;
+      place-items: center;
+      border: 1px solid rgba(255,255,255,.48);
+      background: rgba(28,30,40,.84);
+      color: #edf4ff;
+      border-radius: 7px;
+      font-size: 19px;
+      font-weight: 950;
+    }
+
+    .slots {
+      display: flex;
+      justify-content: center;
+      gap: 8px;
+      padding: 9px;
+      border: 1px solid rgba(39,233,255,.24);
+      background: rgba(4,9,19,.72);
+    }
+
+    .slot-chip {
+      width: 72px;
+      height: 32px;
+      display: grid;
+      place-items: center;
+      border: 1px solid currentColor;
+      color: var(--cyan);
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 950;
+    }
+  </style>
+</head>
+<body>
+  <main class="stage">
+    <header class="top">
+      <div>
+        <div class="brand">Direcao nova</div>
+        <div class="mode">Sistema: protocolos ativos</div>
+      </div>
+      <div>
+        <h1>CENTRO DE TECNOLOGIA</h1>
+        <div class="progress"><div class="bar"><span></span></div><b>31% da conta</b></div>
+      </div>
+      <div class="wallet">
+        <div class="wallet-card gold"><span class="coin"></span>145.0K</div>
+        <div class="wallet-card"><span class="coin"></span>3012</div>
+      </div>
+    </header>
+
+    <aside class="panel details">
+      <div class="points">14</div>
+      <h2>Raio Glacial</h2>
+      <div class="type">Controle / protocolo ativo</div>
+      <p>Talentos nao sao mais um monte de bonus pequenos. Cada tecnologia desbloqueia uma regra nova para a run, e pode receber niveis internos.</p>
+      <p>Voce libera tudo na conta, mas equipa poucos protocolos antes da partida. Assim existe build, identidade e escolha real.</p>
+      <div class="state">LIBERADO PARA COMPRAR</div>
+      <div class="req">Requer: Congelador nv. 2<br>Custo: 2 pontos + 59 cristais</div>
+      <div class="buy">COMPRAR TECNOLOGIA</div>
+    </aside>
+
+    <section class="lab">
+      <div class="lab-grid">
+        <div class="column" style="color:var(--orange)">
+          <div class="column-title">ARSENAL<span>dano, alvo, projeteis</span></div>
+          <div class="tech-card open"><div class="badge">A1</div><h3>Fogo Interior</h3><p>+dano base e calor acumulado.</p><div class="lvl">3/5</div></div>
+          <div class="tech-card"><div class="badge">A2</div><h3>Canhao Duplo</h3><p>segundo tiro com dano reduzido.</p><div class="lvl">1/4</div></div>
+          <div class="tech-card locked"><div class="badge">A3</div><h3>Fenda Plasma</h3><p>perfura alvos em linha curta.</p><div class="lvl">0/4</div></div>
+          <div class="tech-card locked"><div class="badge">A4</div><h3>Execucao</h3><p>finaliza mobs enfraquecidos.</p><div class="lvl">0/3</div></div>
+        </div>
+
+        <div class="column" style="color:var(--blue)">
+          <div class="column-title">BASTION<span>defesa, boss, sustain</span></div>
+          <div class="tech-card open"><div class="badge">B1</div><h3>Escudo Estelar</h3><p>absorve dano em ondas de boss.</p><div class="lvl">2/5</div></div>
+          <div class="tech-card"><div class="badge">B2</div><h3>Armadura Lunar</h3><p>reduz impacto de rajadas.</p><div class="lvl">1/4</div></div>
+          <div class="tech-card locked"><div class="badge">B3</div><h3>Regenerador</h3><p>recupera vida entre ondas.</p><div class="lvl">0/4</div></div>
+          <div class="tech-card locked"><div class="badge">B4</div><h3>Voto Final</h3><p>ultima defesa antes da derrota.</p><div class="lvl">0/3</div></div>
+        </div>
+
+        <div class="column" style="color:var(--cyan)">
+          <div class="column-title">CONTROLE<span>gelo, raio, veneno</span></div>
+          <div class="tech-card open"><div class="badge">C1</div><h3>Condutor</h3><p>raios saltam entre inimigos.</p><div class="lvl">4/5</div></div>
+          <div class="tech-card open"><div class="badge">C2</div><h3>Raio Glacial</h3><p>eletrocutar aplica lentidao.</p><div class="lvl">0/4</div></div>
+          <div class="tech-card locked"><div class="badge">C3</div><h3>Nuvem Toxica</h3><p>mobs deixam zona venenosa.</p><div class="lvl">0/4</div></div>
+          <div class="tech-card locked"><div class="badge">C4</div><h3>Zero Absoluto</h3><p>congelamento em cadeia.</p><div class="lvl">0/3</div></div>
+        </div>
+
+        <div class="column" style="color:var(--gold)">
+          <div class="column-title">LOGISTICA<span>cytron, cartas, baus</span></div>
+          <div class="tech-card open"><div class="badge">L1</div><h3>Coletor</h3><p>mais cytron por inimigo elite.</p><div class="lvl">2/5</div></div>
+          <div class="tech-card"><div class="badge">L2</div><h3>Scanner</h3><p>melhor chance de carta rara.</p><div class="lvl">1/4</div></div>
+          <div class="tech-card locked"><div class="badge">L3</div><h3>Banco Orbital</h3><p>protege parte dos ganhos.</p><div class="lvl">0/4</div></div>
+          <div class="tech-card locked"><div class="badge">L4</div><h3>Sorteio Estelar</h3><p>reroll de recompensa por run.</p><div class="lvl">0/3</div></div>
+        </div>
+      </div>
+
+      <div class="fusion-row">
+        <div class="fusion">FUSAO: TITA</div>
+        <div class="fusion">FUSAO: CRIO</div>
+        <div class="fusion">FUSAO: ABISMO</div>
+      </div>
+    </section>
+
+    <aside class="panel right">
+      <h3>Por que e melhor</h3>
+      <div class="slot"><strong>Menos bagunca</strong><span>25 tecnologias visiveis; os 59 pontos ficam dentro delas.</span></div>
+      <div class="slot"><strong>Escolha real</strong><span>Conta evolui, mas a run usa slots limitados de protocolo.</span></div>
+      <div class="slot"><strong>Mobile</strong><span>Cards grandes, leitura clara e toque sem precisar acertar bolinhas.</span></div>
+      <div class="slot"><strong>Expansivel</strong><span>Dá para adicionar comandante, skin, baus e eventos como novas colunas.</span></div>
+      <div class="slot"><strong>Balanceavel</strong><span>Full account fica forte sem ligar todos os bonus de uma vez.</span></div>
+    </aside>
+
+    <footer class="bottom">
+      <div class="nav">VOLTAR</div>
+      <div class="slots">
+        <div class="slot-chip" style="color:var(--orange)">Fogo</div>
+        <div class="slot-chip" style="color:var(--cyan)">Raio</div>
+        <div class="slot-chip" style="color:var(--blue)">Escudo</div>
+        <div class="slot-chip" style="color:var(--gold)">Scanner</div>
+        <div class="slot-chip" style="color:var(--purple)">Vazio</div>
+      </div>
+      <div class="nav">LOADOUT</div>
+    </footer>
+  </main>
+</body>
+</html>

@@ -1,0 +1,209 @@
+{
+	"background": "res://assets/talents/talent_constellation_map.png",
+	"entries": {
+		"colosso": {
+			"name": "Chassi Colosso",
+			"note": "",
+			"position": [
+				0.625,
+				0.5213
+			]
+		},
+		"f2": {
+			"name": "Credito de Campo",
+			"note": "",
+			"position": [
+				0.5538,
+				0.9633
+			]
+		},
+		"f3": {
+			"name": "Conversor Dourado",
+			"note": "",
+			"position": [
+				0.5419,
+				0.9427
+			]
+		},
+		"f4": {
+			"name": "Mineracao Cristalina",
+			"note": "",
+			"position": [
+				0.7366,
+				0.8106
+			]
+		},
+		"f5": {
+			"name": "Banco Cristalino",
+			"note": "",
+			"position": [
+				0.6123,
+				0.8311
+			]
+		},
+		"m1": {
+			"name": "Scanner de Cartas",
+			"note": "",
+			"position": [
+				0.4399,
+				0.2863
+			]
+		},
+		"m2": {
+			"name": "Refino de Dados",
+			"note": "",
+			"position": [
+				0.3987,
+				0.2643
+			]
+		},
+		"p1": {
+			"name": "Fogo Interior",
+			"note": "",
+			"position": [
+				0.6258,
+				0.533
+			]
+		},
+		"p2": {
+			"name": "Disparo Rápido",
+			"note": "",
+			"position": [
+				0.5949,
+				0.486
+			]
+		},
+		"predador": {
+			"name": "Predador Criotoxico",
+			"note": "",
+			"position": [
+				0.6266,
+				0.5242
+			]
+		},
+		"raiz": {
+			"name": "Nucleo Tecnologico",
+			"note": "",
+			"position": [
+				0.5554,
+				0.4038
+			]
+		},
+		"s5": {
+			"name": "Metamorfose",
+			"note": "",
+			"position": [
+				0.4976,
+				0.3275
+			]
+		},
+		"x1": {
+			"name": "Dados do Caos",
+			"note": "",
+			"position": [
+				0.5411,
+				0.6094
+			]
+		},
+		"x2": {
+			"name": "Bênção Aleatória",
+			"note": "",
+			"position": [
+				0.5633,
+				0.743
+			]
+		},
+		"x3": {
+			"name": "Reroll Gratuito",
+			"note": "",
+			"position": [
+				0.6646,
+				0.8576
+			]
+		},
+		"x4": {
+			"name": "Carta do Acaso",
+			"note": "",
+			"position": [
+				0.7761,
+				0.746
+			]
+		}
+	},
+	"notes": {
+
+	},
+	"positions": {
+		"colosso": [
+			0.625,
+			0.5213
+		],
+		"f2": [
+			0.5538,
+			0.9633
+		],
+		"f3": [
+			0.5419,
+			0.9427
+		],
+		"f4": [
+			0.7366,
+			0.8106
+		],
+		"f5": [
+			0.6123,
+			0.8311
+		],
+		"m1": [
+			0.4399,
+			0.2863
+		],
+		"m2": [
+			0.3987,
+			0.2643
+		],
+		"p1": [
+			0.6258,
+			0.533
+		],
+		"p2": [
+			0.5949,
+			0.486
+		],
+		"predador": [
+			0.6266,
+			0.5242
+		],
+		"raiz": [
+			0.5554,
+			0.4038
+		],
+		"s5": [
+			0.4976,
+			0.3275
+		],
+		"x1": [
+			0.5411,
+			0.6094
+		],
+		"x2": [
+			0.5633,
+			0.743
+		],
+		"x3": [
+			0.6646,
+			0.8576
+		],
+		"x4": [
+			0.7761,
+			0.746
+		]
+	},
+	"text_rect": [
+		0.018,
+		0.352,
+		0.152,
+		0.47
+	],
+	"version": 1
+}

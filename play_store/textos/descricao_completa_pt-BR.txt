@@ -1,0 +1,16 @@
+Cyron Defense e um tower defense sci-fi em que uma torre orbital precisa resistir a ondas cada vez mais perigosas.
+
+Evolua sua defesa durante a partida, escolha cartas de poder, use habilidades especiais, equipe comandantes e avance por setores cosmicos com visual proprio.
+
+Principais recursos:
+
+- Combate automatico com escolhas estrategicas entre waves.
+- Cartas de poder para dano, cadencia, alcance, vida, ouro e efeitos especiais.
+- Comandantes com habilidades unicas e progresso por nivel.
+- Inventario com skins, habilidades, consumiveis e equipamentos da torre.
+- Arvore de talentos com ramos, fusoes, especiais e ascensao.
+- Mapas orbitais com atmosferas diferentes para testar sua estrategia.
+- Ranking online e save em nuvem para acompanhar seu progresso.
+- Recursos de acessibilidade com suporte a voz quando configurado.
+
+Prepare sua torre, escolha seu comandante e defenda o sistema orbital em Cyron Defense.

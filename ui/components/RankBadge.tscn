@@ -1,0 +1,7 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://ui/components/RankBadge.gd" id="1_script"]
+
+[node name="RankBadge" type="Control"]
+custom_minimum_size = Vector2(170, 142)
+script = ExtResource("1_script")
