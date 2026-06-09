@@ -56,6 +56,7 @@ var _hz_shop   : Array = []
 var _hz_opt    : Array = []
 var _hz_train  : Array = []
 var _hz_fixed  : Array = []
+var _hz_builds : Array = []   # [{rect, key}] área clicável de cada prédio (corpo do sprite)
 
 # ── Notificações ──────────────────────────────────────────────────────────────
 var _noticias : Array = []   # [{msg, cor, t}]
@@ -239,7 +240,7 @@ func _em_grid(gx: int, gy: int) -> bool:
 #  DRAW PRINCIPAL
 # ══════════════════════════════════════════════════════════════════════════════
 func _draw() -> void:
-	_hz_shop.clear(); _hz_opt.clear(); _hz_train.clear(); _hz_fixed.clear()
+	_hz_shop.clear(); _hz_opt.clear(); _hz_train.clear(); _hz_fixed.clear(); _hz_builds.clear()
 
 	var vp := get_viewport().get_visible_rect().size
 	draw_rect(Rect2(Vector2.ZERO, vp), Color(0.05,0.08,0.11,1.0))
@@ -329,13 +330,19 @@ func _draw_edificio(c: Vector2, key: String, sel: bool) -> void:
 	# Sprite (ancorado pela base, sobe do tile)
 	var tex := _sprites.get(tipo,null) as Texture2D
 	var ts  : float = TILE_W * (1.35 if central else 1.05)
+	var click_r : Rect2
 	if tex:
 		var w := ts
 		var hh := ts * (float(tex.get_height()) / float(maxi(tex.get_width(),1)))
-		draw_texture_rect(tex, Rect2(c.x - w*0.5, c.y + TILE_H*0.25 - hh, w, hh), false)
+		click_r = Rect2(c.x - w*0.5, c.y + TILE_H*0.25 - hh, w, hh)
+		draw_texture_rect(tex, click_r, false)
 	else:
 		# fallback: bloco colorido
 		draw_colored_polygon(_diamond_pts(c), Color(cor.r*0.6,cor.g*0.6,cor.b*0.6,0.9))
+		click_r = Rect2(c.x - TILE_W*0.5, c.y - TILE_H*0.5, TILE_W, TILE_H)
+	# Área clicável = corpo do prédio + o tile (mais fácil de acertar)
+	var tile_r := Rect2(c.x - TILE_W*0.5, c.y - TILE_H*0.5, TILE_W, TILE_H)
+	_hz_builds.append({"rect": click_r.merge(tile_r), "key": key})
 
 	# Nível (pontos)
 	for li in range(int(ef.get("max_nivel",3))):
@@ -861,7 +868,18 @@ func _handle_tap(pos: Vector2) -> void:
 		_state = State.SELECTED; _move_src = ""; _hover_gx = -1; _hover_gy = -1
 		queue_redraw(); return
 
-	# seleção de célula
+	# seleção — testa corpo dos prédios primeiro (frontmost = último desenhado)
+	for i in range(_hz_builds.size()-1, -1, -1):
+		var hb := _hz_builds[i] as Dictionary
+		if (hb["rect"] as Rect2).has_point(pos):
+			var key := hb["key"] as String
+			if _state == State.SELECTED and key == _sel_key:
+				_state = State.IDLE; _sel_key = ""
+			else:
+				_state = State.SELECTED; _sel_key = key
+			queue_redraw(); return
+
+	# fallback: seleção pelo tile sob o cursor
 	var gc := _screen_to_cell(pos)
 	if _em_grid(gc.x, gc.y):
 		var key := _cell_key(gc.x, gc.y)

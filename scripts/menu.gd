@@ -130,6 +130,7 @@ var _ranking_panel = null
 var _ranking_lista: Control = null
 var _ranking_ts_lbl: Label = null
 var _ranking_pos_lbl: Label = null
+var _ranking_campeoes_cont: Control = null
 var _ranking_carregando: bool = false
 var _ui_ref = null
 var _ui_main: CanvasLayer = null
@@ -712,6 +713,7 @@ func _limpar_referencias_ui_por_resize() -> void:
 	_ranking_lista = null
 	_ranking_ts_lbl = null
 	_ranking_pos_lbl = null
+	_ranking_campeoes_cont = null
 	_bau_abertura_overlay = null
 
 
@@ -4988,9 +4990,18 @@ func _abrir_ranking(ui: CanvasLayer) -> void :
 	premio_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	bg.add_child(premio_lbl)
 
+	var campeoes_cont:= Control.new()
+	campeoes_cont.name = "CampeoesTemporadaAnterior"
+	campeoes_cont.position = Vector2(28, 116)
+	campeoes_cont.size = Vector2(VW - 56, 26)
+	campeoes_cont.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	bg.add_child(campeoes_cont)
+	_ranking_campeoes_cont = campeoes_cont
+	_render_campeoes_temporada_anterior(-1, [])
+
 
 	var podio_ctrl:= Control.new()
-	podio_ctrl.position = Vector2(0, 120)
+	podio_ctrl.position = Vector2(0, 142)
 	podio_ctrl.size = Vector2(VW, 222)
 	podio_ctrl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	podio_ctrl.set_meta("podio", true)
@@ -5001,7 +5012,7 @@ func _abrir_ranking(ui: CanvasLayer) -> void :
 
 	var sep3:= ColorRect.new()
 	sep3.color = Color(1.0, 0.78, 0.1, 0.18)
-	sep3.position = Vector2(20, 346)
+	sep3.position = Vector2(20, 370)
 	sep3.size = Vector2(VW - 40, 2)
 	sep3.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	bg.add_child(sep3)
@@ -5009,7 +5020,7 @@ func _abrir_ranking(ui: CanvasLayer) -> void :
 
 	var hdr_pos:= Label.new()
 	hdr_pos.text = "#"
-	hdr_pos.position = Vector2(28, 352)
+	hdr_pos.position = Vector2(28, 376)
 	hdr_pos.size = Vector2(58, 28)
 	hdr_pos.add_theme_font_size_override("font_size", 17)
 	hdr_pos.add_theme_color_override("font_color", Color(0.55, 0.65, 0.75))
@@ -5018,7 +5029,7 @@ func _abrir_ranking(ui: CanvasLayer) -> void :
 
 	var hdr_nome:= Label.new()
 	hdr_nome.text = "NOME"
-	hdr_nome.position = Vector2(96, 352)
+	hdr_nome.position = Vector2(96, 376)
 	hdr_nome.size = Vector2(560, 28)
 	hdr_nome.add_theme_font_size_override("font_size", 17)
 	hdr_nome.add_theme_color_override("font_color", Color(0.55, 0.65, 0.75))
@@ -5028,7 +5039,7 @@ func _abrir_ranking(ui: CanvasLayer) -> void :
 	var hdr_wave:= Label.new()
 	hdr_wave.text = "WAVE"
 	hdr_wave.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	hdr_wave.position = Vector2(680, 352)
+	hdr_wave.position = Vector2(680, 376)
 	hdr_wave.size = Vector2(240, 28)
 	hdr_wave.add_theme_font_size_override("font_size", 17)
 	hdr_wave.add_theme_color_override("font_color", Color(0.55, 0.65, 0.75))
@@ -5038,7 +5049,7 @@ func _abrir_ranking(ui: CanvasLayer) -> void :
 	var hdr_score:= Label.new()
 	hdr_score.text = "SCORE"
 	hdr_score.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	hdr_score.position = Vector2(940, 352)
+	hdr_score.position = Vector2(940, 376)
 	hdr_score.size = Vector2(VW - 960, 28)
 	hdr_score.add_theme_font_size_override("font_size", 17)
 	hdr_score.add_theme_color_override("font_color", Color(0.55, 0.65, 0.75))
@@ -5047,7 +5058,7 @@ func _abrir_ranking(ui: CanvasLayer) -> void :
 
 	var sep4:= ColorRect.new()
 	sep4.color = Color(0.55, 0.65, 0.75, 0.15)
-	sep4.position = Vector2(20, 382)
+	sep4.position = Vector2(20, 406)
 	sep4.size = Vector2(VW - 40, 2)
 	sep4.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	bg.add_child(sep4)
@@ -5070,8 +5081,8 @@ func _abrir_ranking(ui: CanvasLayer) -> void :
 
 
 	var scroll:= ScrollContainer.new()
-	scroll.position = Vector2(20, 386)
-	scroll.size = Vector2(VW - 40, VH - 386 - 56)
+	scroll.position = Vector2(20, 410)
+	scroll.size = Vector2(VW - 40, VH - 410 - 56)
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
 	scroll.mouse_filter = Control.MOUSE_FILTER_STOP
@@ -5157,6 +5168,8 @@ func _abrir_ranking(ui: CanvasLayer) -> void :
 
 	if not RankingOnline.ranking_carregado.is_connected(_on_ranking_carregado):
 		RankingOnline.ranking_carregado.connect(_on_ranking_carregado)
+	if not RankingOnline.campeoes_temporada_anterior_carregados.is_connected(_on_campeoes_temporada_anterior_carregados):
+		RankingOnline.campeoes_temporada_anterior_carregados.connect(_on_campeoes_temporada_anterior_carregados)
 
 
 	if Salvar.nome_jogador.strip_edges() == "":
@@ -5213,6 +5226,7 @@ func _fechar_ranking() -> void :
 	_ranking_lista = null
 	_ranking_ts_lbl = null
 	_ranking_pos_lbl = null
+	_ranking_campeoes_cont = null
 	if _menu_contents:
 		_menu_contents.show()
 
@@ -5596,6 +5610,7 @@ func _carregar_ranking() -> void :
 
 
 	RankingOnline.buscar_ranking()
+	RankingOnline.buscar_campeoes_temporada_anterior()
 
 
 func _atualizar_timestamp(estimado: bool) -> void :
@@ -5674,6 +5689,37 @@ func _on_ranking_carregado(entradas: Array) -> void :
 		return
 	_popular_lista(entradas, false)
 	_atualizar_timestamp(false)
+
+
+func _on_campeoes_temporada_anterior_carregados(temporada: int, entradas: Array) -> void :
+	_render_campeoes_temporada_anterior(temporada, entradas)
+
+
+func _render_campeoes_temporada_anterior(temporada: int, entradas: Array) -> void :
+	if not _ranking_campeoes_cont or not is_instance_valid(_ranking_campeoes_cont):
+		return
+	for ch in _ranking_campeoes_cont.get_children():
+		ch.queue_free()
+	if temporada < 0 or entradas.is_empty():
+		_ranking_campeoes_cont.visible = false
+		return
+	_ranking_campeoes_cont.visible = true
+	var medalhas: Array = ["🥇", "🥈", "🥉"]
+	var partes: Array = []
+	for i in range(mini(3, entradas.size())):
+		var e: Dictionary = entradas[i] as Dictionary
+		var nome: String = String(e.get("nome", "?")).strip_edges()
+		if nome == "":
+			nome = "?"
+		var medalha: String = medalhas[i] if i < medalhas.size() else ""
+		partes.append("%s %s" % [medalha, nome])
+	var lbl:= Label.new()
+	lbl.text = "Campeões T%d:  %s" % [temporada, "   ".join(partes)]
+	lbl.add_theme_font_size_override("font_size", 13)
+	lbl.add_theme_color_override("font_color", Color(1.0, 0.85, 0.25))
+	lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	lbl.size = _ranking_campeoes_cont.size
+	_ranking_campeoes_cont.add_child(lbl)
 
 
 func _popular_lista(entradas: Array, is_estimado: bool) -> void :
