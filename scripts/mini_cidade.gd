@@ -41,7 +41,7 @@ const BOT_H : float = 58.0
 # ══════════════════════════════════════════════════════════════════════════════
 #  ESTADO
 # ══════════════════════════════════════════════════════════════════════════════
-enum State { IDLE, SHOP, PLACING, SELECTED, MOVING, TRAIN }
+enum State { IDLE, SHOP, PLACING, SELECTED, MOVING, TRAIN, RESEARCH }
 
 var _state      : State  = State.IDLE
 var _shop_cat   : String = "recurso"
@@ -49,6 +49,7 @@ var _sel_key    : String = ""
 var _move_src   : String = ""
 var _place_tipo : String = ""
 var _train_key  : String = ""    # quartel aberto no painel de treino
+var _pesq_cat   : String = "tropa"   # "tropa" | "feitico" no laboratório
 var _hover_gx   : int    = -1
 var _hover_gy   : int    = -1
 var _pulse      : float  = 0.0
@@ -60,6 +61,7 @@ var _hz_opt    : Array = []
 var _hz_train  : Array = []
 var _hz_fixed  : Array = []
 var _hz_builds : Array = []   # [{rect, key}] área clicável de cada prédio (corpo do sprite)
+var _hz_pesq   : Array = []   # pesquisa (laboratório)
 
 # ── Notificações ──────────────────────────────────────────────────────────────
 var _noticias : Array = []   # [{msg, cor, t}]
@@ -168,6 +170,10 @@ func _process(delta: float) -> void:
 	for tipo in prontos:
 		notificar("Tropa pronta: %s" % (DADOS.TROPAS.get(tipo,{}) as Dictionary).get("nome","?"),
 				  Color(0.4,0.85,1.0))
+	var pesq := CocSalvar.tick_pesquisa()
+	if not pesq.is_empty():
+		var pn : String = (DADOS.TROPAS.get(pesq.get("tipo",""), DADOS.FEITICOS.get(pesq.get("tipo",""),{})) as Dictionary).get("nome","?")
+		notificar("✦ Pesquisa concluída: %s N%d" % [pn, pesq.get("nivel_alvo",1)], Color(0.88,0.38,1.0))
 
 	# Notificações decaem
 	var remover_n : Array = []
@@ -229,7 +235,7 @@ func _em_grid(gx: int, gy: int) -> bool:
 #  DRAW PRINCIPAL
 # ══════════════════════════════════════════════════════════════════════════════
 func _draw() -> void:
-	_hz_shop.clear(); _hz_opt.clear(); _hz_train.clear(); _hz_fixed.clear(); _hz_builds.clear()
+	_hz_shop.clear(); _hz_opt.clear(); _hz_train.clear(); _hz_fixed.clear(); _hz_builds.clear(); _hz_pesq.clear()
 
 	var vp := get_viewport().get_visible_rect().size
 	draw_rect(Rect2(Vector2.ZERO, vp), Color(0.05,0.08,0.11,1.0))
@@ -243,6 +249,7 @@ func _draw() -> void:
 
 	if _state == State.SHOP:     _draw_loja(vp)
 	if _state == State.TRAIN:    _draw_treino(vp)
+	if _state == State.RESEARCH: _draw_pesquisa(vp)
 	if _state == State.SELECTED and _sel_key != "": _draw_popup(vp)
 
 	_draw_noticias(vp)
@@ -642,6 +649,99 @@ func _draw_treino(vp: Vector2) -> void:
 		fx += 170.0
 
 # ══════════════════════════════════════════════════════════════════════════════
+#  PESQUISA (laboratório) — melhora nível das tropas/feitiços
+# ══════════════════════════════════════════════════════════════════════════════
+func _draw_pesquisa(vp: Vector2) -> void:
+	var font := ThemeDB.fallback_font
+	draw_rect(Rect2(0, TOP_H, vp.x, vp.y - TOP_H - BOT_H), Color(0.06,0.04,0.12,0.96))
+	draw_string(font, Vector2(20, TOP_H+34), "LABORATÓRIO — PESQUISA",
+				HORIZONTAL_ALIGNMENT_LEFT, -1, 22, Color(0.88,0.38,1.0))
+
+	# pesquisa em andamento
+	if not CocSalvar.pesquisa.is_empty():
+		var pd := CocSalvar.pesquisa
+		var ptipo := pd.get("tipo","") as String
+		var nlvo := int(pd.get("nivel_alvo",1))
+		var rest := maxi(0, (int(pd.get("fim_ms",0)) - Time.get_ticks_msec())/1000)
+		var ptd := DADOS.TROPAS.get(ptipo, DADOS.FEITICOS.get(ptipo,{})) as Dictionary
+		var total_s := 300*nlvo
+		var pct := clampf(1.0 - float(rest)/float(maxi(total_s,1)), 0.0, 1.0)
+		draw_rect(Rect2(20, TOP_H+48, vp.x-40, 44), Color(0.10,0.05,0.18,0.95))
+		draw_rect(Rect2(20, TOP_H+48, (vp.x-40)*pct, 44), Color(0.5,0.2,0.8,0.45))
+		draw_rect(Rect2(20, TOP_H+48, vp.x-40, 44), Color(0.7,0.3,1.0,0.6), false, 2.0)
+		draw_string(font, Vector2(30, TOP_H+76),
+					"Pesquisando %s → N%d   %s" % [ptd.get("nome","?"), nlvo, _fmt_tempo(rest)],
+					HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color(0.9,0.7,1.0))
+
+	# abas tropa / feitiço
+	var cats  : Array = ["tropa","feitico"]
+	var nomes : Array = ["TROPAS","FEITIÇOS"]
+	for ci in range(cats.size()):
+		var cr := Rect2(20+float(ci)*180, TOP_H+102, 168, 34)
+		var on : bool = _pesq_cat == cats[ci]
+		draw_rect(cr, Color(0.12,0.06,0.20,0.95) if on else Color(0.06,0.04,0.10,0.8))
+		draw_rect(cr, Color(0.7,0.3,1.0,0.8 if on else 0.3), false, 2.0)
+		draw_string(font, Vector2(cr.get_center().x-float(nomes[ci].length())*5.0, cr.position.y+23),
+					nomes[ci], HORIZONTAL_ALIGNMENT_LEFT, -1, 14,
+					Color(0.9,0.7,1.0) if on else Color(0.55,0.4,0.7))
+		_hz_pesq.append({"rect":cr,"acao":"cat","cat":cats[ci]})
+
+	# cards
+	var CW := 168.0; var CH := 128.0; var CG := 10.0
+	var fonte_itens : Array = DADOS.TROPAS.keys() if _pesq_cat=="tropa" else DADOS.FEITICOS.keys()
+	var x0 := 20.0; var y0 := TOP_H + 146.0
+	var col := 0; var row := 0
+	var max_col := maxi(int((vp.x-40.0)/(CW+CG)), 1)
+
+	for tipo in fonte_itens:
+		var td := (DADOS.TROPAS.get(tipo,{}) if _pesq_cat=="tropa" else DADOS.FEITICOS.get(tipo,{})) as Dictionary
+		var nivel_atual := int(CocSalvar.niveis.get(tipo, 1))
+		var nivel_alvo  := nivel_atual + 1
+		var cr := Rect2(x0+float(col)*(CW+CG), y0+float(row)*(CH+CG), CW, CH)
+		var pesq_ativa : bool = CocSalvar.pesquisa.get("tipo","") == tipo
+		var outra_ativa : bool = (not CocSalvar.pesquisa.is_empty()) and not pesq_ativa
+		var maxed : bool = nivel_alvo > 3
+
+		var custo_el := 500*nivel_alvo
+		var custo_esc := 0
+		if _pesq_cat=="tropa" and (td.get("quartel_tipo","") as String)=="escuro":
+			custo_esc = 50*nivel_alvo; custo_el = 0
+		var pode_pay : bool = (custo_el==0 or CocSalvar.tem_elixir(custo_el)) and (custo_esc==0 or CocSalvar.tem_escuro(custo_esc))
+		var pode : bool = pode_pay and not outra_ativa and not pesq_ativa and not maxed
+
+		draw_rect(cr, Color(0.08,0.04,0.14,0.92))
+		var bcol := Color(0.88,0.38,1.0) if pesq_ativa else (Color(0.55,0.25,0.8,0.6) if pode else Color(0.3,0.18,0.4,0.4))
+		draw_rect(cr, bcol, false, 2.0)
+		if not pode and not pesq_ativa: draw_rect(cr, Color(0,0,0,0.4))
+
+		draw_string(font, Vector2(cr.position.x+8, cr.position.y+20), td.get("nome","?") as String,
+					HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Color(0.9,0.7,1.0,1.0 if pode or pesq_ativa else 0.4))
+		draw_string(font, Vector2(cr.position.x+8, cr.position.y+40), "Nível atual: %d" % nivel_atual,
+					HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color(0.75,0.85,0.95,0.85))
+		if maxed:
+			draw_string(font, Vector2(cr.position.x+8, cr.position.y+62), "NÍVEL MÁXIMO",
+						HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color(0.5,0.8,0.5))
+		elif pesq_ativa:
+			draw_string(font, Vector2(cr.position.x+8, cr.position.y+62), "EM PESQUISA...",
+						HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color(0.88,0.38,1.0))
+		else:
+			var cs := "%d💜" % custo_el if custo_el>0 else "%d🌑" % custo_esc
+			draw_string(font, Vector2(cr.position.x+8, cr.position.y+62), cs,
+						HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color(0.28,1.0,0.48,1.0 if pode else 0.25))
+			draw_string(font, Vector2(cr.position.x+8, cr.position.y+80), "Tempo: %s" % _fmt_tempo(300*nivel_alvo),
+						HORIZONTAL_ALIGNMENT_LEFT, -1, 11, Color(0.7,0.8,0.9,0.7))
+			if pode:
+				var btn := Rect2(cr.position.x+CW-66, cr.position.y+CH-32, 60, 28)
+				draw_rect(btn, Color(0.15,0.05,0.25,0.95))
+				draw_rect(btn, Color(0.7,0.3,1.0,0.8), false, 2.0)
+				draw_string(font, Vector2(btn.position.x+10, btn.position.y+19), "PESQ",
+							HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color(0.9,0.7,1.0))
+				_hz_pesq.append({"rect":btn,"acao":"iniciar","tipo":tipo,"nivel_alvo":nivel_alvo,
+								 "custo_el":custo_el,"custo_esc":custo_esc})
+		col += 1
+		if col >= max_col: col = 0; row += 1
+
+# ══════════════════════════════════════════════════════════════════════════════
 #  POPUP de edifício
 # ══════════════════════════════════════════════════════════════════════════════
 func _draw_popup(vp: Vector2) -> void:
@@ -670,6 +770,7 @@ func _draw_popup(vp: Vector2) -> void:
 		if tipo in ["mina_ouro","coletor_elixir","mina_escura"] and CocSalvar.slot_acum(_sel_key) >= 1.0:
 			btns.append("coletar")
 		if tipo == "quartel" or tipo == "quartel_escuro": btns.append("treinar")
+		if tipo == "laboratorio": btns.append("pesquisar")
 		if not central and not heroi: btns.append("demolir")
 	else:
 		btns.append("acelerar")
@@ -728,6 +829,7 @@ func _draw_popup(vp: Vector2) -> void:
 				var acum := int(CocSalvar.slot_acum(_sel_key))
 				_opt_btn(br, "⬇ COLETAR +%d" % acum, Color(1.0,0.85,0.1))
 			"treinar":  _opt_btn(br, "⚔ TREINAR TROPAS", Color(0.3,0.85,1.0))
+			"pesquisar": _opt_btn(br, "🔬 PESQUISAR TROPAS", Color(0.88,0.38,1.0))
 			"acelerar":
 				pode = CocSalvar.tem_gemas(5)
 				_opt_btn(br, "⚡ ACELERAR (5 💎)", Color(0.4,1.0,0.6), pode)
@@ -771,9 +873,10 @@ func _input(event: InputEvent) -> void:
 			match _state:
 				State.PLACING: _state=State.IDLE; _place_tipo=""; _hover_gx=-1; _hover_gy=-1
 				State.MOVING:  _state=State.SELECTED; _move_src=""
-				State.SHOP:    _state=State.IDLE
-				State.TRAIN:   _state=State.IDLE; _train_key=""
-				State.SELECTED:_state=State.IDLE; _sel_key=""
+				State.SHOP:     _state=State.IDLE
+				State.TRAIN:    _state=State.IDLE; _train_key=""
+				State.RESEARCH: _state=State.IDLE
+				State.SELECTED: _state=State.IDLE; _sel_key=""
 				_: fechar()
 			queue_redraw(); get_viewport().set_input_as_handled()
 		return
@@ -829,6 +932,19 @@ func _handle_tap(pos: Vector2) -> void:
 			if not (hd["rect"] as Rect2).has_point(pos): continue
 			if hd.get("acao","") == "treinar":
 				_treinar_tropa(hd.get("tipo","") as String); return
+		return
+
+	# painel de pesquisa (laboratório)
+	if _state == State.RESEARCH:
+		for h in _hz_pesq:
+			var hd := h as Dictionary
+			if not (hd["rect"] as Rect2).has_point(pos): continue
+			match hd.get("acao",""):
+				"cat":
+					_pesq_cat = hd.get("cat","tropa") as String; queue_redraw(); return
+				"iniciar":
+					_iniciar_pesquisa(hd.get("tipo","") as String, int(hd.get("nivel_alvo",1)),
+									  int(hd.get("custo_el",0)), int(hd.get("custo_esc",0))); return
 		return
 
 	# popup de opções
@@ -956,6 +1072,9 @@ func _executar_acao(acao: String) -> void:
 		"treinar":
 			_train_key = _sel_key; _state = State.TRAIN; queue_redraw(); return
 
+		"pesquisar":
+			_state = State.RESEARCH; queue_redraw(); return
+
 		"acelerar":
 			if not CocSalvar.tem_gemas(5): return
 			CocSalvar.gemas -= 5
@@ -1014,6 +1133,20 @@ func _treinar_tropa(tipo: String) -> void:
 	CocSalvar.fila_treino[best_key] = fila
 	CocSalvar.salvar()
 	notificar("Treinando %s..." % td.get("nome","?"), Color(0.3,0.85,1.0))
+
+func _iniciar_pesquisa(tipo: String, nivel_alvo: int, custo_el: int, custo_esc: int) -> void:
+	if not CocSalvar.pesquisa.is_empty(): return
+	if custo_el > 0 and not CocSalvar.tem_elixir(custo_el): return
+	if custo_esc > 0 and not CocSalvar.tem_escuro(custo_esc): return
+	CocSalvar.elixir -= custo_el; CocSalvar.escuro -= custo_esc
+	var tempo_s := 300 * nivel_alvo
+	CocSalvar.pesquisa = {
+		"tipo": tipo, "nivel_alvo": nivel_alvo,
+		"fim_ms": Time.get_ticks_msec() + tempo_s*1000
+	}
+	CocSalvar.salvar()
+	var nome : String = (DADOS.TROPAS.get(tipo, DADOS.FEITICOS.get(tipo,{})) as Dictionary).get("nome","?")
+	notificar("Pesquisando %s N%d..." % [nome, nivel_alvo], Color(0.88,0.38,1.0))
 
 # ══════════════════════════════════════════════════════════════════════════════
 #  HELPERS
