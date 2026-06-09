@@ -29,6 +29,9 @@ const TILE_W  : float = 76.0      # largura do losango
 const TILE_H  : float = 38.0      # altura do losango (2:1)
 const ORIGIN_Y: float = 96.0      # deslocamento vertical do topo do grid
 
+# DEBUG: dinheiro infinito na cidade (deixar false pra produção)
+const DINHEIRO_INFINITO : bool = true
+
 # ══════════════════════════════════════════════════════════════════════════════
 #  UI Layout
 # ══════════════════════════════════════════════════════════════════════════════
@@ -149,6 +152,12 @@ func on_fim_wave(wave: int, ui_node: Node) -> void:
 func _process(delta: float) -> void:
 	if not visible: return
 	_pulse += delta * 3.5
+
+	if DINHEIRO_INFINITO:
+		CocSalvar.ouro   = 99000000
+		CocSalvar.elixir = 99000000
+		CocSalvar.escuro = 99000000
+		CocSalvar.gemas  = 99000000
 
 	CocSalvar.tick_recursos(delta)
 	var concluidos := CocSalvar.tick_construcoes()
