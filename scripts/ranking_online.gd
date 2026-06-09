@@ -227,18 +227,6 @@ func buscar_campeoes_temporada_anterior() -> void:
 	_http_campeoes_temporada_anterior.request(_ranking_temporada_url(temporada_fechada, 3), _headers_get())
 
 
-func _on_campeoes_temporada_anterior_resposta(result: int, code: int, _h: PackedStringArray, body: PackedByteArray) -> void:
-	var temporada_fechada: int = temporada_anterior()
-	var entradas: Array = []
-	if result == HTTPRequest.RESULT_SUCCESS and code == 200:
-		var parsed = JSON.parse_string(body.get_string_from_utf8())
-		if parsed is Array:
-			for row in (parsed as Array):
-				if row is Dictionary:
-					entradas.append(row)
-	emit_signal("campeoes_temporada_anterior_carregados", temporada_fechada, entradas)
-
-
 func checar_premio_temporada() -> void:
 	var temporada_fechada: int = _temporada_atual() - 1
 	if temporada_fechada < 0:
