@@ -33,6 +33,7 @@ signal discord_vinculo_concluido(ok: bool, erro: String)
 signal discord_invite_pronto(ok: bool, url: String, erro: String)
 signal premios_bot_aplicados(qtd: int)
 signal premio_temporada_aplicado(posicao: int, temporada: int, baus_lendarios: int, cristais: int)
+signal campeoes_temporada_anterior_carregados(temporada: int, entradas: Array)
 
 # Cache único (ranking universal)
 var _cache           : Array = []
@@ -52,6 +53,7 @@ var _http_discord : HTTPRequest = null
 var _http_discord_invite : HTTPRequest = null
 var _http_rewards : HTTPRequest = null
 var _http_temporada_premio : HTTPRequest = null
+var _http_campeoes_temporada_anterior : HTTPRequest = null
 
 signal rename_concluido(ok: bool)
 var _rename_etapa  : String = ""
@@ -79,7 +81,7 @@ var _usuario_modo_sync     : bool = false
 
 
 func _ready() -> void:
-	for slot in ["_http_envio", "_http_busca", "_http_qualif", "_http_usuario", "_http_delete", "_http_save", "_http_beta", "_http_aval", "_http_avatar", "_http_rename", "_http_discord", "_http_discord_invite", "_http_rewards", "_http_temporada_premio"]:
+	for slot in ["_http_envio", "_http_busca", "_http_qualif", "_http_usuario", "_http_delete", "_http_save", "_http_beta", "_http_aval", "_http_avatar", "_http_rename", "_http_discord", "_http_discord_invite", "_http_rewards", "_http_temporada_premio", "_http_campeoes_temporada_anterior"]:
 		var h := HTTPRequest.new()
 		h.timeout = 15.0
 		h.use_threads = false
@@ -98,6 +100,7 @@ func _ready() -> void:
 	_http_discord_invite.request_completed.connect(_on_discord_invite_resposta)
 	_http_rewards.request_completed.connect(_on_claim_rewards_resposta)
 	_http_temporada_premio.request_completed.connect(_on_temporada_premio_resposta)
+	_http_campeoes_temporada_anterior.request_completed.connect(_on_campeoes_temporada_anterior_resposta)
 
 
 # ── Utilitários de header ──────────────────────────────────────────────────────
@@ -165,12 +168,28 @@ func segundos_desde_atualizacao() -> int:
 func buscar_ranking() -> void:
 	if _http_busca.get_http_client_status() != HTTPClient.STATUS_DISCONNECTED:
 		_http_busca.cancel_request()
-	var url := _URL_BASE + "?order=wave.desc,score.desc&limit=50&select=nome,score,wave,temporada,criado_em,avatar_idx,ascensoes&temporada=eq.%d" % _temporada_atual()
+	var url := _ranking_temporada_url(_temporada_atual(), 50)
 	_http_busca.request(url, _headers_get())
+
+
+func _ranking_temporada_url(temporada: int, limite: int) -> String:
+	return _URL_BASE + "?order=wave.desc,score.desc&limit=%d&select=nome,score,wave,temporada,criado_em,avatar_idx,ascensoes&temporada=eq.%d" % [limite, temporada]
+
+
+func _parse_ranking_entries(body: PackedByteArray) -> Array:
+	var json := JSON.new()
+	if json.parse(body.get_string_from_utf8()) != OK:
+		return []
+	var data = json.get_data()
+	return data if data is Array else []
 
 
 func temporada_atual() -> int:
 	return _temporada_atual()
+
+
+func temporada_anterior() -> int:
+	return _temporada_atual() - 1
 
 
 func temporada_display_numero() -> int:
@@ -198,6 +217,28 @@ func premio_temporada_info(posicao: int) -> Dictionary:
 	return {"baus_lendarios": 0, "cristais": 0}
 
 
+func buscar_campeoes_temporada_anterior() -> void:
+	var temporada_fechada: int = temporada_anterior()
+	if temporada_fechada < 0:
+		emit_signal("campeoes_temporada_anterior_carregados", temporada_fechada, [])
+		return
+	if _http_campeoes_temporada_anterior.get_http_client_status() != HTTPClient.STATUS_DISCONNECTED:
+		return
+	_http_campeoes_temporada_anterior.request(_ranking_temporada_url(temporada_fechada, 3), _headers_get())
+
+
+func _on_campeoes_temporada_anterior_resposta(result: int, code: int, _h: PackedStringArray, body: PackedByteArray) -> void:
+	var temporada_fechada: int = temporada_anterior()
+	var entradas: Array = []
+	if result == HTTPRequest.RESULT_SUCCESS and code == 200:
+		var parsed = JSON.parse_string(body.get_string_from_utf8())
+		if parsed is Array:
+			for row in (parsed as Array):
+				if row is Dictionary:
+					entradas.append(row)
+	emit_signal("campeoes_temporada_anterior_carregados", temporada_fechada, entradas)
+
+
 func checar_premio_temporada() -> void:
 	var temporada_fechada: int = _temporada_atual() - 1
 	if temporada_fechada < 0:
@@ -208,7 +249,7 @@ func checar_premio_temporada() -> void:
 		return
 	if _http_temporada_premio.get_http_client_status() != HTTPClient.STATUS_DISCONNECTED:
 		return
-	var url := _URL_BASE + "?order=wave.desc,score.desc&limit=3&select=nome,score,wave,temporada,avatar_idx&temporada=eq.%d" % temporada_fechada
+	var url := _ranking_temporada_url(temporada_fechada, 3)
 	_http_temporada_premio.request(url, _headers_get())
 
 
@@ -569,15 +610,10 @@ func _on_busca_resposta(result: int, code: int, _h: PackedStringArray, body: Pac
 	if result != HTTPRequest.RESULT_SUCCESS or code != 200:
 		emit_signal("ranking_carregado", [])
 		return
-	var json := JSON.new()
-	if json.parse(body.get_string_from_utf8()) != OK:
-		emit_signal("ranking_carregado", [])
-		return
-	var data = json.get_data()
-	if data is Array:
-		_cache          = data as Array
-		_cache_timestamp = int(Time.get_unix_time_from_system())
-	emit_signal("ranking_carregado", data if data is Array else [])
+	var data: Array = _parse_ranking_entries(body)
+	_cache = data
+	_cache_timestamp = int(Time.get_unix_time_from_system())
+	emit_signal("ranking_carregado", data)
 
 
 func _on_usuario_resposta(result: int, code: int, _h: PackedStringArray, body: PackedByteArray) -> void:
@@ -816,6 +852,22 @@ func _on_temporada_premio_resposta(result: int, code: int, _h: PackedStringArray
 ## Com player_id: PATCH usuarios → DELETE ranking → PATCH save.nome (sem DELETE/reupload).
 ## Sem player_id (retrocompat): PATCH usuarios → DELETE ranking → DELETE save → re-upload.
 ## senha_hash deve ser Salvar.senha_jogador (já é SHA-256, não passar senha raw).
+func _on_campeoes_temporada_anterior_resposta(result: int, code: int, _h: PackedStringArray, body: PackedByteArray) -> void:
+	var temporada_fechada: int = temporada_anterior()
+	if temporada_fechada < 0:
+		emit_signal("campeoes_temporada_anterior_carregados", temporada_fechada, [])
+		return
+	if result != HTTPRequest.RESULT_SUCCESS or code != 200:
+		emit_signal("campeoes_temporada_anterior_carregados", temporada_fechada, [])
+		return
+	var entradas: Array = _parse_ranking_entries(body)
+	var top3: Array = []
+	for i in range(mini(3, entradas.size())):
+		if entradas[i] is Dictionary:
+			top3.append(entradas[i])
+	emit_signal("campeoes_temporada_anterior_carregados", temporada_fechada, top3)
+
+
 func renomear(nome_antigo: String, nome_novo: String, senha_hash: String) -> void:
 	var ant := nome_antigo.strip_edges().left(20)
 	var nov := nome_novo.strip_edges().left(20)
