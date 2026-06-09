@@ -73,33 +73,13 @@ func _ready() -> void:
 	visible      = false
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	process_mode = Node.PROCESS_MODE_ALWAYS
-	_sprites = {
-		"prefeitura":       _load_sprite("res://assets/cidade/townhall.png"),
-		"mina_ouro":        _load_sprite("res://assets/cidade/mine.png"),
-		"deposito_ouro":    _load_sprite("res://assets/cidade/mine.png"),
-		"coletor_elixir":   _load_sprite("res://assets/cidade/windmill.png"),
-		"deposito_elixir":  _load_sprite("res://assets/cidade/windmill.png"),
-		"mina_escura":      _load_sprite("res://assets/cidade/mine.png"),
-		"deposito_escuro":  _load_sprite("res://assets/cidade/mine.png"),
-		"quartel":          _load_sprite("res://assets/cidade/watch_tower.png"),
-		"quartel_escuro":   _load_sprite("res://assets/cidade/fort.png"),
-		"acampamento":      _load_sprite("res://assets/cidade/fort.png"),
-		"fabrica_feitico":  _load_sprite("res://assets/cidade/cathedral.png"),
-		"fabrica_escura":   _load_sprite("res://assets/cidade/cathedral.png"),
-		"laboratorio":      _load_sprite("res://assets/cidade/cathedral.png"),
-		"canhao":           _load_sprite("res://assets/cidade/tower_round.png"),
-		"torre_arqueiros":  _load_sprite("res://assets/cidade/watch_tower.png"),
-		"morteiro":         _load_sprite("res://assets/cidade/tower_round.png"),
-		"def_aerea":        _load_sprite("res://assets/cidade/tower_round.png"),
-		"torre_mago":       _load_sprite("res://assets/cidade/cathedral.png"),
-		"tesla":            _load_sprite("res://assets/cidade/blacksmith.png"),
-		"xbow":             _load_sprite("res://assets/cidade/blacksmith.png"),
-		"muralha":          _load_sprite("res://assets/cidade/fort.png"),
-		"cabana_construtor":_load_sprite("res://assets/cidade/blacksmith.png"),
-		"castelo_cla":      _load_sprite("res://assets/cidade/fort.png"),
-		"altar_rei":        _load_sprite("res://assets/cidade/watch_tower.png"),
-		"altar_rainha":     _load_sprite("res://assets/cidade/watch_tower.png"),
-	}
+	# Sprites próprios (SVG) por tipo — gerados em tools/gen_sprites_coc.py
+	for tipo in ["prefeitura","mina_ouro","deposito_ouro","coletor_elixir","deposito_elixir",
+				 "mina_escura","deposito_escuro","quartel","quartel_escuro","acampamento",
+				 "fabrica_feitico","fabrica_escura","laboratorio","canhao","torre_arqueiros",
+				 "morteiro","def_aerea","torre_mago","tesla","xbow","muralha",
+				 "cabana_construtor","castelo_cla","altar_rei","altar_rainha"]:
+		_sprites[tipo] = _load_sprite("res://assets/cidade/coc/%s.svg" % tipo)
 
 func _load_sprite(path: String) -> Texture2D:
 	if ResourceLoader.exists(path): return load(path) as Texture2D
