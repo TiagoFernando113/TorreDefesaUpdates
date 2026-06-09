@@ -229,6 +229,7 @@ func _cell_key(gx: int, gy: int) -> String:
 
 func _key_to_gxy(key: String) -> Vector2i:
 	var p := key.split(",")
+	if p.size() < 2: return Vector2i(-999, -999)
 	return Vector2i(int(p[0]), int(p[1]))
 
 func _em_grid(gx: int, gy: int) -> bool:
@@ -296,7 +297,7 @@ func _draw_edificios() -> void:
 		var key := e["key"] as String
 		var gx  := int(e["gx"]); var gy := int(e["gy"])
 		var c   := _cell_center_o(o, gx, gy)
-		_draw_edificio(c, key, gx == _key_to_gxy(_sel_key).x and gy == _key_to_gxy(_sel_key).y and _sel_key == key)
+		_draw_edificio(c, key, key == _sel_key)
 
 func _draw_edificio(c: Vector2, key: String, sel: bool) -> void:
 	var font := ThemeDB.fallback_font
