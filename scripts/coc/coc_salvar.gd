@@ -45,6 +45,10 @@ var niveis       : Dictionary = {}
 # ── Batalha ───────────────────────────────────────────────────────────────────
 var trofeus_historico : Array = []    # últimas vitórias/derrotas
 
+# ── Raid (Fase 2 — naves atacam a vila, ligado às waves) ──────────────────────
+var raid_pendente : int = 0           # poder de invasão acumulado pelas waves
+var raid_wave_ref : int = 1           # wave de referência (escala dificuldade)
+
 # ══════════════════════════════════════════════════════════════════════════════
 #  SAVE / LOAD
 # ══════════════════════════════════════════════════════════════════════════════
@@ -63,6 +67,8 @@ func salvar() -> void:
 		"feiticos":    feiticos,
 		"pesquisa":    pesquisa,
 		"niveis":      niveis,
+		"raid_pendente": raid_pendente,
+		"raid_wave_ref": raid_wave_ref,
 	}
 	var f := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
 	if f:
@@ -88,6 +94,8 @@ func carregar() -> void:
 	var fe = data.get("feiticos",    {}); feiticos    = fe if fe is Dictionary else {}
 	var pe = data.get("pesquisa",    {}); pesquisa    = pe if pe is Dictionary else {}
 	var ni = data.get("niveis",      {}); niveis      = ni if ni is Dictionary else {}
+	raid_pendente = int(data.get("raid_pendente", 0))
+	raid_wave_ref = int(data.get("raid_wave_ref", 1))
 
 # ══════════════════════════════════════════════════════════════════════════════
 #  HELPERS DE RECURSOS
