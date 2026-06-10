@@ -41,7 +41,7 @@ const BOT_H : float = 58.0
 # ══════════════════════════════════════════════════════════════════════════════
 #  ESTADO
 # ══════════════════════════════════════════════════════════════════════════════
-enum State { IDLE, SHOP, PLACING, SELECTED, MOVING, TRAIN, RESEARCH, RAID }
+enum State { IDLE, SHOP, PLACING, SELECTED, MOVING, TRAIN, RESEARCH }
 
 var _state      : State  = State.IDLE
 var _shop_cat   : String = "recurso"
@@ -65,18 +65,6 @@ var _hz_pesq   : Array = []   # pesquisa (laboratório)
 
 # ── Notificações ──────────────────────────────────────────────────────────────
 var _noticias : Array = []   # [{msg, cor, t}]
-
-# ── RAID (combate: naves atacam a vila) ───────────────────────────────────────
-const RAID_DURACAO : float = 90.0
-const RAID_CELL    : float = 64.0    # escala de range em pixels
-var _raid_naves    : Array = []      # [{px,py,hp,hp_max,alvo_key,atk_cd,dano,vel,dead}]
-var _raid_defs     : Array = []      # [{px,py,tipo,nivel,dps,range,alvo,splash,oculta,atk_cd,key}]
-var _raid_tropas   : Array = []      # [{px,py,dano,atk_cd}] defensores
-var _raid_tiros    : Array = []      # [{ax,ay,bx,by,t,cor}]
-var _raid_expl     : Array = []      # [{px,py,r,t,max_t}]
-var _raid_timer    : float = 0.0
-var _raid_result   : Dictionary = {} # {vitoria,naves_mortas,perda_ouro,...}
-var _raid_pend_ui  : int = 0         # nº mostrado no botão DEFENDER
 
 # ── Sprites ───────────────────────────────────────────────────────────────────
 var _sprites : Dictionary = {}
@@ -114,8 +102,6 @@ func abrir(ui_node: Node = null) -> void:
 	_shop_cat  = "recurso"
 	_sel_key   = ""; _move_src = ""; _place_tipo = ""; _train_key = ""
 	_hover_gx  = -1; _hover_gy = -1
-	_raid_pend_ui = CocSalvar.raid_pendente
-	_raid_result = {}
 	get_tree().paused = true
 	if is_instance_valid(ui_node): ui_node.visible = false
 	queue_redraw()
@@ -149,16 +135,6 @@ func on_mob_morreu(ui_node: Node, total_kills: int) -> void:
 		ui_node.call("atualizar_mana_cidade", Salvar.mana_cidade)
 
 func on_fim_wave(wave: int, ui_node: Node) -> void:
-	# Fase 2: cada wave concluída acumula poder de invasão de naves na vila
-	CocSalvar.carregar()
-	CocSalvar.raid_pendente += 1 + int(wave / 3)
-	CocSalvar.raid_wave_ref = maxi(CocSalvar.raid_wave_ref, wave)
-	CocSalvar.salvar()
-	if is_instance_valid(ui_node) and ui_node.has_method("mostrar_notificacao_consumivel"):
-		ui_node.mostrar_notificacao_consumivel(
-			"Naves se aproximam da vila! (%d)" % CocSalvar.raid_pendente, Color(1.0,0.5,0.3))
-
-	# Bônus legado de mana (moinho) — economia antiga intacta
 	var mana_moinho : int = 0
 	for sd in Salvar.cidade_slots.values():
 		if (sd as Dictionary).get("tipo","") == "moinho" and int((sd as Dictionary).get("hp",0)) > 0:
@@ -168,6 +144,9 @@ func on_fim_wave(wave: int, ui_node: Node) -> void:
 				3: mana_moinho += 10
 	if mana_moinho > 0:
 		Salvar.mana_cidade += mana_moinho
+		if is_instance_valid(ui_node) and ui_node.has_method("mostrar_notificacao_consumivel"):
+			ui_node.mostrar_notificacao_consumivel(
+				"Moinho gerou +%d mana" % mana_moinho, Color(0.55, 0.95, 0.45))
 
 # ══════════════════════════════════════════════════════════════════════════════
 #  PROCESS
@@ -181,12 +160,6 @@ func _process(delta: float) -> void:
 		CocSalvar.elixir = 99000000
 		CocSalvar.escuro = 99000000
 		CocSalvar.gemas  = 99000000
-
-	# Combate de raid roda separado (vila pausada durante construção/economia)
-	if _state == State.RAID:
-		_tick_raid(delta)
-		queue_redraw()
-		return
 
 	CocSalvar.tick_recursos(delta)
 	var concluidos := CocSalvar.tick_construcoes()
@@ -277,7 +250,6 @@ func _draw() -> void:
 	if _state == State.SHOP:     _draw_loja(vp)
 	if _state == State.TRAIN:    _draw_treino(vp)
 	if _state == State.RESEARCH: _draw_pesquisa(vp)
-	if _state == State.RAID:     _draw_raid(vp)
 	if _state == State.SELECTED and _sel_key != "": _draw_popup(vp)
 
 	_draw_noticias(vp)
@@ -467,17 +439,6 @@ func _draw_bottom(vp: Vector2) -> void:
 	draw_string(font, Vector2(fch_r.position.x+24, fch_r.position.y+30), "✕ SAIR",
 				HORIZONTAL_ALIGNMENT_LEFT, -1, 18, Color(1.0,0.6,0.6))
 	_hz_fixed.append({"rect":fch_r,"acao":"fechar"})
-
-	# DEFENDER (raid pendente) — só fora de combate
-	if _state == State.IDLE and CocSalvar.raid_pendente > 0:
-		var pulso := 0.5 + sin(_pulse*1.5)*0.5
-		var def_r := Rect2(vp.x*0.5-130, by+8, 260, BOT_H-16)
-		draw_rect(def_r, Color(0.30,0.06,0.04,0.95))
-		draw_rect(def_r, Color(1.0,0.35,0.20,0.5+pulso*0.5), false, 3.0)
-		draw_string(font, Vector2(def_r.position.x+18, def_r.position.y+30),
-			"⚠ DEFENDER VILA  (%d naves)" % _qtd_naves_raid(),
-			HORIZONTAL_ALIGNMENT_LEFT, -1, 18, Color(1.0,0.7,0.5))
-		_hz_fixed.append({"rect":def_r,"acao":"defender"})
 
 	# Dica de modo
 	if _state == State.PLACING:
@@ -915,7 +876,6 @@ func _input(event: InputEvent) -> void:
 				State.SHOP:     _state=State.IDLE
 				State.TRAIN:    _state=State.IDLE; _train_key=""
 				State.RESEARCH: _state=State.IDLE
-				State.RAID:     pass   # não sai no meio do combate
 				State.SELECTED: _state=State.IDLE; _sel_key=""
 				_: fechar()
 			queue_redraw(); get_viewport().set_input_as_handled()
@@ -951,13 +911,7 @@ func _handle_tap(pos: Vector2) -> void:
 			match (h as Dictionary).get("acao",""):
 				"fechar": fechar()
 				"loja":   _toggle_loja()
-				"defender": _iniciar_raid()
-				"raid_continuar": _state = State.IDLE; _raid_result = {}; queue_redraw()
 			return
-
-	# durante o raid, ignora cliques no mapa (só botões fixos acima)
-	if _state == State.RAID:
-		return
 
 	# painel da loja
 	if _state == State.SHOP:
@@ -1193,295 +1147,6 @@ func _iniciar_pesquisa(tipo: String, nivel_alvo: int, custo_el: int, custo_esc: 
 	CocSalvar.salvar()
 	var nome : String = (DADOS.TROPAS.get(tipo, DADOS.FEITICOS.get(tipo,{})) as Dictionary).get("nome","?")
 	notificar("Pesquisando %s N%d..." % [nome, nivel_alvo], Color(0.88,0.38,1.0))
-
-# ══════════════════════════════════════════════════════════════════════════════
-#  RAID — combate: naves atacam a vila, defesas/tropas defendem
-# ══════════════════════════════════════════════════════════════════════════════
-func _qtd_naves_raid() -> int:
-	return clampi(CocSalvar.raid_pendente, 3, 30)
-
-func _iniciar_raid() -> void:
-	var n := _qtd_naves_raid()
-	var wave_ref : int = maxi(CocSalvar.raid_wave_ref, 1)
-	var nave_hp : float = 60.0 + float(wave_ref) * 14.0
-	var nave_dano : float = 12.0 + float(wave_ref) * 2.5
-	var nave_vel : float = 40.0 + float(wave_ref) * 1.5
-
-	_raid_naves.clear(); _raid_defs.clear(); _raid_tropas.clear()
-	_raid_tiros.clear(); _raid_expl.clear()
-	_raid_timer = RAID_DURACAO
-	_raid_result = {}
-
-	# spawn naves nas bordas, alvos = prédios
-	var vp := get_viewport().get_visible_rect().size
-	for i in range(n):
-		var lado := i % 4
-		var px : float; var py : float
-		match lado:
-			0: px = randf_range(80, vp.x-80); py = TOP_H + 10
-			1: px = vp.x - 40;                py = randf_range(TOP_H+40, vp.y-BOT_H-120)
-			2: px = randf_range(80, vp.x-80); py = vp.y - BOT_H - 90
-			_: px = 40;                       py = randf_range(TOP_H+40, vp.y-BOT_H-120)
-		_raid_naves.append({
-			"px":px, "py":py, "hp":nave_hp, "hp_max":nave_hp,
-			"alvo_key":"", "atk_cd":0.0, "dano":nave_dano, "vel":nave_vel, "dead":false,
-		})
-
-	# defesas ativas (prédios com dps)
-	var o := _iso_origin()
-	for key in CocSalvar.slots.keys():
-		var d := CocSalvar.slot(key)
-		var tipo := d.get("tipo","") as String
-		var ef := DADOS.EDIFICIOS.get(tipo,{}) as Dictionary
-		if not ef.has("dps"): continue
-		if CocSalvar.slot_em_construcao(key): continue
-		if int(d.get("hp",0)) <= 0: continue
-		var nivel : int = int(d.get("nivel",1))
-		var dps_arr := ef.get("dps",[10]) as Array
-		var gxy := _key_to_gxy(key)
-		_raid_defs.append({
-			"key":key, "tipo":tipo, "nivel":nivel,
-			"px":_cell_center_o(o,gxy.x,gxy.y).x, "py":_cell_center_o(o,gxy.x,gxy.y).y,
-			"dps":float(int(dps_arr[clampi(nivel-1,0,dps_arr.size()-1)])),
-			"range":float(ef.get("range",3.5))*RAID_CELL,
-			"alvo":ef.get("alvo","terrestre") as String,
-			"splash":float(ef.get("splash",0.0))*RAID_CELL,
-			"oculta":ef.get("oculta",false) as bool,
-			"atk_cd":0.0,
-		})
-
-	# tropas defensoras (perto da prefeitura)
-	var pref_c := _pos_prefeitura()
-	for tipo in CocSalvar.tropas.keys():
-		var cnt := int(CocSalvar.tropas[tipo])
-		var td := DADOS.TROPAS.get(tipo,{}) as Dictionary
-		var dano := float(td.get("dano_s",8.0))
-		for j in range(mini(cnt, 30)):
-			var ang := randf() * TAU
-			_raid_tropas.append({
-				"px":pref_c.x + cos(ang)*randf_range(30,90),
-				"py":pref_c.y + sin(ang)*randf_range(20,60),
-				"dano":dano, "atk_cd":randf()*0.5,
-			})
-
-	CocSalvar.raid_pendente = 0
-	CocSalvar.salvar()
-	_state = State.RAID
-	notificar("⚠ %d naves atacando!" % n, Color(1.0,0.4,0.3))
-	queue_redraw()
-
-func _pos_prefeitura() -> Vector2:
-	var o := _iso_origin()
-	for key in CocSalvar.slots.keys():
-		if CocSalvar.slot_tipo(key) == "prefeitura":
-			var g := _key_to_gxy(key)
-			return _cell_center_o(o, g.x, g.y)
-	return _iso_origin()
-
-func _tick_raid(delta: float) -> void:
-	if not _raid_result.is_empty(): return
-	_raid_timer -= delta
-
-	# ── defesas miram naves aéreas ──
-	for dd in _raid_defs:
-		var ddict := dd as Dictionary
-		if (ddict.get("alvo","terrestre") as String) == "terrestre": continue  # só ar acerta naves
-		ddict["atk_cd"] = float(ddict.get("atk_cd",0.0)) - delta
-		if float(ddict["atk_cd"]) > 0.0: continue
-		var idx := _raid_nave_proxima(float(ddict["px"]), float(ddict["py"]), float(ddict["range"]))
-		if idx < 0: continue
-		ddict["atk_cd"] = 1.0
-		var alvo := _raid_naves[idx] as Dictionary
-		_raid_dano_nave(idx, float(ddict["dps"]))
-		_raid_tiros.append({"ax":ddict["px"],"ay":ddict["py"],"bx":alvo["px"],"by":alvo["py"],
-							 "t":0.0,"cor":Color(0.4,0.9,1.0,0.9)})
-		var splash := float(ddict.get("splash",0.0))
-		if splash > 0.0:
-			for k in range(_raid_naves.size()):
-				if k == idx: continue
-				var nn := _raid_naves[k] as Dictionary
-				if bool(nn.get("dead",false)): continue
-				if Vector2(float(nn["px"])-float(alvo["px"]), float(nn["py"])-float(alvo["py"])).length() <= splash:
-					_raid_dano_nave(k, float(ddict["dps"])*0.6)
-
-	# ── tropas defensoras atiram ──
-	for td in _raid_tropas:
-		var tdict := td as Dictionary
-		tdict["atk_cd"] = float(tdict.get("atk_cd",0.0)) - delta
-		if float(tdict["atk_cd"]) > 0.0: continue
-		var ti := _raid_nave_proxima(float(tdict["px"]), float(tdict["py"]), 220.0)
-		if ti < 0: continue
-		tdict["atk_cd"] = 0.8
-		var na := _raid_naves[ti] as Dictionary
-		_raid_dano_nave(ti, float(tdict["dano"]))
-		_raid_tiros.append({"ax":tdict["px"],"ay":tdict["py"],"bx":na["px"],"by":na["py"],
-							 "t":0.0,"cor":Color(0.5,1.0,0.6,0.8)})
-
-	# ── naves movem e atacam prédios ──
-	for ni in range(_raid_naves.size()):
-		var nv := _raid_naves[ni] as Dictionary
-		if bool(nv.get("dead",false)): continue
-		var ak := nv.get("alvo_key","") as String
-		if ak == "" or CocSalvar.slot(ak).is_empty() or int(CocSalvar.slot(ak).get("hp",0)) <= 0:
-			ak = _raid_predio_alvo(float(nv["px"]), float(nv["py"]))
-			nv["alvo_key"] = ak
-		if ak == "":
-			continue
-		var g := _key_to_gxy(ak)
-		var alvo_pos := _cell_center(g.x, g.y)
-		var dist := Vector2(alvo_pos.x-float(nv["px"]), alvo_pos.y-float(nv["py"])).length()
-		if dist > 40.0:
-			var dir := Vector2(alvo_pos.x-float(nv["px"]), alvo_pos.y-float(nv["py"])).normalized()
-			nv["px"] = float(nv["px"]) + dir.x*float(nv["vel"])*delta
-			nv["py"] = float(nv["py"]) + dir.y*float(nv["vel"])*delta
-		else:
-			nv["atk_cd"] = float(nv.get("atk_cd",0.0)) - delta
-			if float(nv["atk_cd"]) <= 0.0:
-				nv["atk_cd"] = 1.0
-				_raid_dano_predio(ak, float(nv["dano"]))
-				_raid_expl.append({"px":alvo_pos.x,"py":alvo_pos.y,"r":6.0,"t":0.0,"max_t":0.3})
-
-	# limpar naves mortas (mantém no array marcadas dead p/ fade? remover já)
-	_raid_naves = _raid_naves.filter(func(x): return not bool((x as Dictionary).get("dead",false)))
-
-	# tiros e explosões decaem
-	for t in _raid_tiros: (t as Dictionary)["t"] = float((t as Dictionary).get("t",0.0)) + delta
-	_raid_tiros = _raid_tiros.filter(func(x): return float((x as Dictionary).get("t",0.0)) < 0.15)
-	for e in _raid_expl:
-		(e as Dictionary)["t"] = float((e as Dictionary).get("t",0.0)) + delta
-		(e as Dictionary)["r"] = float((e as Dictionary).get("r",6.0)) + delta*80.0
-	_raid_expl = _raid_expl.filter(func(x): return float((x as Dictionary).get("t",0.0)) < float((x as Dictionary).get("max_t",0.3)))
-
-	# ── condições de fim ──
-	if _raid_naves.is_empty():
-		_finalizar_raid(true)
-	elif _raid_timer <= 0.0:
-		_finalizar_raid(true)   # sobreviveu ao tempo = defendeu
-	elif _prefeitura_destruida():
-		_finalizar_raid(false)
-
-func _raid_nave_proxima(px: float, py: float, alc: float) -> int:
-	var melhor := -1; var menor := INF
-	for i in range(_raid_naves.size()):
-		var nv := _raid_naves[i] as Dictionary
-		if bool(nv.get("dead",false)): continue
-		var d := Vector2(float(nv["px"])-px, float(nv["py"])-py).length()
-		if d <= alc and d < menor: menor = d; melhor = i
-	return melhor
-
-func _raid_dano_nave(idx: int, dano: float) -> void:
-	if idx < 0 or idx >= _raid_naves.size(): return
-	var nv := _raid_naves[idx] as Dictionary
-	nv["hp"] = float(nv.get("hp",0)) - dano
-	if float(nv["hp"]) <= 0.0:
-		nv["dead"] = true
-		_raid_expl.append({"px":nv["px"],"py":nv["py"],"r":8.0,"t":0.0,"max_t":0.4})
-
-func _raid_predio_alvo(px: float, py: float) -> String:
-	# prefere prefeitura, senão defesa mais próxima, senão qualquer prédio
-	var pref := ""
-	var melhor := ""; var menor := INF
-	var o := _iso_origin()
-	for key in CocSalvar.slots.keys():
-		var d := CocSalvar.slot(key)
-		if int(d.get("hp",0)) <= 0: continue
-		var tipo := d.get("tipo","") as String
-		if tipo == "prefeitura": pref = key
-		var g := _key_to_gxy(key)
-		var c := _cell_center_o(o,g.x,g.y)
-		var dist := Vector2(c.x-px, c.y-py).length()
-		if dist < menor: menor = dist; melhor = key
-	return melhor if melhor != "" else pref
-
-func _raid_dano_predio(key: String, dano: float) -> void:
-	var d := CocSalvar.slot(key)
-	if d.is_empty(): return
-	d["hp"] = maxi(0, int(d.get("hp",0)) - int(dano))
-	CocSalvar.slots[key] = d
-
-func _prefeitura_destruida() -> bool:
-	for key in CocSalvar.slots.keys():
-		if CocSalvar.slot_tipo(key) == "prefeitura":
-			return int(CocSalvar.slot(key).get("hp",0)) <= 0
-	return false
-
-func _finalizar_raid(vitoria: bool) -> void:
-	var perda_o := 0; var perda_e := 0
-	if not vitoria:
-		perda_o = int(CocSalvar.ouro * 0.15)
-		perda_e = int(CocSalvar.elixir * 0.15)
-		CocSalvar.ouro = maxi(0, CocSalvar.ouro - perda_o)
-		CocSalvar.elixir = maxi(0, CocSalvar.elixir - perda_e)
-	var recompensa := 0
-	if vitoria:
-		recompensa = 5 + _raid_tropas.size()
-		CocSalvar.gemas += recompensa
-	CocSalvar.salvar()
-	_raid_result = {"vitoria":vitoria, "perda_o":perda_o, "perda_e":perda_e, "recompensa":recompensa}
-
-func _draw_raid(vp: Vector2) -> void:
-	var font := ThemeDB.fallback_font
-
-	# explosões
-	for e in _raid_expl:
-		var ed := e as Dictionary
-		var a := clampf(1.0 - float(ed.get("t",0.0))/float(ed.get("max_t",0.3)), 0.0, 1.0)
-		draw_circle(Vector2(float(ed["px"]),float(ed["py"])), float(ed.get("r",8.0)), Color(1.0,0.6,0.15,a*0.7))
-
-	# tiros
-	for t in _raid_tiros:
-		var tdc := t as Dictionary
-		draw_line(Vector2(float(tdc["ax"]),float(tdc["ay"])), Vector2(float(tdc["bx"]),float(tdc["by"])),
-				  tdc.get("cor",Color.WHITE) as Color, 2.0)
-
-	# tropas defensoras
-	for td in _raid_tropas:
-		var tp := td as Dictionary
-		draw_circle(Vector2(float(tp["px"]),float(tp["py"])), 5.0, Color(0.4,0.95,0.6))
-		draw_circle(Vector2(float(tp["px"]),float(tp["py"])), 5.0, Color(1,1,1,0.4), false)
-
-	# naves
-	for nv in _raid_naves:
-		var nd := nv as Dictionary
-		if bool(nd.get("dead",false)): continue
-		var p := Vector2(float(nd["px"]),float(nd["py"]))
-		draw_circle(p+Vector2(0,4), 11.0, Color(0,0,0,0.25))   # sombra
-		draw_circle(p, 10.0, Color(0.75,0.30,0.95))            # casco
-		draw_circle(p, 5.0, Color(1.0,0.55,0.2))               # núcleo
-		draw_circle(p, 10.0, Color(1,1,1,0.4), false)
-		var hf := clampf(float(nd.get("hp",0))/float(maxf(float(nd.get("hp_max",1)),1.0)), 0.0, 1.0)
-		draw_rect(Rect2(p.x-10,p.y-16,20,3), Color(0.05,0.05,0.05,0.85))
-		draw_rect(Rect2(p.x-10,p.y-16,20*hf,3), Color(1.0,0.3,0.3) if hf<0.5 else Color(0.3,1.0,0.5))
-
-	# HUD topo do raid
-	draw_rect(Rect2(0,TOP_H,vp.x,34), Color(0.10,0.02,0.02,0.92))
-	draw_string(font, Vector2(20, TOP_H+24), "⚔ DEFESA DA VILA",
-				HORIZONTAL_ALIGNMENT_LEFT, -1, 18, Color(1.0,0.6,0.4))
-	draw_string(font, Vector2(vp.x*0.5-40, TOP_H+24), "Naves: %d" % _raid_naves.size(),
-				HORIZONTAL_ALIGNMENT_LEFT, -1, 18, Color(1.0,0.8,0.5))
-	draw_string(font, Vector2(vp.x-150, TOP_H+24), "⏱ %s" % _fmt_tempo(int(_raid_timer)),
-				HORIZONTAL_ALIGNMENT_LEFT, -1, 18, Color(0.9,0.95,1.0))
-
-	# resultado
-	if not _raid_result.is_empty():
-		var win : bool = bool(_raid_result.get("vitoria",false))
-		draw_rect(Rect2(vp*0.5-Vector2(220,130), Vector2(440,260)), Color(0.04,0.06,0.12,0.98))
-		draw_rect(Rect2(vp*0.5-Vector2(220,130), Vector2(440,260)),
-				  Color(0.3,1.0,0.5,0.7) if win else Color(1.0,0.3,0.3,0.7), false, 3.0)
-		draw_string(font, vp*0.5-Vector2(120,80), "VILA DEFENDIDA!" if win else "VILA INVADIDA!",
-					HORIZONTAL_ALIGNMENT_LEFT, -1, 26, Color(0.4,1.0,0.6) if win else Color(1.0,0.4,0.4))
-		if win:
-			draw_string(font, vp*0.5-Vector2(120,30), "+%d 💎 recompensa" % int(_raid_result.get("recompensa",0)),
-						HORIZONTAL_ALIGNMENT_LEFT, -1, 18, Color(0.3,1.0,0.6))
-		else:
-			draw_string(font, vp*0.5-Vector2(120,30), "Perdeu %d🥇 e %d💜" % [int(_raid_result.get("perda_o",0)), int(_raid_result.get("perda_e",0))],
-						HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color(1.0,0.6,0.5))
-		var br := Rect2(vp.x*0.5-80, vp.y*0.5+50, 160, 44)
-		draw_rect(br, Color(0.05,0.18,0.06,0.95))
-		draw_rect(br, Color(0.3,1.0,0.5,0.8), false, 2.5)
-		draw_string(font, Vector2(br.get_center().x-44, br.position.y+28), "CONTINUAR",
-					HORIZONTAL_ALIGNMENT_LEFT, -1, 18, Color(0.4,1.0,0.6))
-		_hz_fixed.append({"rect":br,"acao":"raid_continuar"})
 
 # ══════════════════════════════════════════════════════════════════════════════
 #  HELPERS
