@@ -41,7 +41,9 @@ const BOT_H : float = 58.0
 # ══════════════════════════════════════════════════════════════════════════════
 #  ESTADO
 # ══════════════════════════════════════════════════════════════════════════════
-enum State { IDLE, SHOP, PLACING, SELECTED, MOVING, TRAIN, RESEARCH }
+enum State { IDLE, SHOP, PLACING, SELECTED, MOVING, TRAIN, RESEARCH, ATTACK }
+
+const BatalhaC = preload("res://scripts/coc/coc_batalha.gd")
 
 var _state      : State  = State.IDLE
 var _shop_cat   : String = "recurso"
@@ -50,6 +52,14 @@ var _move_src   : String = ""
 var _place_tipo : String = ""
 var _train_key  : String = ""    # quartel aberto no painel de treino
 var _pesq_cat   : String = "tropa"   # "tropa" | "feitico" no laboratório
+
+# ── Ataque (batalha clássica CoC — usa coc_batalha.gd) ────────────────────────
+var _bat              = null     # instância de CocBatalha (sem tipo fixo)
+var _bat_sel_tropa    : String = ""
+var _bat_sel_feitico  : String = ""
+var _bat_result       : Dictionary = {}
+var _bat_restante     : Dictionary = {}   # tropas restantes p/ deploy
+var _bat_restante_f   : Dictionary = {}   # feitiços restantes p/ deploy
 var _hover_gx   : int    = -1
 var _hover_gy   : int    = -1
 var _pulse      : float  = 0.0
@@ -62,6 +72,7 @@ var _hz_train  : Array = []
 var _hz_fixed  : Array = []
 var _hz_builds : Array = []   # [{rect, key}] área clicável de cada prédio (corpo do sprite)
 var _hz_pesq   : Array = []   # pesquisa (laboratório)
+var _hz_bat    : Array = []   # batalha (deploy/seleção)
 
 # ── Notificações ──────────────────────────────────────────────────────────────
 var _noticias : Array = []   # [{msg, cor, t}]
@@ -155,6 +166,16 @@ func _process(delta: float) -> void:
 	if not visible: return
 	_pulse += delta * 3.5
 
+	# Batalha roda à parte (economia da vila congelada durante o ataque)
+	if _state == State.ATTACK:
+		if _bat != null and _bat_result.is_empty():
+			var res : Dictionary = _bat.tick(delta)
+			if not res.is_empty():
+				_bat_result = res
+				_aplicar_resultado_ataque(res)
+		queue_redraw()
+		return
+
 	if DINHEIRO_INFINITO:
 		CocSalvar.ouro   = 99000000
 		CocSalvar.elixir = 99000000
@@ -235,7 +256,13 @@ func _em_grid(gx: int, gy: int) -> bool:
 #  DRAW PRINCIPAL
 # ══════════════════════════════════════════════════════════════════════════════
 func _draw() -> void:
-	_hz_shop.clear(); _hz_opt.clear(); _hz_train.clear(); _hz_fixed.clear(); _hz_builds.clear(); _hz_pesq.clear()
+	_hz_shop.clear(); _hz_opt.clear(); _hz_train.clear(); _hz_fixed.clear(); _hz_builds.clear(); _hz_pesq.clear(); _hz_bat.clear()
+
+	# Tela de batalha ocupa tudo
+	if _state == State.ATTACK:
+		_draw_ataque(get_viewport().get_visible_rect().size)
+		_draw_noticias(get_viewport().get_visible_rect().size)
+		return
 
 	var vp := get_viewport().get_visible_rect().size
 	draw_rect(Rect2(Vector2.ZERO, vp), Color(0.05,0.08,0.11,1.0))
@@ -431,6 +458,15 @@ func _draw_bottom(vp: Vector2) -> void:
 	draw_string(font, Vector2(loja_r.position.x+28, loja_r.position.y+30), "🛒 LOJA",
 				HORIZONTAL_ALIGNMENT_LEFT, -1, 18, Color(0.85,0.93,1.0))
 	_hz_fixed.append({"rect":loja_r,"acao":"loja"})
+
+	# ATACAR (precisa de tropas prontas)
+	var tem_tropa : bool = CocSalvar.cap_tropas_usada() > 0
+	var atk_r := Rect2(180, by+9, 160, BOT_H-18)
+	draw_rect(atk_r, Color(0.22,0.06,0.04,0.95) if tem_tropa else Color(0.10,0.06,0.06,0.7))
+	draw_rect(atk_r, Color(1.0,0.4,0.25,0.8 if tem_tropa else 0.25), false, 2.0)
+	draw_string(font, Vector2(atk_r.position.x+22, atk_r.position.y+30), "⚔ ATACAR",
+				HORIZONTAL_ALIGNMENT_LEFT, -1, 18, Color(1.0,0.7,0.5) if tem_tropa else Color(0.6,0.45,0.4))
+	if tem_tropa: _hz_fixed.append({"rect":atk_r,"acao":"atacar"})
 
 	# FECHAR
 	var fch_r := Rect2(vp.x-150, by+9, 130, BOT_H-18)
@@ -876,6 +912,7 @@ func _input(event: InputEvent) -> void:
 				State.SHOP:     _state=State.IDLE
 				State.TRAIN:    _state=State.IDLE; _train_key=""
 				State.RESEARCH: _state=State.IDLE
+				State.ATTACK:   pass   # não sai no meio da batalha
 				State.SELECTED: _state=State.IDLE; _sel_key=""
 				_: fechar()
 			queue_redraw(); get_viewport().set_input_as_handled()
@@ -911,7 +948,13 @@ func _handle_tap(pos: Vector2) -> void:
 			match (h as Dictionary).get("acao",""):
 				"fechar": fechar()
 				"loja":   _toggle_loja()
+				"atacar": _iniciar_ataque()
 			return
+
+	# tela de batalha
+	if _state == State.ATTACK:
+		_handle_tap_ataque(pos)
+		return
 
 	# painel da loja
 	if _state == State.SHOP:
@@ -1147,6 +1190,210 @@ func _iniciar_pesquisa(tipo: String, nivel_alvo: int, custo_el: int, custo_esc: 
 	CocSalvar.salvar()
 	var nome : String = (DADOS.TROPAS.get(tipo, DADOS.FEITICOS.get(tipo,{})) as Dictionary).get("nome","?")
 	notificar("Pesquisando %s N%d..." % [nome, nivel_alvo], Color(0.88,0.38,1.0))
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  ATAQUE — batalha clássica CoC (monta exército, ataca base inimiga)
+# ══════════════════════════════════════════════════════════════════════════════
+func _iniciar_ataque() -> void:
+	if CocSalvar.cap_tropas_usada() <= 0:
+		notificar("Treine tropas antes de atacar!", Color(1.0,0.5,0.3)); return
+	var base_inimiga := _gerar_vila_inimiga()
+	var bat = BatalhaC.new()
+	bat.iniciar(base_inimiga, CocSalvar.tropas.duplicate(true), CocSalvar.feiticos.duplicate(true),
+				800 + CocSalvar.trofeus, 800 + CocSalvar.trofeus, 100 + CocSalvar.trofeus/10)
+	_bat = bat
+	_bat_sel_tropa = ""
+	_bat_sel_feitico = ""
+	_bat_result = {}
+	# quantas tropas/feitiços restam para enviar no mapa
+	_bat_restante = CocSalvar.tropas.duplicate(true)
+	_bat_restante_f = CocSalvar.feiticos.duplicate(true)
+	# tropas/feitiços ficam "em batalha" — saem do inventário
+	CocSalvar.tropas.clear()
+	CocSalvar.feiticos.clear()
+	CocSalvar.salvar()
+	_state = State.ATTACK
+	notificar("Batalha iniciada! Toque no mapa para enviar tropas.", Color(1.0,0.7,0.4))
+	queue_redraw()
+
+func _gerar_vila_inimiga() -> Dictionary:
+	var s : Dictionary = {}
+	var nb : int = clampi(CocSalvar.trofeus/500, 1, 3)
+	s["5,3"] = {"tipo":"prefeitura","nivel":nb}
+	for d in [["3,1","canhao"],["7,1","canhao"],["1,3","torre_arqueiros"],["9,3","torre_arqueiros"],
+			  ["4,5","morteiro"],["6,5","morteiro"],["3,3","torre_mago"],["7,3","def_aerea"]]:
+		var k := d[0] as String
+		if not s.has(k): s[k] = {"tipo":d[1] as String,"nivel":clampi(nb,1,3)}
+	for gy in [2,4]:
+		for gx in range(4,8):
+			var k := "%d,%d" % [gx,gy]
+			if not s.has(k): s[k] = {"tipo":"muralha","nivel":nb}
+	s["2,1"] = {"tipo":"mina_ouro","nivel":nb}
+	s["8,1"] = {"tipo":"coletor_elixir","nivel":nb}
+	s["2,6"] = {"tipo":"deposito_ouro","nivel":nb}
+	s["8,6"] = {"tipo":"deposito_elixir","nivel":nb}
+	return s
+
+func _aplicar_resultado_ataque(res: Dictionary) -> void:
+	CocSalvar.ouro   = mini(CocSalvar.ouro   + int(res.get("ouro_loot",0)),   CocSalvar.cap_ouro())
+	CocSalvar.elixir = mini(CocSalvar.elixir + int(res.get("elixir_loot",0)), CocSalvar.cap_elixir())
+	CocSalvar.escuro = mini(CocSalvar.escuro + int(res.get("escuro_loot",0)), CocSalvar.cap_escuro())
+	CocSalvar.trofeus = maxi(0, CocSalvar.trofeus + int(res.get("trofeus",0)))
+	CocSalvar.salvar()
+
+func _handle_tap_ataque(pos: Vector2) -> void:
+	if _bat == null: return
+	# botões/hitzones da batalha
+	for h in _hz_bat:
+		var hd := h as Dictionary
+		if not (hd["rect"] as Rect2).has_point(pos): continue
+		match hd.get("acao",""):
+			"sel_tropa":   _bat_sel_tropa = hd.get("tipo","") as String; _bat_sel_feitico = ""; queue_redraw(); return
+			"sel_feitico": _bat_sel_feitico = hd.get("tipo","") as String; _bat_sel_tropa = ""; queue_redraw(); return
+			"continuar":   _bat = null; _bat_result = {}; _state = State.IDLE; queue_redraw(); return
+		return
+	# clique no mapa = deploy de tropa / feitiço
+	if not _bat_result.is_empty(): return
+	var vp := get_viewport().get_visible_rect().size
+	if pos.y > TOP_H and pos.y < vp.y - 92:
+		if _bat_sel_tropa != "" and int(_bat_restante.get(_bat_sel_tropa,0)) > 0:
+			if _bat.deployar_tropa(_bat_sel_tropa, pos.x, pos.y):
+				_bat_restante[_bat_sel_tropa] = maxi(0, int(_bat_restante.get(_bat_sel_tropa,0)) - 1)
+				queue_redraw()
+		elif _bat_sel_feitico != "" and int(_bat_restante_f.get(_bat_sel_feitico,0)) > 0:
+			if _bat.usar_feitico(_bat_sel_feitico, pos.x, pos.y):
+				_bat_restante_f[_bat_sel_feitico] = maxi(0, int(_bat_restante_f.get(_bat_sel_feitico,0)) - 1)
+				queue_redraw()
+
+func _draw_ataque(vp: Vector2) -> void:
+	var font := ThemeDB.fallback_font
+	draw_rect(Rect2(Vector2.ZERO, vp), Color(0.06,0.10,0.06,1.0))
+	if _bat == null: return
+
+	# edifícios inimigos
+	for key in _bat.inimigo_slots.keys():
+		var bd := _bat.inimigo_slots[key] as Dictionary
+		var tipo := bd.get("tipo","") as String
+		var ef := DADOS.EDIFICIOS.get(tipo,{}) as Dictionary
+		var cor := ef.get("cor",Color.WHITE) as Color
+		var p := Vector2(float(bd.get("px",0)), float(bd.get("py",0)))
+		var hf := clampf(float(bd.get("hp_atual",0))/float(maxf(float(bd.get("hp_max",1)),1.0)),0.0,1.0)
+		var tex := _sprites.get(tipo,null) as Texture2D
+		if tex:
+			var w := 64.0
+			var hh := w * (float(tex.get_height())/float(maxi(tex.get_width(),1)))
+			draw_texture_rect(tex, Rect2(p.x-w*0.5, p.y-hh*0.6, w, hh), false)
+		else:
+			draw_circle(p, 22.0, Color(cor.r*0.6,cor.g*0.6,cor.b*0.6))
+		draw_rect(Rect2(p.x-22,p.y-30,44,4), Color(0.05,0.05,0.05,0.85))
+		draw_rect(Rect2(p.x-22,p.y-30,44*hf,4), Color(0.3,1.0,0.5) if hf>0.5 else Color(1.0,0.3,0.3))
+
+	# tropas
+	for t in _bat.tropas:
+		var td := t as Dictionary
+		if td.get("estado","") == "morto": continue
+		var p := Vector2(float(td.get("px",0)), float(td.get("py",0)))
+		var aer := bool(td.get("aereo",false))
+		draw_circle(p, 9.0 if aer else 7.0, Color(0.35,0.85,1.0) if not aer else Color(0.8,0.6,1.0))
+		draw_circle(p, 9.0 if aer else 7.0, Color(1,1,1,0.4), false)
+		var hf := clampf(float(td.get("hp",0))/float(maxf(float(td.get("hp_max",1)),1.0)),0.0,1.0)
+		draw_rect(Rect2(p.x-8,p.y-13,16,2.5), Color(0.05,0.05,0.05,0.8))
+		draw_rect(Rect2(p.x-8,p.y-13,16*hf,2.5), Color(0.3,1.0,0.5) if hf>0.5 else Color(1.0,0.3,0.3))
+
+	# efeitos
+	for e in _bat.efeitos:
+		var ed := e as Dictionary
+		var a := clampf(1.0 - float(ed.get("t",0.0))/float(ed.get("max_t",0.4)),0.0,1.0)
+		var c := ed.get("cor",Color(1,0.6,0.2,0.8)) as Color
+		draw_circle(Vector2(float(ed.get("px",0)),float(ed.get("py",0))), float(ed.get("r",10.0)), Color(c.r,c.g,c.b,a*c.a))
+
+	# HUD topo
+	draw_rect(Rect2(0,TOP_H-2,vp.x,30), Color(0.05,0.10,0.05,0.92))
+	draw_string(font, Vector2(20, TOP_H+20), "⚔ ATACANDO BASE INIMIGA",
+				HORIZONTAL_ALIGNMENT_LEFT,-1,16,Color(1.0,0.8,0.5))
+	var estr := int(_bat.estrelas)
+	for si in range(3):
+		draw_circle(Vector2(vp.x*0.5-30+float(si)*30, TOP_H+12), 9.0,
+					Color(1.0,0.85,0.1) if si<estr else Color(0.25,0.25,0.3))
+	var pct : float = _bat._pct_destruido()
+	draw_string(font, Vector2(vp.x-200, TOP_H+20), "%d%%  ⏱%s" % [int(pct*100), _fmt_tempo(int(_bat.timer))],
+				HORIZONTAL_ALIGNMENT_LEFT,-1,16,Color(0.9,0.95,1.0))
+
+	# painel de deploy (tropas/feitiços restantes)
+	_draw_painel_deploy(vp)
+
+	# resultado
+	if not _bat_result.is_empty():
+		_draw_resultado_ataque(vp)
+
+func _draw_painel_deploy(vp: Vector2) -> void:
+	var font := ThemeDB.fallback_font
+	var py := vp.y - 88.0
+	draw_rect(Rect2(0,py,vp.x,88), Color(0.03,0.06,0.04,0.97))
+	draw_line(Vector2(0,py), Vector2(vp.x,py), Color(0.3,0.6,0.4,0.5), 1.5)
+	var ix := 14.0
+	for tipo in _bat_restante.keys():
+		var cnt := int(_bat_restante[tipo])
+		if cnt <= 0: continue
+		var td := DADOS.TROPAS.get(tipo,{}) as Dictionary
+		var sel : bool = _bat_sel_tropa == tipo
+		var r := Rect2(ix, py+10, 76, 64)
+		draw_rect(r, Color(0.10,0.30,0.45,0.95) if sel else Color(0.06,0.14,0.22,0.9))
+		draw_rect(r, Color(0.3,0.85,1.0,0.9 if sel else 0.4), false, 2.0)
+		var tex := _sprites.get(_quartel_da_tropa(tipo),null) as Texture2D
+		draw_string(font, Vector2(ix+6,py+30), (td.get("nome","?") as String).substr(0,6),
+					HORIZONTAL_ALIGNMENT_LEFT,-1,12,Color(0.9,0.96,1.0))
+		draw_string(font, Vector2(ix+6,py+58), "×%d" % cnt,
+					HORIZONTAL_ALIGNMENT_LEFT,-1,16,Color(0.5,0.9,1.0))
+		_hz_bat.append({"rect":r,"acao":"sel_tropa","tipo":tipo})
+		ix += 84.0
+	for tipo in _bat_restante_f.keys():
+		var cnt := int(_bat_restante_f[tipo])
+		if cnt <= 0: continue
+		var fd := DADOS.FEITICOS.get(tipo,{}) as Dictionary
+		var sel : bool = _bat_sel_feitico == tipo
+		var r := Rect2(ix, py+10, 76, 64)
+		draw_rect(r, Color(0.25,0.08,0.35,0.95) if sel else Color(0.12,0.05,0.18,0.9))
+		draw_rect(r, Color(0.7,0.3,1.0,0.9 if sel else 0.4), false, 2.0)
+		draw_string(font, Vector2(ix+6,py+30), (fd.get("nome","?") as String).substr(0,6),
+					HORIZONTAL_ALIGNMENT_LEFT,-1,12,Color(0.9,0.7,1.0))
+		draw_string(font, Vector2(ix+6,py+58), "×%d" % cnt,
+					HORIZONTAL_ALIGNMENT_LEFT,-1,16,Color(0.8,0.5,1.0))
+		_hz_bat.append({"rect":r,"acao":"sel_feitico","tipo":tipo})
+		ix += 84.0
+	if _bat_sel_tropa != "" or _bat_sel_feitico != "":
+		draw_string(font, Vector2(ix+10,py+44), "← toque no mapa para enviar",
+					HORIZONTAL_ALIGNMENT_LEFT,-1,14,Color(0.7,0.9,0.7))
+
+func _quartel_da_tropa(_tipo: String) -> String:
+	return "quartel"
+
+func _draw_resultado_ataque(vp: Vector2) -> void:
+	var font := ThemeDB.fallback_font
+	var res := _bat_result
+	var estr := int(res.get("estrelas",0))
+	draw_rect(Rect2(vp*0.5-Vector2(230,150), Vector2(460,300)), Color(0.04,0.07,0.05,0.98))
+	draw_rect(Rect2(vp*0.5-Vector2(230,150), Vector2(460,300)),
+			  Color(1.0,0.85,0.2,0.7) if estr>0 else Color(1.0,0.4,0.4,0.7), false, 3.0)
+	draw_string(font, vp*0.5-Vector2(90,110), "VITÓRIA!" if estr>0 else "DERROTA",
+				HORIZONTAL_ALIGNMENT_LEFT,-1,30, Color(1.0,0.9,0.3) if estr>0 else Color(1.0,0.5,0.5))
+	for si in range(3):
+		draw_circle(vp*0.5+Vector2(-55+float(si)*55,-50), 22.0,
+					Color(1.0,0.85,0.1) if si<estr else Color(0.2,0.2,0.25))
+	draw_string(font, vp*0.5-Vector2(90,-5), "%d%% destruído" % int(float(res.get("pct_destruido",0))*100),
+				HORIZONTAL_ALIGNMENT_LEFT,-1,18,Color(0.9,0.95,1.0))
+	var lo := int(res.get("ouro_loot",0)); var le := int(res.get("elixir_loot",0))
+	draw_string(font, vp*0.5-Vector2(90,-30), "Saque: %d🥇  %d💜" % [lo,le],
+				HORIZONTAL_ALIGNMENT_LEFT,-1,16,Color(1.0,0.85,0.3))
+	var tr := int(res.get("trofeus",0))
+	draw_string(font, vp*0.5-Vector2(90,-52), "%s%d 🏆" % ["+" if tr>=0 else "", tr],
+				HORIZONTAL_ALIGNMENT_LEFT,-1,16,Color(1.0,0.8,0.2))
+	var br := Rect2(vp.x*0.5-80, vp.y*0.5+90, 160, 44)
+	draw_rect(br, Color(0.05,0.18,0.06,0.95))
+	draw_rect(br, Color(0.3,1.0,0.5,0.8), false, 2.5)
+	draw_string(font, Vector2(br.get_center().x-44, br.position.y+28), "CONTINUAR",
+				HORIZONTAL_ALIGNMENT_LEFT,-1,18,Color(0.4,1.0,0.6))
+	_hz_bat.append({"rect":br,"acao":"continuar"})
 
 # ══════════════════════════════════════════════════════════════════════════════
 #  HELPERS
