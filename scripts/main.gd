@@ -1686,6 +1686,14 @@ func atualizar_boss_hp(hp: float, max_hp: float) -> void:
 
 
 
+func boss_morreu() -> void:
+	# Mini-chefe abatido: dispara os efeitos "após boss" das cartas
+	# (Overdrive, Recuperação Rápida) e celebra com shake
+	_trigger_shake(10.0, 0.35)
+	if torre and is_instance_valid(torre):
+		torre.boss_morreu()
+
+
 func mob_explodiu(pos: Vector2) -> void:
 	if torre and is_instance_valid(torre) and torre.explosao_ativa:
 		torre.explosao_em(pos)
