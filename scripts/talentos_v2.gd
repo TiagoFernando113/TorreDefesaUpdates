@@ -52,6 +52,7 @@ var _drag_vel   : Vector2 = Vector2.ZERO
 var _cam_alvo   : Vector2 = Vector2.ZERO
 var _cam_anim   : bool    = false
 var _sel_id     : String  = ""
+var _painel_esq : bool    = false   # lado do painel, fixado no momento da seleção
 var _hover_id   : String  = ""
 
 var _pulse        : float = 0.0
@@ -317,7 +318,7 @@ func _gui_input(event: InputEvent) -> void:
 	elif event is InputEventMouseMotion:
 		var mm := event as InputEventMouseMotion
 		if _mouse_down and _press_ui == "":
-			if not _dragging and (mm.position - _press_pos).length() > 7.0:
+			if not _dragging and (mm.position - _press_pos).length() > 11.0:
 				_dragging = true
 				_cam_anim = false
 			if _dragging:
@@ -361,6 +362,9 @@ func _clique(sp: Vector2) -> void:
 				_toast(_motivo_bloqueio(nid, Salvar.custo_efetivo_talento(nid)))
 		else:
 			_sel_id = nid
+			# Painel abre no lado oposto ao nó; lado fica TRAVADO até nova
+			# seleção (recalcular por frame fazia o painel pular ao dar zoom)
+			_painel_esq = _w2s(_pos[nid] as Vector2).x > size.x * 0.5
 			Som.upgrade()
 		queue_redraw()
 		return
@@ -414,7 +418,7 @@ func _hit_no(sp: Vector2) -> String:
 	for tid in _pos.keys():
 		var id : String = tid as String
 		var spn : Vector2 = _w2s(_pos[id] as Vector2)
-		var rr : float = maxf(_raio_no(id) * _zoom, 23.0)
+		var rr : float = maxf(_raio_no(id) * _zoom, 27.0)
 		var d : float = sp.distance_to(spn)
 		if d <= rr and d < melhor_d:
 			melhor_d = d
@@ -1009,9 +1013,8 @@ func _draw_painel() -> void:
 	var info : Dictionary = Salvar.TALENTOS_INFO[_sel_id] as Dictionary
 	var cor : Color = _cor_no(_sel_id)
 	var pw : float = minf(330.0, size.x * 0.42)
-	# Painel fica no lado OPOSTO ao nó selecionado — nunca cobre o alvo do clique
-	var no_na_direita : bool = _w2s(_pos[_sel_id] as Vector2).x > size.x * 0.5
-	var px : float = (14.0) if no_na_direita else (size.x - pw - 14.0)
+	# Lado fixado na seleção (_painel_esq) — zoom/pan não movem o painel
+	var px : float = (14.0) if _painel_esq else (size.x - pw - 14.0)
 	var py : float = 66.0
 	var ph : float = 268.0
 	var r := Rect2(px, py, pw, ph)
