@@ -10,6 +10,8 @@ var _mapa_anterior_info : Dictionary = {}
 var _mapa_destino_info : Dictionary = {}
 var _transicao_timer : float = 0.0
 var _mapa_texture_cache : Dictionary = {}
+var _bau_evento_tex : Texture2D = null
+var _bau_evento_tex_carregado : bool = false
 
 
 func _ready() -> void:
@@ -505,31 +507,26 @@ func _draw_overlay_gameplay(main: Node) -> void:
 	var frac    : float = clampf(ev_timer / ev_dur, 0.0, 1.0)
 	var pulse   : float = 0.5 + 0.5 * sin(float(Time.get_ticks_msec()) * 0.006)
 	var ep      : Vector2 = ev_pos
-	# Glow externo
+	# Glow externo (sombra do baú)
 	draw_circle(ep, 44.0 + pulse * 8.0, Color(ev_cor.r, ev_cor.g, ev_cor.b, 0.12 + pulse * 0.08))
 	# Anel de countdown
 	draw_arc(ep, 38.0, -PI * 0.5, -PI * 0.5 + TAU * frac, 48,
 			Color(ev_cor.r, ev_cor.g, ev_cor.b, 0.95), 5.0)
-	# Corpo
-	draw_circle(ep, 28.0, Color(0.06, 0.06, 0.12, 0.92))
-	draw_circle(ep, 24.0, Color(ev_cor.r * 0.25, ev_cor.g * 0.25, ev_cor.b * 0.25, 0.90))
-	# Centro pulsante
-	draw_circle(ep, 12.0 + pulse * 4.0, Color(ev_cor.r, ev_cor.g, ev_cor.b, 0.75 + pulse * 0.20))
-	# Ícone geométrico por tipo
-	var ic : Color = Color(1.0, 1.0, 1.0, 0.92)
-	match str(ev_ativo.get("id", "")):
-		"suprimento":  # Diamante
-			draw_line(ep + Vector2(0, -9),  ep + Vector2(9, 0),  ic, 2.5)
-			draw_line(ep + Vector2(9, 0),   ep + Vector2(0, 9),  ic, 2.5)
-			draw_line(ep + Vector2(0, 9),   ep + Vector2(-9, 0), ic, 2.5)
-			draw_line(ep + Vector2(-9, 0),  ep + Vector2(0, -9), ic, 2.5)
-		"artilharia":  # Triângulo
-			draw_line(ep + Vector2(0, -10), ep + Vector2(9, 8),   ic, 2.5)
-			draw_line(ep + Vector2(9, 8),   ep + Vector2(-9, 8),  ic, 2.5)
-			draw_line(ep + Vector2(-9, 8),  ep + Vector2(0, -10), ic, 2.5)
-		"reforco":     # Cruz
-			draw_line(ep + Vector2(-10, 0), ep + Vector2(10, 0),  ic, 3.0)
-			draw_line(ep + Vector2(0, -10), ep + Vector2(0, 10),  ic, 3.0)
-		"espiao":      # X
-			draw_line(ep + Vector2(-8, -8), ep + Vector2(8, 8),   ic, 2.5)
-			draw_line(ep + Vector2(8, -8),  ep + Vector2(-8, 8),  ic, 2.5)
+	# Sprite do baú caindo
+	var bau_tex : Texture2D = _obter_bau_evento_tex()
+	if bau_tex != null:
+		var bob   : float = pulse * 4.0
+		var size  : Vector2 = Vector2(48.0, 48.0)
+		var rect  := Rect2(ep - size * 0.5 - Vector2(0, bob), size)
+		draw_texture_rect(bau_tex, rect, false)
+	else:
+		draw_circle(ep, 28.0, Color(0.06, 0.06, 0.12, 0.92))
+		draw_circle(ep, 24.0, Color(ev_cor.r * 0.25, ev_cor.g * 0.25, ev_cor.b * 0.25, 0.90))
+		draw_circle(ep, 12.0 + pulse * 4.0, Color(ev_cor.r, ev_cor.g, ev_cor.b, 0.75 + pulse * 0.20))
+
+
+func _obter_bau_evento_tex() -> Texture2D:
+	if not _bau_evento_tex_carregado:
+		_bau_evento_tex_carregado = true
+		_bau_evento_tex = _load_texture_file("res://assets/sprites/baus/bau_comum.png")
+	return _bau_evento_tex
