@@ -401,15 +401,10 @@ func _acao_ui(nome: String) -> void:
 
 
 func _hit_ui(sp: Vector2) -> String:
-	# "painel" cobre os botões dentro dele — testa por último
-	var painel_hit : bool = false
 	for nome in _ui_hit.keys():
-		if (nome as String) == "painel":
-			painel_hit = (_ui_hit[nome] as Rect2).has_point(sp)
-			continue
 		if (_ui_hit[nome] as Rect2).has_point(sp):
 			return nome as String
-	return "painel" if painel_hit else ""
+	return ""
 
 
 func _hit_no(sp: Vector2) -> String:
@@ -1017,7 +1012,8 @@ func _draw_painel() -> void:
 	var py : float = 66.0
 	var ph : float = 268.0
 	var r := Rect2(px, py, pw, ph)
-	_ui_hit["painel"] = r  # bloqueia pan por baixo do painel
+	# SEM hitbox de fundo: cliques atravessam o painel até o mapa — o painel
+	# nunca rouba o clique de um nó (só o botão DESBLOQUEAR captura)
 
 	draw_rect(r, Color(0.012, 0.02, 0.05, 0.94), true)
 	draw_rect(r, Color(cor.r, cor.g, cor.b, 0.55), false, 1.5)
