@@ -26,9 +26,9 @@ const CHAIN_OVERRIDE : Dictionary = { "r": ["r1", "r2", "r3", "r4", "token", "r5
 const SITUACIONAIS : Array = ["cazador", "exter", "anti_t", "purif"]
 const LEGADO       : Array = ["veteran", "genoci", "sobrev"]
 
-const RAIO_T1      : float = 175.0   # raio do tier 1
-const RAIO_STEP    : float = 118.0   # distância entre tiers
-const RAIO_ANEL    : float = 96.0    # anel interno (situacionais + legado)
+const RAIO_T1      : float = 195.0   # raio do tier 1
+const RAIO_STEP    : float = 130.0   # distância entre tiers
+const RAIO_ANEL    : float = 102.0   # anel interno (situacionais + legado)
 const ESPIRAL_DEG  : float = 7.5     # torção do braço por tier (galáxia)
 const ANG_INICIO   : float = -PI / 2.0  # ramo P aponta para cima
 
@@ -576,7 +576,7 @@ func _draw_fundo() -> void:
 		if not _cor_ramo.has(br):
 			continue
 		var cor : Color = _cor_ramo[br] as Color
-		var neb_a : float = 0.072 if bool(_dominado.get(br, false)) else 0.030
+		var neb_a : float = 0.055 if bool(_dominado.get(br, false)) else 0.022
 		var ang0 : float = ANG_INICIO + TAU * float(i) / float(BRANCH_ORDER.size())
 		for k in range(4):
 			var ang : float = ang0 + deg_to_rad(ESPIRAL_DEG) * float(k + 1)
@@ -611,7 +611,7 @@ func _draw_fundo() -> void:
 
 func _draw_grid_polar() -> void:
 	var c : Vector2 = _w2s(Vector2.ZERO)
-	var cor := Color(0.40, 0.66, 1.0, 0.045)
+	var cor := Color(0.40, 0.66, 1.0, 0.028)
 	for t in range(7):
 		var raio : float = (RAIO_T1 + RAIO_STEP * float(t)) * _zoom
 		draw_arc(c, raio, 0.0, TAU, 72, cor, 1.0)
@@ -672,15 +672,14 @@ func _draw_links() -> void:
 			var filho_ok : bool = Salvar.talento_ativo(id)
 			var cor : Color = _cor_no(id)
 			if filho_ok and pai_ok:
-				# Comprado: linha viva com energia fluindo
-				draw_polyline(pts, Color(cor.r, cor.g, cor.b, 0.20 * alpha_ab), 7.0)
-				draw_polyline(pts, Color(cor.r, cor.g, cor.b, 0.85 * alpha_ab), 2.6)
-				for k in range(3):
-					var t : float = fmod(_flux * 0.6 + float(k) / 3.0 + de.length() * 0.001, 1.0)
-					var idx : float = t * float(pts.size() - 1)
-					var i0 : int = int(idx)
-					var p : Vector2 = (pts[i0] as Vector2).lerp(pts[mini(i0 + 1, pts.size() - 1)] as Vector2, idx - float(i0))
-					draw_circle(p, 3.2 * sqrt(_zoom), Color(cor.r * 0.5 + 0.5, cor.g * 0.5 + 0.5, cor.b * 0.5 + 0.5, 0.9 * alpha_ab))
+				# Comprado: linha viva com energia fluindo (1 pulso sutil por link)
+				draw_polyline(pts, Color(cor.r, cor.g, cor.b, 0.12 * alpha_ab), 5.0)
+				draw_polyline(pts, Color(cor.r, cor.g, cor.b, 0.62 * alpha_ab), 2.0)
+				var t : float = fmod(_flux * 0.45 + de.length() * 0.0017, 1.0)
+				var idx : float = t * float(pts.size() - 1)
+				var i0 : int = int(idx)
+				var p : Vector2 = (pts[i0] as Vector2).lerp(pts[mini(i0 + 1, pts.size() - 1)] as Vector2, idx - float(i0))
+				draw_circle(p, 2.6 * sqrt(_zoom), Color(cor.r * 0.5 + 0.5, cor.g * 0.5 + 0.5, cor.b * 0.5 + 0.5, 0.65 * alpha_ab))
 			elif pai_ok and Salvar.pode_comprar_talento(id):
 				# Disponível: pulso respirando
 				var br_ : float = 0.45 + 0.30 * sin(_pulse * 2.6)
@@ -753,10 +752,10 @@ func _draw_no(id: String, sp: Vector2, ab: float) -> void:
 		draw_arc(sp, rr * 2.45, oa2, oa2 + PI * 0.55, 16, Color(1.0, 0.82, 0.25, 0.22 * ab), 1.2)
 		return
 
-	# Halo / glow
+	# Halo / glow (sutil — só um respiro)
 	if ativo:
-		var pr2 : float = 1.0 + 0.10 * sin(_pulse * 2.4 + sp.x * 0.01)
-		draw_circle(sp, rr * 1.85 * pr2, Color(cor.r, cor.g, cor.b, 0.13 * ab))
+		var pr2 : float = 1.0 + 0.06 * sin(_pulse * 2.4 + sp.x * 0.01)
+		draw_circle(sp, rr * 1.45 * pr2, Color(cor.r, cor.g, cor.b, 0.08 * ab))
 	elif pode:
 		var pr3 : float = 0.5 + 0.5 * sin(_pulse * 3.0)
 		draw_circle(sp, rr * 1.55, Color(cor.r, cor.g, cor.b, (0.05 + 0.07 * pr3) * ab))
@@ -785,7 +784,7 @@ func _draw_no(id: String, sp: Vector2, ab: float) -> void:
 	# Hexágono giratório nos majors
 	if major:
 		var rot_dir : float = 1.0 if ativo else 0.35
-		_draw_hex(sp, rr * 1.34, _pulse * 0.30 * rot_dir, Color(cor.r, cor.g, cor.b, (0.50 if ativo else 0.20) * ab), 1.4)
+		_draw_hex(sp, rr * 1.34, _pulse * 0.30 * rot_dir, Color(cor.r, cor.g, cor.b, (0.32 if ativo else 0.12) * ab), 1.2)
 
 	# Partícula orbitando os compráveis
 	if pode and not ativo:
@@ -801,14 +800,6 @@ func _draw_no(id: String, sp: Vector2, ab: float) -> void:
 	if eh_legado and not ativo and not pode and not _req_conquista_ok(id):
 		_draw_cadeado(sp + Vector2(rr * 0.72, -rr * 0.72), 6.0 * sqrt(_zoom), Color(1.0, 0.8, 0.3, 0.85 * ab))
 
-	# Check de comprado
-	if ativo:
-		var ck : float = rr * 0.40
-		var cp : Vector2 = sp + Vector2(rr * 0.74, rr * 0.74)
-		draw_circle(cp, ck, Color(0.10, 0.55, 0.22, 0.95 * ab))
-		draw_line(cp + Vector2(-ck * 0.45, 0), cp + Vector2(-ck * 0.08, ck * 0.38), Color(1, 1, 1, ab), 1.8)
-		draw_line(cp + Vector2(-ck * 0.08, ck * 0.38), cp + Vector2(ck * 0.50, -ck * 0.36), Color(1, 1, 1, ab), 1.8)
-
 	# Anel de seleção
 	if id == _sel_id:
 		var sa : float = _pulse * 1.8
@@ -817,15 +808,16 @@ func _draw_no(id: String, sp: Vector2, ab: float) -> void:
 	elif id == _hover_id:
 		draw_arc(sp, rr * 1.42, 0.0, TAU, 30, Color(1, 1, 1, 0.30 * ab), 1.2)
 
-	# Nome abaixo (zoom próximo)
-	if _zoom >= 0.72:
+	# Nome abaixo — só onde importa: compráveis, selecionado e hover
+	# (comprados/bloqueados ficam limpos; tooltip e painel cobrem o resto)
+	if _zoom >= 0.72 and (pode or id == _sel_id or id == _hover_id):
 		var info : Dictionary = Salvar.TALENTOS_INFO.get(id, {}) as Dictionary
 		var nome : String = str(info.get("nome", id)).replace("\n", " ")
 		var fs : int = 11
 		var w : float = _fonte.get_string_size(nome, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
 		draw_string(_fonte, sp + Vector2(-w * 0.5, rr + 15.0), nome,
 				HORIZONTAL_ALIGNMENT_LEFT, -1, fs,
-				Color(0.82, 0.88, 1.0, (0.85 if (ativo or pode) else 0.40) * ab))
+				Color(0.82, 0.88, 1.0, 0.85 * ab))
 
 
 func _req_conquista_ok(id: String) -> bool:
