@@ -613,7 +613,7 @@ func aplicar_carta(efeito: String, val: float) -> void:
 		"multi":
 			if multi_lvl < 5:
 				multi_shot = true
-				multi_lvl += 16
+				multi_lvl += 1
 		"raio":
 			raio_nivel += int(val)
 			raio_dano   = float(raio_nivel) * 45.0 + (20.0 if Salvar.talento_ativo("e1") else 0.0)
