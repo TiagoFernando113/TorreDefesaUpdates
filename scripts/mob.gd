@@ -1224,6 +1224,21 @@ func _draw() -> void:
 
 	_draw_identidade_espacial(c, p)
 
+	# ── Identidade de mini-chefe: aura dourada dupla + orbes orbitais ─────────
+	if is_chefe:
+		var rc    : float = tamanho * 1.30
+		var ang_c : float = pulse * 0.8
+		# Glow de presença (atrás de tudo que vier por cima)
+		draw_circle(Vector2.ZERO, rc * 1.7, Color(c.r, c.g, c.b, 0.05 + 0.03 * sin(pulse * 2.0)))
+		# Anel dourado principal girando + anel da cor do tipo contra-girando
+		draw_arc(Vector2.ZERO, rc, ang_c, ang_c + TAU * 0.78, 40, Color(1.0, 0.82, 0.20, 0.85), 3.0)
+		draw_arc(Vector2.ZERO, rc + 7.0, -ang_c * 0.7, -ang_c * 0.7 + TAU * 0.55, 32, Color(c.r, c.g, c.b, 0.55), 2.0)
+		# 4 orbes de coroa orbitando
+		for oi in range(4):
+			var pa : float = ang_c * 1.3 + float(oi) * TAU / 4.0
+			var pp : Vector2 = Vector2(cos(pa), sin(pa)) * (rc + 4.0)
+			draw_circle(pp, 3.2, Color(1.0, 0.85, 0.30, 0.9))
+
 
 	# Barra de armadura do Escudeiro (acima da HP)
 	if escudo_arm_max > 0.0:
