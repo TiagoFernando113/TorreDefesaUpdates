@@ -597,7 +597,8 @@ func aplicar_carta(efeito: String, val: float) -> void:
 		"cadencia":
 			fire_rate = max(0.15, fire_rate + val)
 		"alcance":
-			range_r = max(60.0, range_r + val)
+			# Cap 450: limite que a câmera consegue enquadrar (main._RANGE_MAX)
+			range_r = clampf(range_r + val, 60.0, 450.0)
 		"vida":
 			if val >= 0.0:
 				max_hp += val
@@ -647,7 +648,7 @@ func aplicar_upgrade(tipo: String) -> void:
 			damage    += [12.0, 18.0, 25.0, 35.0][min(dmg_lvl,  3)]
 			dmg_lvl   += 1
 		"alcance":
-			range_r   += [30.0, 40.0, 55.0, 70.0][min(rng_lvl,  3)]
+			range_r   = minf(range_r + [30.0, 40.0, 55.0, 70.0][min(rng_lvl,  3)], 450.0)
 			rng_lvl   += 1
 		"cadencia":
 			fire_rate += [0.35, 0.5, 0.7,  1.0 ][min(rate_lvl, 3)]

@@ -128,22 +128,22 @@ const CARTAS := [
 	{"id":"dano_g", "nome":"Canhão de Obsidiana","desc":"+50 de dano\nnesta partida",           "cor":Color(1.0, 0.58, 0.0),  "efeito":"dano",    "val":50.0,  "raridade":"incomum", "peso":4, "min_wave":4,  "max_picks":4},
 	{"id":"cad_m",  "nome":"Ritmo Acelerado",    "desc":"+0.5 tiros/s\nnesta partida",          "cor":Color(0.75,0.2,  1.0),  "efeito":"cadencia","val":0.5,   "raridade":"comum",   "peso":8, "min_wave":1,  "max_picks":6},
 	{"id":"cad_g",  "nome":"Metralhadora",       "desc":"+1.0 tiro/s\nnesta partida",           "cor":Color(0.9, 0.3,  1.0),  "efeito":"cadencia","val":1.0,   "raridade":"raro",    "peso":2, "min_wave":7,  "max_picks":3},
-	{"id":"range_m","nome":"Visão Ampla",        "desc":"+60 de alcance\nnesta partida",        "cor":Color(0.12,0.62, 1.0),  "efeito":"alcance", "val":60.0,  "raridade":"comum",   "peso":8, "min_wave":1,  "max_picks":6},
+	{"id":"range_m","nome":"Visão Ampla",        "desc":"+60 de alcance\nnesta partida",        "cor":Color(0.12,0.62, 1.0),  "efeito":"alcance", "val":60.0,  "raridade":"comum",   "peso":8, "min_wave":1,  "max_picks":4},
 	{"id":"range_g","nome":"Olho de Deus",       "desc":"+120 de alcance\nnesta partida",       "cor":Color(0.2, 0.80, 1.0),  "efeito":"alcance", "val":120.0, "raridade":"raro",    "peso":2, "min_wave":6,  "max_picks":3},
 	{"id":"vida_m", "nome":"Couraça",            "desc":"Cura 60 HP\ne +40 vida máxima",        "cor":Color(0.12,1.0,  0.45), "efeito":"vida",    "val":40.0,  "raridade":"comum",   "peso":8, "min_wave":1,  "max_picks":5},
 	{"id":"vida_g", "nome":"Fortaleza",          "desc":"Cura 120 HP\ne +80 vida máxima",       "cor":Color(0.1, 0.9,  0.4),  "efeito":"vida",    "val":80.0,  "raridade":"incomum", "peso":4, "min_wave":5,  "max_picks":3},
 	{"id":"pierce", "nome":"Bala Perfurante",    "desc":"Projéteis perfuram\n+1 inimigo",       "cor":Color(1.0, 0.88, 0.12), "efeito":"pierce",  "val":1.0,   "raridade":"raro",    "peso":2, "min_wave":7,  "max_picks":3},
 	{"id":"multi",  "nome":"Canhão Duplo",       "desc":"Cria um canhão orbital\nque atira em paralelo","cor":Color(0.12,1.0,0.88),"efeito":"multi","val":1.0,  "raridade":"epico",   "peso":1, "min_wave":12, "max_picks":2},
-	{"id":"vel",    "nome":"Projétil Sônico",    "desc":"+180 velocidade\nde projétil",         "cor":Color(0.95,0.95,0.12),  "efeito":"speed",   "val":180.0, "raridade":"incomum", "peso":4, "min_wave":4,  "max_picks":4},
+	{"id":"vel",    "nome":"Projétil Sônico",    "desc":"+260 velocidade\nde projétil",         "cor":Color(0.95,0.95,0.12),  "efeito":"speed",   "val":260.0, "raridade":"incomum", "peso":3, "min_wave":4,  "max_picks":2},
 	{"id":"regen",  "nome":"Regeneração",        "desc":"+4 HP/s de\nregeneração",             "cor":Color(0.4, 1.0,  0.55), "efeito":"regen",   "val":4.0,   "raridade":"incomum", "peso":5, "min_wave":3,  "max_picks":4},
-	{"id":"escudo", "nome":"Escudo Arcano",      "desc":"-15% dano\nrecebido",                 "cor":Color(0.2, 0.6,  1.0),  "efeito":"reducao", "val":0.15,  "raridade":"raro",    "peso":2, "min_wave":9,  "max_picks":1},
+	{"id":"escudo", "nome":"Escudo Arcano",      "desc":"-20% dano\nrecebido",                 "cor":Color(0.2, 0.6,  1.0),  "efeito":"reducao", "val":0.20,  "raridade":"raro",    "peso":2, "min_wave":9,  "max_picks":1},
 	{"id":"ouro",      "nome":"Toque de Midas",     "desc":"+40% de ouro\nem cada kill",                  "cor":Color(1.0, 0.82, 0.1),  "efeito":"ouro",       "val":0.40,  "raridade":"raro",    "peso":2, "min_wave":7,  "max_picks":3},
 	{"id":"fragmento",  "nome":"Fragmento Arcano",    "desc":"Pierce explode em 60px\n(+25% dano de área)",             "cor":Color(1.0, 0.65, 0.0),  "efeito":"fragmento",  "val":0.25, "raridade":"epico",   "peso":1, "min_wave":10, "max_picks":3},
 	# ── Novas cartas ────────────────────────────────────────────────────────────
-	{"id":"raio",       "nome":"Raio Arcano",         "desc":"Golpeia inimigo aleatório\na cada ~4s (+45 dano/nv)",    "cor":Color(0.40, 0.72, 1.0), "efeito":"raio",       "val":1.0,  "raridade":"epico",   "peso":1, "min_wave":15, "max_picks":1},
+	{"id":"raio",       "nome":"Raio Arcano",         "desc":"Golpeia inimigo aleatório\na cada ~4s (+45 dano/nv)",    "cor":Color(0.40, 0.72, 1.0), "efeito":"raio",       "val":1.0,  "raridade":"epico",   "peso":1, "min_wave":15, "max_picks":5},
 	{"id":"corrente",   "nome":"Corrente Elétrica",   "desc":"Projéteis saltam para\n2 inimigos extras (sem redução)","cor":Color(0.25, 0.95, 1.0), "efeito":"corrente",   "val":1.0,  "raridade":"epico",   "peso":1, "min_wave":15, "max_picks":1},
 	{"id":"veneno",     "nome":"Veneno Arcano",        "desc":"+8 dano/s por 4s\nem inimigos acertados",             "cor":Color(0.25, 1.0,  0.2),  "efeito":"veneno",     "val":8.0,  "raridade":"incomum", "peso":5, "min_wave":4,  "max_picks":4},
-	{"id":"critico",    "nome":"Golpe Crítico",        "desc":"+15% chance de\n3× dano por tiro",                    "cor":Color(1.0,  0.50, 0.05), "efeito":"critico",    "val":0.15, "raridade":"raro",    "peso":3, "min_wave":6,  "max_picks":3},
+	{"id":"critico",    "nome":"Golpe Crítico",        "desc":"+12% chance de\n3× dano por tiro",                    "cor":Color(1.0,  0.50, 0.05), "efeito":"critico",    "val":0.12, "raridade":"raro",    "peso":2, "min_wave":6,  "max_picks":3},
 	{"id":"explosao",   "nome":"Explosão Mortal",      "desc":"Ao matar: explode\n40% dano em 80px",                 "cor":Color(1.0,  0.38, 0.05), "efeito":"explosao",   "val":1.0,  "raridade":"epico",   "peso":2, "min_wave":10, "max_picks":2},
 	{"id":"chama",      "nome":"Chama Perpétua",       "desc":"+0.2 dano permanente\npor kill (máx +200 total)",    "cor":Color(1.0,  0.58, 0.08), "efeito":"chama",      "val":0.2,  "raridade":"incomum", "peso":5, "min_wave":5,  "max_picks":3},
 	{"id":"overdrive",  "nome":"Overdrive",            "desc":"Após boss: cadência\n×2 por 6s",                      "cor":Color(1.0,  0.80, 0.0),  "efeito":"overdrive",  "val":1.0,  "raridade":"epico",   "peso":2, "min_wave":15, "max_picks":2},
@@ -154,8 +154,8 @@ const CARTAS := [
 	# ── Novas cartas épicas ──────────────────────────────────────────────────────
 	{"id":"tempestade", "nome":"Tempestade Arcana",    "desc":"Raio acerta TODOS\nos inimigos no alcance",           "cor":Color(0.55, 0.80, 1.0),  "efeito":"tempestade", "val":1.0,  "raridade":"epico",   "peso":1, "min_wave":12, "max_picks":1},
 	{"id":"fissura",    "nome":"Fissura Venenosa",     "desc":"Projéteis envenenam\ntodos em 70px ao acertar",       "cor":Color(0.38, 1.0,  0.30),  "efeito":"fissura",    "val":1.0,  "raridade":"epico",   "peso":1, "min_wave":10, "max_picks":1},
-	{"id":"cacador",    "nome":"Caçador de Fantasmas", "desc":"Fantasmas revelam-se\ninstantaneamente ao surgir",    "cor":Color(0.88, 0.55, 1.0),  "efeito":"cacador",    "val":1.0,  "raridade":"raro",    "peso":2, "min_wave":15, "max_picks":1},
-	{"id":"rajada",     "nome":"Rajada de Tiros",      "desc":"3 projéteis em leque (±15°)\ncada um com 70% do dano",     "cor":Color(1.0,  0.72, 0.15), "efeito":"rajada",     "val":1.0,  "raridade":"raro",    "peso":3, "min_wave":8,  "max_picks":1},
+	{"id":"cacador",    "nome":"Caçador de Fantasmas", "desc":"Fantasmas revelam-se\ninstantaneamente ao surgir",    "cor":Color(0.88, 0.55, 1.0),  "efeito":"cacador",    "val":1.0,  "raridade":"raro",    "peso":2, "min_wave":12, "max_picks":1},
+	{"id":"rajada",     "nome":"Rajada de Tiros",      "desc":"3 projéteis em leque (±15°)\ncada um com 70% do dano",     "cor":Color(1.0,  0.72, 0.15), "efeito":"rajada",     "val":1.0,  "raridade":"epico",   "peso":1, "min_wave":10, "max_picks":1},
 	{"id":"carga",      "nome":"Tiro Carregado",       "desc":"Sem alvo por 3.5s →\npróximo tiro causa 6× dano",         "cor":Color(0.88, 0.30, 0.05), "efeito":"carga",      "val":1.0,  "raridade":"raro",    "peso":2, "min_wave":6,  "max_picks":1},
 	{"id":"gelo",       "nome":"Campo de Gelo",        "desc":"Mobs no alcance ficam\n45% mais lentos (imune: blindado)", "cor":Color(0.45, 0.82, 1.0),  "efeito":"gelo",       "val":1.0,  "raridade":"epico",   "peso":2, "min_wave":10, "max_picks":1},
 ]
@@ -2067,10 +2067,13 @@ func _sortear_e_mostrar_cartas(is_x4: bool = false) -> void:
 		# "fragmento" só aparece após 3 picks de "pierce"
 		if (carta["id"] as String) == "fragmento" and (_cartas_colhidas.get("pierce", 0) as int) < 3:
 			continue
-		# "corrente": fusão pierce nv3 + raio nv5 (ou talento e4 remove requisito)
+		# "corrente": fusão pierce nv3 + raio nv3 (ou talento e4 remove requisito)
 		if (carta["id"] as String) == "corrente" and not Salvar.talento_ativo("e4"):
 			if (_cartas_colhidas.get("pierce", 0) as int) < 3: continue
-			if (_cartas_colhidas.get("raio",   0) as int) < 5: continue
+			if (_cartas_colhidas.get("raio",   0) as int) < 3: continue
+		# "tempestade" depende do Raio Arcano — sem raio a carta não faz nada
+		if (carta["id"] as String) == "tempestade" and (_cartas_colhidas.get("raio", 0) as int) < 1:
+			continue
 		# cartas de alcance somem depois que a torre atinge o alcance máximo
 		if (carta["efeito"] as String) == "alcance" and torre and is_instance_valid(torre) and torre.range_r >= 450.0:
 			continue
