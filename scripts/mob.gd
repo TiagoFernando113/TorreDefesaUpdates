@@ -198,7 +198,9 @@ func _ready() -> void:
 		hp     *= chefe_hp_mult
 		max_hp *= chefe_hp_mult
 		damage *= 2.2
-		tamanho *= 1.75
+		# 1.35x: maior que a tropa sem esticar o sprite a ponto de borrar —
+		# a aura dourada e que carrega a leitura de "chefe"
+		tamanho *= 1.35
 		speed  *= 0.80
 		gold_v  = int(float(gold_v)  * 12.0)
 		score_v = int(float(score_v) * 15.0)
