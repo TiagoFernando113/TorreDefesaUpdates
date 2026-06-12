@@ -71,7 +71,14 @@ var _fonte : Font = null
 # ── Setup ────────────────────────────────────────────────────────────────────
 
 func _ready() -> void:
-	set_anchors_preset(Control.PRESET_FULL_RECT)
+	# Tamanho manual (padrão do projeto) — anchors não cobrem certo sob
+	# CanvasLayer com stretch "expand"
+	position = Vector2.ZERO
+	size = get_viewport().get_visible_rect().size
+	get_viewport().size_changed.connect(func():
+		position = Vector2.ZERO
+		size = get_viewport().get_visible_rect().size
+		queue_redraw())
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	z_index = 300  # tela de talentos antiga usa z_index 19-30; overlay fica acima de tudo
 	_fonte = get_theme_default_font()
