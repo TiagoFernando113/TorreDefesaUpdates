@@ -73,6 +73,7 @@ var _fonte : Font = null
 func _ready() -> void:
 	set_anchors_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_STOP
+	z_index = 300  # tela de talentos antiga usa z_index 19-30; overlay fica acima de tudo
 	_fonte = get_theme_default_font()
 	_montar_layout()
 	_gerar_estrelas()
