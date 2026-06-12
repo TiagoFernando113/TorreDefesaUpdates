@@ -51,6 +51,7 @@ var jogo        : Node  = null
 # ── Combate ──────────────────────────────────────────────────────────────────
 var atk_timer   : float = 2.5
 var atk_cd      : float = 4.5
+var dano_mult   : float = 1.0   # escala de dano por wave (setado no setup)
 var spawn_timer : float = 5.0
 var spawn_cd    : float = 9.0
 var misseis     : Array = []
@@ -94,8 +95,9 @@ func setup(p_hp: float, wave: int) -> void:
 	max_hp      = p_hp
 	hp          = p_hp
 	wave_num    = wave
-	atk_cd      = maxf(2.8, 5.8 - float(wave) * 0.018)
-	spawn_cd    = maxf(4.5, 9.5 - float(wave) * 0.05)
+	atk_cd      = maxf(2.2, 5.4 - float(wave) * 0.030)
+	spawn_cd    = maxf(4.0, 9.0 - float(wave) * 0.06)
+	dano_mult   = 1.0 + float(wave) * 0.012
 
 
 func _ready() -> void:
@@ -306,7 +308,7 @@ func _ponto_alvo_torre() -> Vector2:
 func _executar_ataque(id: String) -> void:
 	ataque_atual_id = id
 	ataque_atual_nome = (ATAQUES_DANTE.get(id, {}) as Dictionary).get("nome", id) as String
-	var dano_base : float = float((ATAQUES_DANTE.get(id, {}) as Dictionary).get("dano", 24.0))
+	var dano_base : float = float((ATAQUES_DANTE.get(id, {}) as Dictionary).get("dano", 24.0)) * dano_mult
 	match id:
 		"rajada_tripla":
 			_ataque_rajada_tripla(dano_base)

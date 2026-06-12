@@ -431,7 +431,8 @@ func _nome_chefe(tipo: String) -> String:
 
 
 func _get_wave_config(w: int) -> Dictionary:
-	var n        : int   = min(6 + int(roundf(float(w) * 1.25)), 82)
+	# Pos-wave 15 a horda cresce mais rapido (curva facil->15, pesada 15->100)
+	var n        : int   = min(6 + int(roundf(float(w) * 1.25 + maxf(0.0, float(w - 15)) * 0.55)), 105)
 	var fast     : int   = min(max(0, int(roundf(float(w - 1) * 1.15))), 36)
 	var tank     : int   = min(max(0, int(roundf(float(w - 2) * 0.78))), 28)
 	var elite    : int   = min(max(0, (w - 8) / 2), 18) if w >= 9 else 0
@@ -453,7 +454,7 @@ func _get_wave_config(w: int) -> Dictionary:
 	var kamikaze    : int   = min(max(0, (w - 3) / 3), 12) if w >= 4 else 0
 	var blindado    : int   = min(max(0, (w - 12) / 5), 5) if w >= 13 else 0
 	var necromante  : int   = min(max(0, (w - 28) / 10), 2) if w >= 29 else 0
-	var interv      : float = max(0.24, 1.35 - float(w) * 0.026)
+	var interv      : float = max(0.20, 1.35 - float(w) * 0.029)
 	return {
 		"normal": n,   "fast": fast,    "tank": tank,
 		"elite": elite, "berserker": berserk, "colossus": coloss,
@@ -664,6 +665,14 @@ func _iniciar_wave() -> void:
 				fila_spawn[i] = "elite"
 
 	fila_spawn.shuffle()
+
+	# Mini-chefe a cada 10 waves (fora das waves de boss de mapa): entra cedo
+	# na fila com escolta. CHEFE_TIPOS + is_chefe ativam as habilidades de
+	# chefe do mob.gd e a entrada cinematica.
+	if wave >= 10 and wave % 10 == 0 and not _mapa_final_ativo_partida(wave):
+		var tipo_chefe : String = CHEFE_TIPOS[randi() % CHEFE_TIPOS.size()]
+		fila_spawn.insert(mini(fila_spawn.size(), 6), "CHEFE:" + tipo_chefe)
+
 	mobs_na_wave = fila_spawn.size()
 
 	spawn_intervalo = cfg["intervalo"] as float
@@ -945,7 +954,8 @@ func _spawnar_boss_dante() -> void:
 	var boss : Node2D = load("res://scripts/boss_dante.gd").new()
 	boss.name = "BossDante"
 	boss.jogo = self
-	var hp_boss : float = 14500.0 + float(wave) * 760.0
+	# HP escala linear + rampa pós-w30 (builds full chegam fortes demais p/ linear puro)
+	var hp_boss : float = (16000.0 + float(wave) * 950.0) * (1.0 + maxf(0.0, float(wave - 30)) * 0.022)
 	if Salvar.talento_ativo("t3"):
 		hp_boss *= 1.20
 	boss.setup(hp_boss, wave)
@@ -984,6 +994,10 @@ func _spawnar_mob_em(tipo: String, pos: Vector2) -> void:
 
 func _spawnar_mob(tipo: String) -> void:
 	var mob      = MOB_SCENE.instantiate()
+	if tipo.begins_with("CHEFE:"):
+		tipo = tipo.trim_prefix("CHEFE:")
+		mob.is_chefe   = true
+		mob.nome_chefe = _nome_chefe(tipo)
 	mob.tipo = tipo
 	mob.wave_num    = wave
 	mob.jogo        = self

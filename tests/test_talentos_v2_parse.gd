@@ -46,6 +46,42 @@ func _ready() -> void:
 	if falhas > 0:
 		get_tree().quit(1)
 		return
+	# Compra de verdade via eventos de mouse (press+release), com backup do save
+	var tal_bak: Dictionary = Salvar.talentos.duplicate(true)
+	var cri_bak: int = Salvar.cristais
+	var alvo_c: String = ""
+	for tid in Salvar.TALENTOS_INFO.keys():
+		if Salvar.pode_comprar_talento(tid as String):
+			alvo_c = tid as String
+			break
+	var compra_ok: bool = true
+	if alvo_c != "":
+		inst.set("_zoom", 0.8)
+		inst.set("_cam", Vector2.ZERO)
+		var spc: Vector2 = inst.call("_w2s", posicoes[alvo_c] as Vector2) as Vector2
+		var press := InputEventMouseButton.new()
+		press.button_index = MOUSE_BUTTON_LEFT
+		press.pressed = true
+		press.position = spc
+		inst.call("_gui_input", press)
+		var rel := InputEventMouseButton.new()
+		rel.button_index = MOUSE_BUTTON_LEFT
+		rel.pressed = false
+		rel.position = spc
+		inst.call("_gui_input", rel)
+		compra_ok = Salvar.talento_ativo(alvo_c)
+	# Restaura o save do jogador SEMPRE
+	Salvar.talentos = tal_bak
+	Salvar.cristais = cri_bak
+	Salvar.salvar()
+	if alvo_c == "":
+		print("TESTE compra-click: pulado (nada compravel no save)")
+	elif compra_ok:
+		print("TESTE compra-click: OK (%s comprado via press+release)" % alvo_c)
+	else:
+		push_error("FALHA: press+release em %s nao comprou" % alvo_c)
+		get_tree().quit(1)
+		return
 	inst.queue_free()
 	await get_tree().process_frame
 	var menu_script = load("res://scripts/menu.gd")
@@ -53,5 +89,10 @@ func _ready() -> void:
 		push_error("FALHA: menu.gd nao compilou (hook do Nexo)")
 		get_tree().quit(1)
 		return
+	for sp in ["res://scripts/main.gd", "res://scripts/mob.gd", "res://scripts/torre.gd", "res://scripts/boss_dante.gd"]:
+		if load(sp) == null:
+			push_error("FALHA: %s nao compilou" % sp)
+			get_tree().quit(1)
+			return
 	print("TESTE talentos_v2: OK")
 	get_tree().quit(0)

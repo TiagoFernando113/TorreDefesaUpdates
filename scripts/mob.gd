@@ -178,18 +178,30 @@ func _ready() -> void:
 	hp *= hp_mult
 	max_hp *= hp_mult
 
-	# Escalada freada por wave: a pressao principal vem da horda, nao de paredes de HP.
-	# Velocidade fica fixa para preservar leitura e controle no late game.
+	# Curva em 2 fases: aquecimento suave ate a wave 15, rampa pesada da 15 a 100
+	# (builds full precisam sentir pressao). Velocidade fica fixa p/ leitura.
 	if wave_num > 8:
 		var w_step   : float = float(wave_num - 8)
-		var escala_hp  : float = minf(18.0, 1.0 + w_step * 0.045 + pow(maxf(0.0, w_step - 50.0), 1.18) * 0.008)
-		var escala_dmg : float = minf(4.0, 1.0 + w_step * 0.012 + pow(maxf(0.0, w_step - 80.0), 1.08) * 0.003)
+		var rampa    : float = maxf(0.0, float(wave_num - 15))
+		var escala_hp  : float = minf(40.0, 1.0 + w_step * 0.028 + pow(rampa, 1.32) * 0.024)
+		var escala_dmg : float = minf(7.0,  1.0 + w_step * 0.010 + pow(rampa, 1.12) * 0.009)
 		var loot_esc   : float = 1.0 + w_step * 0.06
 		hp     = hp     * escala_hp
 		max_hp = max_hp * escala_hp
 		damage = damage * escala_dmg
 		gold_v  = int(float(gold_v)  * loot_esc)
 		score_v = int(float(score_v) * (1.0 + w_step * 0.12))
+
+	# Mini-chefe: versao gigante do tipo com habilidades de chefe ativas
+	if is_chefe:
+		var chefe_hp_mult : float = 14.0 + float(wave_num) * 0.40
+		hp     *= chefe_hp_mult
+		max_hp *= chefe_hp_mult
+		damage *= 2.2
+		tamanho *= 1.75
+		speed  *= 0.80
+		gold_v  = int(float(gold_v)  * 12.0)
+		score_v = int(float(score_v) * 15.0)
 
 	# Purificador: curandeiro e invocador com -25% HP
 	if tipo in ["curandeiro", "invocador"] and Salvar.talento_ativo("purif"):
