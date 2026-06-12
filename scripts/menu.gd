@@ -11824,6 +11824,9 @@ func _abrir_nexo() -> void:
 		return
 	if _ui_ref == null:
 		return
+	_talent_map_dragging = false
+	if _talentos_panel != null and is_instance_valid(_talentos_panel):
+		_talentos_panel.visible = false
 	_nexo_overlay = TALENTOS_V2.new()
 	_ui_ref.add_child(_nexo_overlay)
 	_nexo_overlay.connect("fechado", func():
@@ -12539,6 +12542,10 @@ func _talent_map_point_hits_fixed_ui(pos: Vector2) -> bool:
 
 
 func _talent_map_navigation_available() -> bool:
+	# Nexo (V2) aberto: o mapa antigo NAO pode capturar input — _input() roda
+	# antes do GUI e roubava os cliques/scroll do overlay novo
+	if _nexo_overlay != null and is_instance_valid(_nexo_overlay):
+		return false
 	return _talentos_panel != null and is_instance_valid(_talentos_panel) and _tab_talentos == "ramos"
 
 
