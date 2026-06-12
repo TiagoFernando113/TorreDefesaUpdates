@@ -84,13 +84,11 @@ func _ready() -> void:
 		return
 	inst.queue_free()
 	await get_tree().process_frame
-	var menu_script = load("res://scripts/menu.gd")
-	if menu_script == null:
-		push_error("FALHA: menu.gd nao compilou (hook do Nexo)")
-		get_tree().quit(1)
-		return
-	for sp in ["res://scripts/main.gd", "res://scripts/mob.gd", "res://scripts/torre.gd", "res://scripts/boss_dante.gd"]:
-		if load(sp) == null:
+	for sp in ["res://scripts/menu.gd", "res://scripts/menu/ranking.gd",
+			"res://scripts/main.gd", "res://scripts/mob.gd",
+			"res://scripts/torre.gd", "res://scripts/boss_dante.gd"]:
+		var s = load(sp)
+		if s == null or not (s as Script).can_instantiate():
 			push_error("FALHA: %s nao compilou" % sp)
 			get_tree().quit(1)
 			return
