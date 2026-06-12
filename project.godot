@@ -29,7 +29,6 @@ config/max_fps=60
 BuildConfig="*res://scripts/build_config.gd"
 Som="*res://scripts/som.gd"
 Salvar="*res://scripts/salvar.gd"
-CocSalvar="*res://scripts/coc/coc_salvar.gd"
 ChaveTTS="*res://scripts/chave_tts.gd"
 Acessibilidade="*res://scripts/acessibilidade.gd"
 RankingOnline="*res://scripts/ranking_online.gd"
