@@ -1,143 +1,132 @@
 extends Control
-## Mini Cidade — Vila estilo Clash of Clans (Fase 1)
-## Ref: developers-hub-org/clash-of-clans-clone
+## Mini Cidade — meta-progressão estilo Clash of Clans
+## Ref: developers-hub-org/clash-of-clans-clone (C# Unity)
 ##
-##  ▸ Grid ISOMÉTRICO (losango, vista 3/4) — igual ao CoC
-##  ▸ Recursos completos: Ouro · Elixir · Elixir Escuro · Gemas (via CocSalvar)
-##  ▸ Coletores produzem ao longo do tempo, depósitos limitam capacidade
-##  ▸ Loja de construção categorizada (recurso/defesa/exército/outro)
-##  ▸ Quartel treina tropas de verdade (fila com timer)
-##  ▸ Popup de edifício: mover / upgrade / reparar / coletar / demolir / acelerar
-##  ▸ Construtores limitados (igual CoC)
-##
-##  Dados/definições  : res://scripts/coc/coc_dados.gd   (const DADOS)
-##  Estado/persistência: autoload CocSalvar → coc_save.json
-##
-##  FASE 2 (não implementado aqui): torre atirando, naves 24h, batalha, pesquisa.
-##  Os métodos aplicar_bonus_torre / on_mob_morreu / on_fim_wave são preservados
-##  intactos para o main.gd não quebrar (economia de mana via Salvar, intocada).
+##  FEATURES:
+##   ▸ Mapa com grid 10×7, edifícios colocados em coordenadas "gx,gy"
+##   ▸ Loja (bottom panel) com 6 cards — igual UI_Shop.cs
+##   ▸ PLACING: ghost segue cursor, clique coloca edifício
+##   ▸ SELECTED: popup de opções sobre o edifício
+##   ▸ MOVER: reposicionar edifício para outra célula vazia
+##   ▸ TREINAR: Quartel treina soldados (defendem naves)
+##   ▸ ATACAR: Arsenal carrega bombardeio p/ próxima run
+##   ▸ COLETAR: Mina devolve mana bônus (mecânica de recurso)
+##   ▸ Animação de naves atacando a cidade
+##   ▸ Sprites CC0 do CoC clone
 
 signal fechado
 
-const DADOS = preload("res://scripts/coc/coc_dados.gd")
+# ══════════════════════════════════════════════════════════════════════════════
+#  DEFINIÇÃO DOS EDIFÍCIOS
+# ══════════════════════════════════════════════════════════════════════════════
+const EDIFICIOS : Dictionary = {
+	"forja":   {"nome": "FORJA",   "cor": Color(1.00, 0.50, 0.10),
+				"bonus_txt": "+Dano à torre",       "bonus_desc": ["L1: +10 dano","L2: +25 dano","L3: +50 dano"]},
+	"quartel": {"nome": "QUARTEL", "cor": Color(0.30, 0.85, 1.00),
+				"bonus_txt": "+Cadência + Soldados", "bonus_desc": ["L1: +0.3 cad","L2: +0.6 cad","L3: +1.0 cad"]},
+	"arsenal": {"nome": "ARSENAL", "cor": Color(0.20, 1.00, 0.40),
+				"bonus_txt": "+Alcance + Bombardeio","bonus_desc": ["L1: +30 alc","L2: +65 alc","L3: +110 alc"]},
+	"lab":     {"nome": "LAB",     "cor": Color(0.88, 0.38, 1.00),
+				"bonus_txt": "+Perfuração",          "bonus_desc": ["L1: +1 pierce","L2: +1 pierce","L3: +2 pierce"]},
+	"muralha": {"nome": "MURALHA", "cor": Color(0.70, 0.70, 0.75),
+				"bonus_txt": "Defesa automática",    "bonus_desc": ["L1: 100 HP","L2: 200 HP","L3: 350 HP"]},
+	"mina":    {"nome": "MINA",    "cor": Color(1.00, 0.90, 0.15),
+				"bonus_txt": "+Mana por kill",       "bonus_desc": ["L1: +1 mana","L2: +2 mana","L3: +3 mana"]},
+}
+
+const CUSTO_BUILD    : int   = 50
+const CUSTOS_UP      : Array = [0, 120, 250]
+const CUSTO_REPAIR   : int   = 40
+const CUSTO_TREINAR  : int   = 30   # por lote de 10 soldados
+const CUSTO_ATACAR   : int   = 60   # carregar bombardeio
+const MAX_SOLDADOS   : int   = 50
+const MAX_HP         : Array = [100, 200, 350]
 
 # ══════════════════════════════════════════════════════════════════════════════
-#  GRID ISOMÉTRICO
+#  GRID
 # ══════════════════════════════════════════════════════════════════════════════
-const GRID_N  : int   = 14        # grade N×N
-const TILE_W  : float = 76.0      # largura do losango
-const TILE_H  : float = 38.0      # altura do losango (2:1)
-const ORIGIN_Y: float = 96.0      # deslocamento vertical do topo do grid
-
-# DEBUG: dinheiro infinito na cidade (deixar false pra produção)
-const DINHEIRO_INFINITO : bool = true
-
-# ══════════════════════════════════════════════════════════════════════════════
-#  UI Layout
-# ══════════════════════════════════════════════════════════════════════════════
-const TOP_H : float = 66.0
-const BOT_H : float = 58.0
+const GRID_COLS : int   = 10
+const GRID_ROWS : int   = 7
+const CELL_W    : float = 88.0
+const CELL_H    : float = 78.0
+const GRID_OX   : float = 200.0
+const GRID_OY   : float = 72.0
 
 # ══════════════════════════════════════════════════════════════════════════════
-#  ESTADO
+#  BOTÕES FIXOS
 # ══════════════════════════════════════════════════════════════════════════════
-enum State { IDLE, SHOP, PLACING, SELECTED, MOVING, TRAIN, RESEARCH, ATTACK }
+const BTN_BACK : Rect2 = Rect2(20,   676, 120, 40)
+const BTN_SHOP : Rect2 = Rect2(1140, 676, 120, 40)
 
-const BatalhaC = preload("res://scripts/coc/coc_batalha.gd")
+# ══════════════════════════════════════════════════════════════════════════════
+#  ESTADOS
+# ══════════════════════════════════════════════════════════════════════════════
+enum State {
+	IDLE,       # mapa livre
+	SHOP,       # painel da loja aberto
+	PLACING,    # escolhendo célula para novo edifício
+	SELECTED,   # edifício selecionado → popup de opções
+	MOVING      # movendo edifício para nova célula
+}
 
 var _state      : State  = State.IDLE
-var _shop_cat   : String = "recurso"
 var _sel_key    : String = ""
-var _move_src   : String = ""
+var _move_src   : String = ""   # chave do edifício sendo movido
 var _place_tipo : String = ""
-var _train_key  : String = ""    # quartel aberto no painel de treino
-var _pesq_cat   : String = "tropa"   # "tropa" | "feitico" no laboratório
-
-# ── Ataque (batalha clássica CoC — usa coc_batalha.gd) ────────────────────────
-var _bat              = null     # instância de CocBatalha (sem tipo fixo)
-var _bat_sel_tropa    : String = ""
-var _bat_sel_feitico  : String = ""
-var _bat_result       : Dictionary = {}
-var _bat_restante     : Dictionary = {}   # tropas restantes p/ deploy
-var _bat_restante_f   : Dictionary = {}   # feitiços restantes p/ deploy
 var _hover_gx   : int    = -1
 var _hover_gy   : int    = -1
-var _pulse      : float  = 0.0
-var _ui_ref     : Node   = null
 
-# ── Hit-zones (preenchidas no _draw, consumidas no tap) ───────────────────────
-var _hz_shop   : Array = []
-var _hz_opt    : Array = []
-var _hz_train  : Array = []
-var _hz_fixed  : Array = []
-var _hz_builds : Array = []   # [{rect, key}] área clicável de cada prédio (corpo do sprite)
-var _hz_pesq   : Array = []   # pesquisa (laboratório)
-var _hz_bat    : Array = []   # batalha (deploy/seleção)
+# ── Animação de naves ──────────────────────────────────────────────────────
+var _nav_ativo  : bool  = false
+var _nav_timer  : float = 0.0
+var _nav_ships  : Array = []   # [{px, py, vx, dead, hit_t}]
+var _nav_hits   : Array = []   # [{px, py, r, t}] explosões
 
-# ── Notificações ──────────────────────────────────────────────────────────────
-var _noticias : Array = []   # [{msg, cor, t}]
+# ══════════════════════════════════════════════════════════════════════════════
+#  HIT-ZONES
+# ══════════════════════════════════════════════════════════════════════════════
+var _hz_cells      : Dictionary = {}
+var _hz_shop_cards : Array      = []
+var _hz_opt_btns   : Array      = []
 
-# ── Sprites ───────────────────────────────────────────────────────────────────
+var _pulse  : float = 0.0
+var _ui_ref : Node  = null
+
+# ── Sprites CC0 ────────────────────────────────────────────────────────────
 var _sprites : Dictionary = {}
 
-# ══════════════════════════════════════════════════════════════════════════════
-#  READY
-# ══════════════════════════════════════════════════════════════════════════════
+# ──────────────────────────────────────────────────────────────────────────────
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	z_index      = 50
 	visible      = false
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	process_mode = Node.PROCESS_MODE_ALWAYS
-	# Sprites próprios (SVG) por tipo — gerados em tools/gen_sprites_coc.py
-	for tipo in ["prefeitura","mina_ouro","deposito_ouro","coletor_elixir","deposito_elixir",
-				 "mina_escura","deposito_escuro","quartel","quartel_escuro","acampamento",
-				 "fabrica_feitico","fabrica_escura","laboratorio","canhao","torre_arqueiros",
-				 "morteiro","def_aerea","torre_mago","tesla","xbow","muralha",
-				 "cabana_construtor","castelo_cla","altar_rei","altar_rainha"]:
-		_sprites[tipo] = _load_sprite("res://assets/cidade/coc/%s.svg" % tipo)
+	_sprites = {
+		"forja":   load("res://assets/cidade/blacksmith.png"),
+		"quartel": load("res://assets/cidade/watch_tower.png"),
+		"arsenal": load("res://assets/cidade/tower_round.png"),
+		"lab":     load("res://assets/cidade/cathedral.png"),
+		"muralha": load("res://assets/cidade/fort.png"),
+		"mina":    load("res://assets/cidade/mine.png"),
+	}
 
-func _load_sprite(path: String) -> Texture2D:
-	if ResourceLoader.exists(path): return load(path) as Texture2D
-	return null
 
 # ══════════════════════════════════════════════════════════════════════════════
-#  API PÚBLICA  (contrato com main.gd — NÃO mudar assinaturas)
+#  API PÚBLICA
 # ══════════════════════════════════════════════════════════════════════════════
-func abrir(ui_node: Node = null) -> void:
-	_ui_ref = ui_node
-	CocSalvar.carregar()
-	CocSalvar.init_vila_padrao()
-	visible    = true
-	_state     = State.IDLE
-	_shop_cat  = "recurso"
-	_sel_key   = ""; _move_src = ""; _place_tipo = ""; _train_key = ""
-	_hover_gx  = -1; _hover_gy = -1
-	get_tree().paused = true
-	if is_instance_valid(ui_node): ui_node.visible = false
-	queue_redraw()
-
-func fechar() -> void:
-	CocSalvar.salvar()
-	visible = false
-	get_tree().paused = false
-	if is_instance_valid(_ui_ref): _ui_ref.visible = true
-	emit_signal("fechado")
-
-func notificar(msg: String, cor: Color = Color.WHITE) -> void:
-	_noticias.append({"msg": msg, "cor": cor, "t": 3.0})
-
-# ── FASE 2 — preservados intactos (economia de mana via Salvar) ───────────────
 func aplicar_bonus_torre(torre: Node) -> void:
 	if not is_instance_valid(torre): return
 	torre.damage      += Salvar.cidade_bonus_dano()
 	torre.fire_rate   += Salvar.cidade_bonus_fr()
 	torre.range_r     += Salvar.cidade_bonus_range()
 	torre.pierce_count = mini(int(torre.get("pierce_count")) + Salvar.cidade_bonus_pierce(), 3)
+	# Arsenal carregado → bônus de cadência na próxima run (one-shot)
 	if Salvar.arsenal_carregado:
-		torre.fire_rate += 0.8
+		torre.fire_rate   += 0.8
 		Salvar.arsenal_carregado = false
 		Salvar.salvar()
+
 
 func on_mob_morreu(ui_node: Node, total_kills: int) -> void:
 	Salvar.mana_cidade += 1 + Salvar.cidade_bonus_mana()
@@ -145,757 +134,592 @@ func on_mob_morreu(ui_node: Node, total_kills: int) -> void:
 			and ui_node.has_method("atualizar_mana_cidade"):
 		ui_node.call("atualizar_mana_cidade", Salvar.mana_cidade)
 
-func on_fim_wave(wave: int, ui_node: Node) -> void:
-	var mana_moinho : int = 0
-	for sd in Salvar.cidade_slots.values():
-		if (sd as Dictionary).get("tipo","") == "moinho" and int((sd as Dictionary).get("hp",0)) > 0:
-			match int((sd as Dictionary).get("nivel",1)):
-				1: mana_moinho += 3
-				2: mana_moinho += 6
-				3: mana_moinho += 10
-	if mana_moinho > 0:
-		Salvar.mana_cidade += mana_moinho
-		if is_instance_valid(ui_node) and ui_node.has_method("mostrar_notificacao_consumivel"):
-			ui_node.mostrar_notificacao_consumivel(
-				"Moinho gerou +%d mana" % mana_moinho, Color(0.55, 0.95, 0.45))
 
-# ══════════════════════════════════════════════════════════════════════════════
-#  PROCESS
-# ══════════════════════════════════════════════════════════════════════════════
+func on_fim_wave(wave: int, ui_node: Node) -> void:
+	if wave > 0 and wave % 3 == 0 and not Salvar.cidade_slots.is_empty():
+		var sold_antes : int = Salvar.quartel_soldados
+		Salvar.cidade_aplicar_dano_nave(35)
+		var sold_mortos : int = sold_antes - Salvar.quartel_soldados
+		if is_instance_valid(ui_node) and ui_node.has_method("mostrar_notificacao_consumivel"):
+			var msg : String = "Naves atacaram a Cidade!"
+			if sold_mortos > 0:
+				msg += "  ( %d soldados morreram )" % sold_mortos
+			ui_node.mostrar_notificacao_consumivel(msg, Color(1.0, 0.35, 0.35))
+
+
+func abrir(ui_node: Node = null) -> void:
+	_ui_ref   = ui_node
+	_migrar_slots_antigos()
+	visible   = true
+	_state    = State.IDLE
+	_sel_key  = ""; _move_src = ""; _place_tipo = ""
+	_hover_gx = -1; _hover_gy = -1
+	get_tree().paused = true
+	if is_instance_valid(ui_node): ui_node.visible = false
+	queue_redraw()
+
+
+func fechar() -> void:
+	visible = false
+	get_tree().paused = false
+	if is_instance_valid(_ui_ref): _ui_ref.visible = true
+	emit_signal("fechado")
+
+
 func _process(delta: float) -> void:
 	if not visible: return
 	_pulse += delta * 3.5
-
-	# Batalha roda à parte (economia da vila congelada durante o ataque)
-	if _state == State.ATTACK:
-		if _bat != null and _bat_result.is_empty():
-			var res : Dictionary = _bat.tick(delta)
-			if not res.is_empty():
-				_bat_result = res
-				_aplicar_resultado_ataque(res)
-		queue_redraw()
-		return
-
-	if DINHEIRO_INFINITO:
-		CocSalvar.ouro   = 99000000
-		CocSalvar.elixir = 99000000
-		CocSalvar.escuro = 99000000
-		CocSalvar.gemas  = 99000000
-
-	CocSalvar.tick_recursos(delta)
-	var concluidos := CocSalvar.tick_construcoes()
-	for c in concluidos:
-		var tnome : String = (DADOS.EDIFICIOS.get((c as Dictionary).get("tipo",""),{}) as Dictionary).get("nome","?")
-		notificar("✓ %s N%d pronto!" % [tnome, (c as Dictionary).get("nivel",1)], Color(0.5,1.0,0.4))
-	var prontos := CocSalvar.tick_treino()
-	for tipo in prontos:
-		notificar("Tropa pronta: %s" % (DADOS.TROPAS.get(tipo,{}) as Dictionary).get("nome","?"),
-				  Color(0.4,0.85,1.0))
-	var pesq := CocSalvar.tick_pesquisa()
-	if not pesq.is_empty():
-		var pn : String = (DADOS.TROPAS.get(pesq.get("tipo",""), DADOS.FEITICOS.get(pesq.get("tipo",""),{})) as Dictionary).get("nome","?")
-		notificar("✦ Pesquisa concluída: %s N%d" % [pn, pesq.get("nivel_alvo",1)], Color(0.88,0.38,1.0))
-
-	# Notificações decaem
-	var remover_n : Array = []
-	for n in _noticias:
-		(n as Dictionary)["t"] = float((n as Dictionary).get("t",0.0)) - delta
-		if float((n as Dictionary).get("t",0.0)) <= 0.0: remover_n.append(n)
-	for n in remover_n: _noticias.erase(n)
-
+	# Animação naves
+	if _nav_ativo:
+		_nav_timer += delta
+		_tick_naves(delta)
 	queue_redraw()
 
+
 # ══════════════════════════════════════════════════════════════════════════════
-#  MATEMÁTICA ISOMÉTRICA
+#  HELPERS
 # ══════════════════════════════════════════════════════════════════════════════
-func _iso_origin() -> Vector2:
-	var vp := get_viewport().get_visible_rect().size
-	return Vector2(vp.x * 0.5, TOP_H + ORIGIN_Y)
-
-func _cell_center(gx: int, gy: int) -> Vector2:
-	var o := _iso_origin()
-	return Vector2(
-		o.x + float(gx - gy) * TILE_W * 0.5,
-		o.y + float(gx + gy) * TILE_H * 0.5)
-
-func _cell_center_o(o: Vector2, gx: int, gy: int) -> Vector2:
-	return Vector2(
-		o.x + float(gx - gy) * TILE_W * 0.5,
-		o.y + float(gx + gy) * TILE_H * 0.5)
-
-func _screen_to_cell(pos: Vector2) -> Vector2i:
-	var o  := _iso_origin()
-	var dx := pos.x - o.x
-	var dy := pos.y - o.y
-	var fa := dx / (TILE_W * 0.5)
-	var fb := dy / (TILE_H * 0.5)
-	var gx := int(floor((fb + fa) * 0.5))
-	var gy := int(floor((fb - fa) * 0.5))
-	return Vector2i(gx, gy)
-
-func _diamond_pts(c: Vector2) -> PackedVector2Array:
-	return PackedVector2Array([
-		Vector2(c.x,               c.y - TILE_H * 0.5),
-		Vector2(c.x + TILE_W * 0.5, c.y),
-		Vector2(c.x,               c.y + TILE_H * 0.5),
-		Vector2(c.x - TILE_W * 0.5, c.y),
-	])
+func _cell_rect(gx: int, gy: int) -> Rect2:
+	return Rect2(GRID_OX + gx * CELL_W, GRID_OY + gy * CELL_H, CELL_W, CELL_H)
 
 func _cell_key(gx: int, gy: int) -> String:
 	return "%d,%d" % [gx, gy]
 
 func _key_to_gxy(key: String) -> Vector2i:
 	var p := key.split(",")
-	if p.size() < 2: return Vector2i(-999, -999)
 	return Vector2i(int(p[0]), int(p[1]))
 
-func _em_grid(gx: int, gy: int) -> bool:
-	return gx >= 0 and gx < GRID_N and gy >= 0 and gy < GRID_N
+func _building_at(gx: int, gy: int) -> Dictionary:
+	var d = Salvar.cidade_slots.get(_cell_key(gx, gy), {})
+	return d if d is Dictionary else {}
+
+func _max_hp(data: Dictionary) -> int:
+	return MAX_HP[clampi(int(data.get("nivel", 1)) - 1, 0, 2)]
+
+func _migrar_slots_antigos() -> void:
+	var default_pos : Array = ["2,2","4,2","6,2","2,4","4,4","6,4"]
+	var old_keys    : Array = []
+	for k in Salvar.cidade_slots.keys():
+		if (k as String).begins_with("s"): old_keys.append(k)
+	if old_keys.is_empty(): return
+	for i in range(mini(old_keys.size(), default_pos.size())):
+		var ok := old_keys[i] as String
+		var nk := default_pos[i] as String
+		if not Salvar.cidade_slots.has(nk):
+			Salvar.cidade_slots[nk] = Salvar.cidade_slots[ok]
+		Salvar.cidade_slots.erase(ok)
+	Salvar.salvar()
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  ANIMAÇÃO DE NAVES
+# ══════════════════════════════════════════════════════════════════════════════
+func iniciar_ataque_naves() -> void:
+	_nav_ativo = true; _nav_timer = 0.0
+	_nav_ships.clear(); _nav_hits.clear()
+	# Spawna 4 naves voando da direita
+	for i in range(4):
+		_nav_ships.append({
+			"px": 1340.0 + i * 80.0,
+			"py": 90.0 + i * 110.0,
+			"vx": -(220.0 + i * 25.0),
+			"dead": false,
+			"hit_t": -1.0,
+		})
+
+func _tick_naves(delta: float) -> void:
+	var todas_mortas : bool = true
+	for ship in _nav_ships:
+		if ship["dead"] as bool: continue
+		todas_mortas = false
+		ship["px"] = (ship["px"] as float) + (ship["vx"] as float) * delta
+		# Atingiu a zona da cidade?
+		if (ship["px"] as float) < 1000.0 and (ship["hit_t"] as float) < 0.0:
+			ship["hit_t"] = _nav_timer
+			ship["dead"]  = true
+			# Explosão
+			_nav_hits.append({"px": ship["px"], "py": ship["py"], "r": 0.0, "t": 0.0})
+	# Anima explosões
+	for hit in _nav_hits:
+		hit["t"] = (hit["t"] as float) + delta
+		hit["r"] = (hit["t"] as float) * 80.0
+	# Limpa explosões velhas e remove naves que saíram pela esquerda
+	_nav_hits = _nav_hits.filter(func(h): return (h["t"] as float) < 0.8)
+	if todas_mortas and _nav_hits.is_empty():
+		_nav_ativo = false
+
 
 # ══════════════════════════════════════════════════════════════════════════════
 #  DRAW PRINCIPAL
 # ══════════════════════════════════════════════════════════════════════════════
 func _draw() -> void:
-	_hz_shop.clear(); _hz_opt.clear(); _hz_train.clear(); _hz_fixed.clear(); _hz_builds.clear(); _hz_pesq.clear(); _hz_bat.clear()
+	_hz_cells.clear(); _hz_shop_cards.clear(); _hz_opt_btns.clear()
 
-	# Tela de batalha ocupa tudo
-	if _state == State.ATTACK:
-		_draw_ataque(get_viewport().get_visible_rect().size)
-		_draw_noticias(get_viewport().get_visible_rect().size)
-		return
-
-	var vp := get_viewport().get_visible_rect().size
-	draw_rect(Rect2(Vector2.ZERO, vp), Color(0.05,0.08,0.11,1.0))
-
-	_draw_terreno()
-	_draw_edificios()
-	_draw_ghost()
-
-	_draw_top_bar(vp)
-	_draw_bottom(vp)
-
-	if _state == State.SHOP:     _draw_loja(vp)
-	if _state == State.TRAIN:    _draw_treino(vp)
-	if _state == State.RESEARCH: _draw_pesquisa(vp)
-	if _state == State.SELECTED and _sel_key != "": _draw_popup(vp)
-
-	_draw_noticias(vp)
-
-# ── Terreno isométrico ────────────────────────────────────────────────────────
-func _draw_terreno() -> void:
-	var o := _iso_origin()
-	for gy in range(GRID_N):
-		for gx in range(GRID_N):
-			var c   := _cell_center_o(o, gx, gy)
-			var pts := _diamond_pts(c)
-			# Grama com variação por hash
-			var h := (gx * 7 + gy * 13) % 11
-			var base := Color(0.16,0.40,0.15)
-			if h < 3:   base = Color(0.18,0.44,0.16)
-			elif h > 8: base = Color(0.14,0.36,0.13)
-			draw_colored_polygon(pts, base)
-			draw_polyline(_fechar_poly(pts), Color(0.10,0.24,0.10,0.55), 1.0)
-
-			# Highlight de colocação/movimento
-			if _state in [State.PLACING, State.MOVING] and gx == _hover_gx and gy == _hover_gy:
-				var livre : bool = CocSalvar.slot(_cell_key(gx,gy)).is_empty()
-				draw_colored_polygon(pts, Color(0.2,1.0,0.4,0.30) if livre else Color(1.0,0.2,0.2,0.30))
-				draw_polyline(_fechar_poly(pts),
-					Color(0.3,1.0,0.5,0.9) if livre else Color(1.0,0.3,0.3,0.9), 2.0)
-
-func _fechar_poly(pts: PackedVector2Array) -> PackedVector2Array:
-	var r := PackedVector2Array(pts)
-	r.append(pts[0])
-	return r
-
-# ── Edifícios (ordenados por profundidade gx+gy) ─────────────────────────────
-func _draw_edificios() -> void:
-	var o := _iso_origin()
-	var ordem : Array = []
-	for key in CocSalvar.slots.keys():
-		var gxy := _key_to_gxy(key)
-		ordem.append({"key": key, "depth": gxy.x + gxy.y, "gx": gxy.x, "gy": gxy.y})
-	ordem.sort_custom(func(a, b): return int(a["depth"]) < int(b["depth"]))
-
-	for e in ordem:
-		var key := e["key"] as String
-		var gx  := int(e["gx"]); var gy := int(e["gy"])
-		var c   := _cell_center_o(o, gx, gy)
-		_draw_edificio(c, key, key == _sel_key)
-
-func _draw_edificio(c: Vector2, key: String, sel: bool) -> void:
 	var font := ThemeDB.fallback_font
-	var d    := CocSalvar.slot(key)
-	if d.is_empty(): return
-	var tipo  := d.get("tipo","") as String
-	var nivel : int = int(d.get("nivel",1))
-	var hp    : int = int(d.get("hp",0))
-	var hp_m  : int = DADOS.hp_max(tipo, nivel)
-	var ef    := DADOS.EDIFICIOS.get(tipo,{}) as Dictionary
-	var cor   := ef.get("cor",Color.WHITE) as Color
-	var central := ef.get("central",false) as bool
+	var vp   := get_viewport().get_visible_rect().size
 
-	# Sombra elíptica (losango achatado escuro)
-	var shadow := PackedVector2Array([
-		Vector2(c.x,               c.y - TILE_H*0.22),
-		Vector2(c.x + TILE_W*0.42, c.y),
-		Vector2(c.x,               c.y + TILE_H*0.22),
-		Vector2(c.x - TILE_W*0.42, c.y),
-	])
-	draw_colored_polygon(shadow, Color(0,0,0,0.28))
+	# Fundo escuro
+	draw_rect(Rect2(Vector2.ZERO, vp), Color(0.04, 0.06, 0.09, 1.0))
 
-	# Base destacada se selecionado
-	if sel:
-		var pts := _diamond_pts(c)
-		draw_colored_polygon(pts, Color(cor.r,cor.g,cor.b,0.22 + sin(_pulse)*0.10))
-		draw_polyline(_fechar_poly(pts), Color(cor.r,cor.g,cor.b,0.95), 2.5)
+	# Terreno da cidade
+	var map_r := Rect2(GRID_OX - 10, GRID_OY - 10,
+					   GRID_COLS * CELL_W + 20, GRID_ROWS * CELL_H + 20)
+	draw_rect(map_r, Color(0.10, 0.20, 0.09, 1.0))
+	draw_rect(map_r, Color(0.22, 0.48, 0.18, 0.72), false, 2.5)
 
-	# Sprite (ancorado pela base, sobe do tile)
-	var tex := _sprites.get(tipo,null) as Texture2D
-	var ts  : float = TILE_W * (1.35 if central else 1.05)
-	var click_r : Rect2
-	if tex:
-		var w := ts
-		var hh := ts * (float(tex.get_height()) / float(maxi(tex.get_width(),1)))
-		click_r = Rect2(c.x - w*0.5, c.y + TILE_H*0.25 - hh, w, hh)
-		draw_texture_rect(tex, click_r, false)
-	else:
-		# fallback: bloco colorido
-		draw_colored_polygon(_diamond_pts(c), Color(cor.r*0.6,cor.g*0.6,cor.b*0.6,0.9))
-		click_r = Rect2(c.x - TILE_W*0.5, c.y - TILE_H*0.5, TILE_W, TILE_H)
-	# Área clicável = corpo do prédio + o tile (mais fácil de acertar)
-	var tile_r := Rect2(c.x - TILE_W*0.5, c.y - TILE_H*0.5, TILE_W, TILE_H)
-	_hz_builds.append({"rect": click_r.merge(tile_r), "key": key})
+	# Células
+	for gy in range(GRID_ROWS):
+		for gx in range(GRID_COLS):
+			var r   := _cell_rect(gx, gy)
+			var key := _cell_key(gx, gy)
+			_hz_cells[key] = r
+			var even : bool = (gx + gy) % 2 == 0
+			draw_rect(r, Color(0.12, 0.25, 0.11, 0.55) if even \
+					  else Color(0.09, 0.18, 0.08, 0.55))
+			var data := _building_at(gx, gy)
 
-	# Nível (pontos)
-	for li in range(int(ef.get("max_nivel",3))):
-		var dc := cor if li < nivel else Color(cor.r,cor.g,cor.b,0.20)
-		draw_circle(Vector2(c.x - 10 + float(li)*9, c.y - TILE_H*0.5 - 6), 3.5, dc)
+			# Highlight de destino para PLACING / MOVING
+			if _state in [State.PLACING, State.MOVING] \
+					and gx == _hover_gx and gy == _hover_gy:
+				var ok : bool = data.is_empty()
+				draw_rect(r, Color(0.0,1.0,0.3,0.28) if ok else Color(1.0,0.1,0.1,0.28))
+				draw_rect(r, Color(0.0,1.0,0.3,0.85) if ok else Color(1.0,0.2,0.2,0.85), false, 2.5)
 
-	# Barra de HP
-	if hp_m > 0:
-		var hf : float = clampf(float(hp)/float(maxi(hp_m,1)), 0.0, 1.0)
-		var bw := TILE_W * 0.7
-		var bx := c.x - bw*0.5
-		var by := c.y - TILE_H*0.5 - 14
-		draw_rect(Rect2(bx,by,bw,4), Color(0.05,0.05,0.05,0.85))
-		var hc := Color(0.2,1.0,0.45) if hf>0.5 else (Color(1.0,0.8,0.15) if hf>0.25 else Color(1.0,0.22,0.22))
-		draw_rect(Rect2(bx,by,bw*hf,4), hc)
+			if data.is_empty():
+				if _state in [State.IDLE, State.SELECTED]:
+					var p := 0.10 + sin(_pulse + gx * 0.4 + gy * 0.7) * 0.06
+					draw_rect(r, Color(0.22, 0.50, 0.18, p), false, 1.0)
+			else:
+				_draw_building_in_cell(r, gx, gy, data, key == _sel_key)
 
-	# Acúmulo de recurso (coletor) — bolha "!"
-	var cap_rec := ef.get("cap_recurso",[]) as Array
-	if cap_rec.size() > 0:
-		var acum := CocSalvar.slot_acum(key)
-		var cap_v : float = float(int(cap_rec[clampi(nivel-1,0,cap_rec.size()-1)]))
-		var fill  : float = clampf(acum/maxf(cap_v,1.0), 0.0, 1.0)
-		if fill >= 0.95:
-			var bp := Vector2(c.x + TILE_W*0.28, c.y - TILE_H*0.5 - 22)
-			draw_circle(bp, 10.0 + sin(_pulse)*1.5, Color(1.0,0.85,0.10,0.95))
-			draw_string(font, bp - Vector2(3,-5), "!", HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color(0,0,0))
-
-	# Em construção: overlay + timer
-	if CocSalvar.slot_em_construcao(key):
-		draw_colored_polygon(_diamond_pts(c), Color(0,0,0,0.5))
-		var fim_ms := _fim_construcao(key)
-		if fim_ms > 0:
-			var rest := maxi(0, (fim_ms - Time.get_ticks_msec())/1000)
-			draw_string(font, c - Vector2(16,0), "🔨", HORIZONTAL_ALIGNMENT_LEFT, -1, 18, Color(1.0,0.8,0.2))
-			draw_string(font, c + Vector2(-16,16), _fmt_tempo(rest), HORIZONTAL_ALIGNMENT_LEFT, -1, 11, Color(1,0.9,0.5))
-
-func _fim_construcao(key: String) -> int:
-	for c in CocSalvar.construcoes:
-		if (c as Dictionary).get("key","") == key:
-			return int((c as Dictionary).get("fim_ms",0))
-	return 0
-
-# ── Ghost (preview de colocação) ──────────────────────────────────────────────
-func _draw_ghost() -> void:
-	if not (_state in [State.PLACING, State.MOVING]): return
-	if _hover_gx < 0 or not _em_grid(_hover_gx, _hover_gy): return
-	var c := _cell_center(_hover_gx, _hover_gy)
-	var tipo := _place_tipo if _state == State.PLACING else CocSalvar.slot_tipo(_move_src)
-	var tex := _sprites.get(tipo, null) as Texture2D
-	if tex:
-		var w := TILE_W * 1.05
-		var hh := w * (float(tex.get_height())/float(maxi(tex.get_width(),1)))
-		draw_texture_rect(tex, Rect2(c.x - w*0.5, c.y + TILE_H*0.25 - hh, w, hh), false, Color(1,1,1,0.55))
-
-# ══════════════════════════════════════════════════════════════════════════════
-#  TOP BAR — recursos
-# ══════════════════════════════════════════════════════════════════════════════
-func _draw_top_bar(vp: Vector2) -> void:
-	var font := ThemeDB.fallback_font
-	draw_rect(Rect2(0,0,vp.x,TOP_H), Color(0.03,0.04,0.08,0.97))
-	draw_line(Vector2(0,TOP_H), Vector2(vp.x,TOP_H), Color(0.25,0.45,0.80,0.50), 1.5)
-
-	_badge(font, 10,  "🥇 %d/%d" % [CocSalvar.ouro,   CocSalvar.cap_ouro()],   Color(1.0,0.85,0.10), 180)
-	_badge(font, 196, "💜 %d/%d" % [CocSalvar.elixir, CocSalvar.cap_elixir()], Color(0.88,0.38,1.0), 180)
-	_badge(font, 382, "🌑 %d/%d" % [CocSalvar.escuro, CocSalvar.cap_escuro()], Color(0.55,0.30,0.80), 180)
-	_badge(font, 568, "💎 %d" % CocSalvar.gemas, Color(0.20,0.90,0.55), 110)
-	var cl := CocSalvar.construtores_livres()
-	_badge(font, 684, "🔨 %d/%d" % [cl, CocSalvar.construtores_total],
-		   Color(0.85,0.55,0.22) if cl>0 else Color(1.0,0.30,0.30), 110)
-
-func _badge(font: Font, x: float, txt: String, cor: Color, w: float) -> void:
-	draw_rect(Rect2(x,10,w,44), Color(cor.r*0.06,cor.g*0.06,cor.b*0.06,0.95))
-	draw_rect(Rect2(x,10,w,44), Color(cor.r,cor.g,cor.b,0.45), false, 1.5)
-	draw_string(font, Vector2(x+6,36), txt, HORIZONTAL_ALIGNMENT_LEFT, -1, 16, cor)
-
-# ══════════════════════════════════════════════════════════════════════════════
-#  BOTTOM — botões fixos
-# ══════════════════════════════════════════════════════════════════════════════
-func _draw_bottom(vp: Vector2) -> void:
-	var font := ThemeDB.fallback_font
-	var by := vp.y - BOT_H
-	draw_rect(Rect2(0,by,vp.x,BOT_H), Color(0.03,0.04,0.08,0.97))
-	draw_line(Vector2(0,by), Vector2(vp.x,by), Color(0.25,0.45,0.80,0.50), 1.5)
-
-	# LOJA
-	var loja_r := Rect2(20, by+9, 150, BOT_H-18)
-	var loja_on : bool = _state == State.SHOP
-	draw_rect(loja_r, Color(0.10,0.18,0.30,0.95) if loja_on else Color(0.06,0.10,0.18,0.85))
-	draw_rect(loja_r, Color(0.40,0.65,1.0,0.8), false, 2.0)
-	draw_string(font, Vector2(loja_r.position.x+28, loja_r.position.y+30), "🛒 LOJA",
-				HORIZONTAL_ALIGNMENT_LEFT, -1, 18, Color(0.85,0.93,1.0))
-	_hz_fixed.append({"rect":loja_r,"acao":"loja"})
-
-	# ATACAR (precisa de tropas prontas)
-	var tem_tropa : bool = CocSalvar.cap_tropas_usada() > 0
-	var atk_r := Rect2(180, by+9, 160, BOT_H-18)
-	draw_rect(atk_r, Color(0.22,0.06,0.04,0.95) if tem_tropa else Color(0.10,0.06,0.06,0.7))
-	draw_rect(atk_r, Color(1.0,0.4,0.25,0.8 if tem_tropa else 0.25), false, 2.0)
-	draw_string(font, Vector2(atk_r.position.x+22, atk_r.position.y+30), "⚔ ATACAR",
-				HORIZONTAL_ALIGNMENT_LEFT, -1, 18, Color(1.0,0.7,0.5) if tem_tropa else Color(0.6,0.45,0.4))
-	if tem_tropa: _hz_fixed.append({"rect":atk_r,"acao":"atacar"})
-
-	# FECHAR
-	var fch_r := Rect2(vp.x-150, by+9, 130, BOT_H-18)
-	draw_rect(fch_r, Color(0.25,0.08,0.08,0.95))
-	draw_rect(fch_r, Color(1.0,0.3,0.3,0.7), false, 2.0)
-	draw_string(font, Vector2(fch_r.position.x+24, fch_r.position.y+30), "✕ SAIR",
-				HORIZONTAL_ALIGNMENT_LEFT, -1, 18, Color(1.0,0.6,0.6))
-	_hz_fixed.append({"rect":fch_r,"acao":"fechar"})
-
-	# Dica de modo
-	if _state == State.PLACING:
-		var ef := DADOS.EDIFICIOS.get(_place_tipo,{}) as Dictionary
-		draw_string(font, Vector2(vp.x*0.5-200, by+34),
-			"Clique numa célula para colocar %s  (ESC cancela)" % ef.get("nome","?"),
-			HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Color(0.78,1.0,0.6))
-	elif _state == State.MOVING:
-		draw_string(font, Vector2(vp.x*0.5-180, by+34),
-			"Clique no destino  (ESC cancela)",
-			HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Color(1.0,0.9,0.4))
-
-# ══════════════════════════════════════════════════════════════════════════════
-#  LOJA
-# ══════════════════════════════════════════════════════════════════════════════
-func _draw_loja(vp: Vector2) -> void:
-	var font := ThemeDB.fallback_font
-	# painel
-	var pr := Rect2(0, TOP_H, vp.x, vp.y - TOP_H - BOT_H)
-	draw_rect(pr, Color(0.04,0.05,0.10,0.96))
-
-	# categorias
-	var cats  : Array = ["recurso","defesa","exercito","outro"]
-	var nomes : Array = ["RECURSOS","DEFESA","EXÉRCITO","OUTROS"]
-	var ctw := (vp.x-40.0)/float(cats.size())
-	for ci in range(cats.size()):
-		var cr := Rect2(20+float(ci)*ctw, TOP_H+8, ctw-8, 38)
-		var on : bool = _shop_cat == cats[ci]
-		draw_rect(cr, Color(0.12,0.18,0.28,0.95) if on else Color(0.06,0.08,0.15,0.8))
-		draw_rect(cr, Color(0.40,0.65,1.0,0.8) if on else Color(0.20,0.30,0.50,0.4), false, 2.0)
-		draw_string(font, Vector2(cr.get_center().x-float(nomes[ci].length())*5.0, cr.position.y+26),
-					nomes[ci], HORIZONTAL_ALIGNMENT_LEFT, -1, 14,
-					Color(0.9,0.96,1.0) if on else Color(0.55,0.65,0.8))
-		_hz_shop.append({"rect":cr,"acao":"cat","cat":cats[ci]})
-
-	# cards
-	var CW := 168.0; var CH := 200.0; var CG := 10.0
-	var items : Array = []
-	for k in DADOS.EDIFICIOS.keys():
-		if (DADOS.EDIFICIOS[k] as Dictionary).get("cat","") == _shop_cat:
-			items.append(k)
-
-	var cx0 := 24.0; var cy0 := TOP_H + 58.0
-	var col := 0
-	var max_col := int((vp.x - 48.0) / (CW + CG))
-	max_col = maxi(max_col, 1)
-	var row := 0
-	var construtores_livres := CocSalvar.construtores_livres()
-
-	for idx in range(items.size()):
-		var tipo := items[idx] as String
-		var ef   := DADOS.EDIFICIOS[tipo] as Dictionary
-		var cor  := ef.get("cor",Color.WHITE) as Color
-		var cr   := Rect2(cx0 + float(col)*(CW+CG), cy0 + float(row)*(CH+CG), CW, CH)
-
-		var co := int(ef.get("custo_ouro",0))
-		var ce := int(ef.get("custo_elixir",0))
-		var cd := int(ef.get("custo_escuro",0))
-		var pode_pagar : bool = CocSalvar.tem_ouro(co) and CocSalvar.tem_elixir(ce) and CocSalvar.tem_escuro(cd)
-		var tem_slot   : bool = _tem_slot_vazio()
-		var tem_constr : bool = construtores_livres > 0
-		var central    : bool = ef.get("central",false) as bool
-		var ja_tem     : bool = central and CocSalvar._tem_tipo(tipo)
-		var pode       : bool = pode_pagar and tem_slot and tem_constr and not ja_tem
-
-		var alpha : float = 1.0 if pode else 0.35
-		draw_rect(cr, Color(cor.r*0.12,cor.g*0.12,cor.b*0.12,0.92))
-		draw_rect(cr, Color(cor.r,cor.g,cor.b,0.72 if pode else 0.18), false, 2.5)
-		if not pode: draw_rect(cr, Color(0,0,0,0.45))
-
-		var tex := _sprites.get(tipo,null) as Texture2D
-		var ccx := cr.get_center().x
+	# Ghost de placement/moving
+	if _state in [State.PLACING, State.MOVING] and _hover_gx >= 0:
+		var gr  := _cell_rect(_hover_gx, _hover_gy)
+		var ghost_tipo := _place_tipo if _state == State.PLACING \
+						else (_building_at(_key_to_gxy(_move_src).x,
+										   _key_to_gxy(_move_src).y).get("tipo","") as String)
+		var tex := _sprites.get(ghost_tipo, null) as Texture2D
 		if tex:
-			var ts := CW*0.6
-			var hh := ts * (float(tex.get_height())/float(maxi(tex.get_width(),1)))
-			draw_texture_rect(tex, Rect2(ccx-ts*0.5, cr.position.y+12, ts, hh), false, Color(1,1,1,alpha))
-		draw_string(font, Vector2(ccx-float((ef.get("nome","") as String).length())*4.5, cr.position.y+CH*0.62),
-					ef.get("nome","") as String, HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Color(1,1,1,0.95 if pode else 0.38))
+			var ts : float = minf(gr.size.x, gr.size.y) * 0.82
+			draw_texture_rect(tex,
+				Rect2(gr.get_center() - Vector2(ts,ts)*0.5, Vector2(ts,ts)),
+				false, Color(1.0,1.0,1.0,0.50))
+		var ef   := EDIFICIOS.get(ghost_tipo, {}) as Dictionary
+		var gcor := ef.get("cor", Color.WHITE) as Color
+		draw_rect(gr, Color(gcor.r, gcor.g, gcor.b, 0.65), false, 2.5)
 
-		var custo_str := ""
-		if co > 0: custo_str += "%d🥇 " % co
-		if ce > 0: custo_str += "%d💜 " % ce
-		if cd > 0: custo_str += "%d🌑 " % cd
-		if custo_str == "": custo_str = "GRÁTIS"
-		draw_string(font, Vector2(ccx-float(custo_str.length())*4.0, cr.position.y+CH*0.62+20),
-					custo_str, HORIZONTAL_ALIGNMENT_LEFT, -1, 12,
-					Color(0.28,1.0,0.48) if pode else Color(1.0,0.28,0.28))
+	# Animação naves
+	if _nav_ativo: _draw_naves()
 
-		var bdesc := ef.get("bonus_desc",[]) as Array
-		if bdesc.size() > 0:
-			draw_string(font, Vector2(cr.position.x+8, cr.position.y+CH*0.62+38), bdesc[0] as String,
-						HORIZONTAL_ALIGNMENT_LEFT, CW-16, 11, Color(cor.r,cor.g,cor.b,0.75 if pode else 0.28))
+	# ── Top bar ──────────────────────────────────────────────────────────────
+	draw_rect(Rect2(0, 0, vp.x, 64.0), Color(0.03, 0.04, 0.08, 0.97))
+	draw_line(Vector2(0, 64), Vector2(vp.x, 64), Color(0.25, 0.45, 0.80, 0.50), 1.5)
+	draw_string(font, Vector2(22, 44), "CIDADE BASE",
+				HORIZONTAL_ALIGNMENT_LEFT, -1, 32, Color(0.80, 0.92, 1.0))
+	# Mana badge
+	draw_rect(Rect2(vp.x - 196, 10, 176, 44), Color(0.06, 0.10, 0.22, 0.95))
+	draw_rect(Rect2(vp.x - 196, 10, 176, 44), Color(0.28, 0.52, 1.0, 0.55), false, 2.0)
+	draw_string(font, Vector2(vp.x - 184, 38),
+				"Mana: %d" % Salvar.mana_cidade,
+				HORIZONTAL_ALIGNMENT_LEFT, -1, 22, Color(0.50, 0.85, 1.0))
+	# Soldados badge
+	if Salvar.quartel_soldados > 0:
+		var s_str := "Soldados: %d" % Salvar.quartel_soldados
+		draw_rect(Rect2(vp.x - 400, 10, 196, 44), Color(0.04, 0.14, 0.28, 0.95))
+		draw_rect(Rect2(vp.x - 400, 10, 196, 44), Color(0.25, 0.75, 1.0, 0.55), false, 2.0)
+		draw_string(font, Vector2(vp.x - 390, 38),
+					s_str, HORIZONTAL_ALIGNMENT_LEFT, -1, 18, Color(0.50, 0.90, 1.0))
+	# Arsenal carregado badge
+	if Salvar.arsenal_carregado:
+		draw_rect(Rect2(vp.x - 620, 10, 210, 44), Color(0.04, 0.20, 0.04, 0.95))
+		draw_rect(Rect2(vp.x - 620, 10, 210, 44), Color(0.20, 1.0, 0.40, 0.70), false, 2.0)
+		draw_string(font, Vector2(vp.x - 612, 38),
+					"BOMBARDEIO PRONTO", HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color(0.30, 1.0, 0.50))
+	# Bônus ativos
+	var bs : String = ""
+	var db := Salvar.cidade_bonus_dano();   if db > 0: bs += "+%d dmg  " % int(db)
+	var fb := Salvar.cidade_bonus_fr();     if fb > 0: bs += "+%.1fcd  " % fb
+	var rb := Salvar.cidade_bonus_range();  if rb > 0: bs += "+%dalc  " % int(rb)
+	var pb := Salvar.cidade_bonus_pierce(); if pb > 0: bs += "+%dpierce" % pb
+	if bs != "":
+		draw_string(font, Vector2(220, 50), bs,
+					HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color(0.50, 0.90, 0.42, 0.85))
+
+	# ── Bottom bar ───────────────────────────────────────────────────────────
+	draw_rect(Rect2(0, 658, vp.x, 62.0), Color(0.03, 0.04, 0.08, 0.97))
+	draw_line(Vector2(0, 658), Vector2(vp.x, 658), Color(0.25, 0.45, 0.80, 0.50), 1.5)
+	_draw_btn(BTN_BACK, "< VOLTAR", Color(0.35, 0.52, 0.80))
+	var sc := Color(0.12,1.0,0.55) if _state == State.SHOP else Color(1.0,0.72,0.12)
+	_draw_btn(BTN_SHOP, "LOJA", sc)
+	# Hint
+	match _state:
+		State.PLACING:
+			var ef := EDIFICIOS.get(_place_tipo, {}) as Dictionary
+			draw_string(font, Vector2(vp.x*0.5-240, 684),
+				"Clique no mapa para colocar %s   ( ESC = cancelar )" % ef.get("nome","?"),
+				HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Color(0.78, 1.0, 0.60))
+		State.MOVING:
+			draw_string(font, Vector2(vp.x*0.5-240, 684),
+				"Clique na célula de destino para mover   ( ESC = cancelar )",
+				HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Color(1.0, 0.90, 0.40))
+
+	# ── Painéis por estado ────────────────────────────────────────────────────
+	match _state:
+		State.SHOP:     _draw_shop_panel()
+		State.SELECTED: _draw_building_options()
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  EDIFÍCIO NA CÉLULA
+# ══════════════════════════════════════════════════════════════════════════════
+func _draw_building_in_cell(r: Rect2, _gx: int, _gy: int,
+							data: Dictionary, selected: bool) -> void:
+	var font  := ThemeDB.fallback_font
+	var tipo  := data.get("tipo", "") as String
+	var nivel : int = int(data.get("nivel", 1))
+	var hp    : int = int(data.get("hp", 0))
+	var mhp   : int = _max_hp(data)
+	var ef    := EDIFICIOS.get(tipo, {}) as Dictionary
+	var cor   := ef.get("cor", Color.WHITE) as Color
+
+	if selected:
+		draw_rect(r, Color(cor.r*.22, cor.g*.22, cor.b*.22,
+						   0.40+sin(_pulse)*0.12))
+		draw_rect(r, Color(cor.r, cor.g, cor.b, 0.90), false, 3.0)
+	else:
+		draw_rect(r, Color(cor.r*.07, cor.g*.07, cor.b*.07, 0.40))
+		draw_rect(r, Color(cor.r, cor.g, cor.b, 0.30), false, 1.5)
+
+	var tex := _sprites.get(tipo, null) as Texture2D
+	var cx  : float = r.get_center().x
+	var cy  : float = r.get_center().y - 7.0
+	if tex:
+		var ts : float = minf(r.size.x, r.size.y) * 0.78
+		draw_texture_rect(tex, Rect2(cx-ts*.5, cy-ts*.5, ts, ts), false)
+	else:
+		_draw_icon_geo(tipo, cor, Vector2(cx, cy), 18.0)
+
+	# Badge especial por tipo
+	if tipo == "quartel" and Salvar.quartel_soldados > 0:
+		var s_lbl := "%d" % Salvar.quartel_soldados
+		draw_rect(Rect2(r.position.x+2, r.position.y+2, 30, 18), Color(0.0,0.0,0.0,0.75))
+		draw_string(font, Vector2(r.position.x+4, r.position.y+15),
+					s_lbl, HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color(0.50,0.90,1.0))
+	if tipo == "arsenal" and Salvar.arsenal_carregado:
+		draw_rect(Rect2(r.position.x+2, r.position.y+2, 14, 14), Color(0.0,0.8,0.2,0.90))
+
+	# Pontinhos de nível
+	for li in range(3):
+		var dc := cor if li < nivel else Color(cor.r, cor.g, cor.b, 0.18)
+		draw_circle(Vector2(cx-8+float(li)*8, r.position.y+r.size.y-18), 3.5, dc)
+
+	# HP bar
+	var hf  : float = clampf(float(hp)/float(maxi(mhp,1)), 0.0, 1.0)
+	var bx  : float = r.position.x+4;  var by_ : float = r.position.y+r.size.y-9
+	var bw  : float = r.size.x-8
+	draw_rect(Rect2(bx, by_, bw, 5), Color(0.06,0.06,0.06,0.85))
+	var hcol := Color(0.20,1.0,0.45) if hf>.50 else (Color(1.0,0.80,0.15) if hf>.25 else Color(1.0,0.22,0.22))
+	draw_rect(Rect2(bx, by_, bw*hf, 5), hcol)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  BOTÃO HELPER
+# ══════════════════════════════════════════════════════════════════════════════
+func _draw_btn(r: Rect2, label: String, cor: Color) -> void:
+	var font := ThemeDB.fallback_font
+	draw_rect(r, Color(cor.r*.10, cor.g*.10, cor.b*.10, 0.96))
+	draw_rect(r, Color(cor.r, cor.g, cor.b, 0.72), false, 2.0)
+	var tw : float = float(label.length()) * 7.5
+	draw_string(font, Vector2(r.get_center().x-tw*.5, r.position.y+r.size.y*.68),
+				label, HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Color(cor.r, cor.g, cor.b))
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  SHOP PANEL  (UI_Shop.cs)
+# ══════════════════════════════════════════════════════════════════════════════
+func _draw_shop_panel() -> void:
+	var font := ThemeDB.fallback_font
+	var vp   := get_viewport().get_visible_rect().size
+
+	const PH : float = 286.0
+	var po := Vector2(0.0, vp.y - PH - 62.0)
+
+	draw_rect(Rect2(po, Vector2(vp.x, PH)), Color(0.03, 0.05, 0.13, 0.97))
+	draw_line(po, Vector2(vp.x, po.y), Color(0.35, 0.62, 1.0, 0.65), 2.5)
+	draw_string(font, po + Vector2(22, 34),
+				"CONSTRUIR   ( custo: %d mana )" % CUSTO_BUILD,
+				HORIZONTAL_ALIGNMENT_LEFT, -1, 20, Color(0.82, 0.94, 1.0))
+
+	const CW : float = 176.0;  const CH : float = 218.0;  const CG : float = 12.0
+	var total_w : float = 6.0*CW + 5.0*CG
+	var cx0 : float = (vp.x - total_w) * 0.5
+	var cy0 : float = po.y + 50.0
+
+	var tipos : Array = EDIFICIOS.keys()
+	for i in range(tipos.size()):
+		var tipo := tipos[i] as String
+		var cr   := Rect2(cx0 + float(i)*(CW+CG), cy0, CW, CH)
+		var ef   := EDIFICIOS[tipo] as Dictionary
+		var cor  := ef.get("cor", Color.WHITE) as Color
+
+		var ja_tem : bool = false
+		for sid in Salvar.cidade_slots.keys():
+			if (Salvar.cidade_slots[sid] as Dictionary).get("tipo","") == tipo:
+				ja_tem = true; break
+		var sem_mana := Salvar.mana_cidade < CUSTO_BUILD
+		var pode     := not ja_tem and not sem_mana
+
+		var bg_a : float = 0.90 if pode else 0.35
+		draw_rect(cr, Color(cor.r*.15, cor.g*.15, cor.b*.15, bg_a))
+		draw_rect(cr, Color(cor.r, cor.g, cor.b, 0.72 if pode else 0.18), false, 2.5)
+
+		var ccx : float = cr.get_center().x
+		var ccy : float = cr.position.y + CH*0.42
 
 		if ja_tem:
-			draw_string(font, Vector2(ccx-32, cr.position.y+CH-12), "CONSTRUÍDO",
-						HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color(0.5,0.55,0.5))
-		elif not tem_constr:
-			draw_string(font, Vector2(ccx-38, cr.position.y+CH-12), "SEM CONSTRUTOR",
-						HORIZONTAL_ALIGNMENT_LEFT, -1, 11, Color(1.0,0.6,0.2,0.8))
-		elif pode:
-			_hz_shop.append({"rect":cr,"acao":"construir","tipo":tipo})
-
-		col += 1
-		if col >= max_col: col = 0; row += 1
-
-# ══════════════════════════════════════════════════════════════════════════════
-#  TREINO
-# ══════════════════════════════════════════════════════════════════════════════
-func _draw_treino(vp: Vector2) -> void:
-	var font := ThemeDB.fallback_font
-	var agora_ms := Time.get_ticks_msec()
-	var pr := Rect2(0, TOP_H, vp.x, vp.y - TOP_H - BOT_H)
-	draw_rect(pr, Color(0.04,0.06,0.12,0.96))
-
-	# header
-	draw_string(font, Vector2(20, TOP_H+34), "TREINAR TROPAS",
-				HORIZONTAL_ALIGNMENT_LEFT, -1, 22, Color(0.8,0.95,1.0))
-	var cap_t := CocSalvar.cap_tropas_total()
-	var cap_u := CocSalvar.cap_tropas_usada()
-	draw_string(font, Vector2(vp.x-260, TOP_H+34), "Espaço: %d/%d" % [cap_u, cap_t],
-				HORIZONTAL_ALIGNMENT_LEFT, -1, 18, Color(0.7,0.9,0.7))
-
-	# determinar quartel escuro?
-	var q_tipo := CocSalvar.slot_tipo(_train_key)
-	var escuro_q : bool = q_tipo == "quartel_escuro"
-
-	var TW := 150.0; var TH := 104.0; var TG := 8.0
-	var tx0 := 20.0; var ty := TOP_H + 56.0
-	var col := 0
-	var max_col := maxi(int((vp.x-40.0)/(TW+TG)), 1)
-
-	for tipo in DADOS.TROPAS.keys():
-		var td := DADOS.TROPAS[tipo] as Dictionary
-		var qt := td.get("quartel_tipo","normal") as String
-		var is_escuro : bool = qt == "escuro"
-		if is_escuro != escuro_q: continue   # quartel normal só treina tropa normal e vice-versa
-
-		var ce := int(td.get("custo_elixir",0))
-		var cd := int(td.get("custo_escuro",0))
-		var cap_livre := CocSalvar.cap_tropas_livre()
-		var pode_pay : bool = (ce==0 or CocSalvar.tem_elixir(ce)) and (cd==0 or CocSalvar.tem_escuro(cd))
-		var pode : bool = cap_livre >= int(td.get("cap",1)) and pode_pay
-
-		var cr := Rect2(tx0 + float(col)*(TW+TG), ty, TW, TH)
-		draw_rect(cr, Color(0.06,0.10,0.18,0.92))
-		draw_rect(cr, Color(0.3,0.85,1.0,0.6 if pode else 0.18), false, 2.0)
-		if not pode: draw_rect(cr, Color(0,0,0,0.4))
-
-		var ccx := cr.get_center().x
-		draw_string(font, Vector2(ccx-float((td.get("nome","") as String).length())*4.0, cr.position.y+16),
-					td.get("nome","") as String, HORIZONTAL_ALIGNMENT_LEFT, -1, 13,
-					Color(0.9,0.96,1.0,1.0 if pode else 0.4))
-		draw_string(font, Vector2(cr.position.x+4, cr.position.y+32),
-					"HP:%d  %ddps" % [int(td.get("hp",0)), int(td.get("dano_s",0))],
-					HORIZONTAL_ALIGNMENT_LEFT, -1, 10, Color(0.7,0.8,0.9,0.8 if pode else 0.35))
-		draw_string(font, Vector2(cr.position.x+4, cr.position.y+45),
-					"Cap:%d  %ds" % [int(td.get("cap",1)), int(td.get("tempo_treino_s",60))],
-					HORIZONTAL_ALIGNMENT_LEFT, -1, 10, Color(0.7,0.8,0.9,0.8 if pode else 0.35))
-		var cs := ""
-		if ce > 0: cs = "%d💜" % ce
-		if cd > 0: cs = "%d🌑" % cd
-		draw_string(font, Vector2(ccx-float(cs.length())*4.5, cr.position.y+62), cs,
-					HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color(0.28,1.0,0.48,1.0 if pode else 0.25))
-		if pode:
-			var btn := Rect2(cr.position.x+TW-32, cr.position.y+TH-30, 28, 26)
-			draw_rect(btn, Color(0.10,0.50,0.15,0.95))
-			draw_rect(btn, Color(0.2,1.0,0.4,0.8), false, 2.0)
-			draw_string(font, Vector2(btn.position.x+8, btn.position.y+18), "+",
-						HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color(0.3,1.0,0.5))
-			_hz_train.append({"rect":btn,"acao":"treinar","tipo":tipo})
-		col += 1
-		if col >= max_col: col = 0; ty += TH+TG
-
-	# inventário de tropas prontas
-	var inv_y := vp.y - BOT_H - 100.0
-	draw_line(Vector2(0,inv_y), Vector2(vp.x,inv_y), Color(0.25,0.45,0.8,0.5), 1.5)
-	draw_string(font, Vector2(12, inv_y+22), "PRONTAS:", HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color(0.7,0.85,1.0))
-	var ix := 110.0
-	for tipo in CocSalvar.tropas.keys():
-		var cnt := int(CocSalvar.tropas[tipo])
-		if cnt <= 0: continue
-		var nome := (DADOS.TROPAS.get(tipo,{}) as Dictionary).get("nome","?") as String
-		draw_string(font, Vector2(ix, inv_y+22), "%s×%d" % [nome,cnt],
-					HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color(0.8,0.95,1.0))
-		ix += float(nome.length()*8 + 30)
-
-	# filas de treino ativas
-	var fila_y := inv_y + 36.0
-	var fx := 12.0
-	for bk in CocSalvar.fila_treino.keys():
-		var fila := CocSalvar.fila_treino[bk] as Array
-		if fila.is_empty(): continue
-		var item := fila[0] as Dictionary
-		var resto := maxi(0, (int(item.get("fim_ms",0)) - agora_ms)/1000)
-		var tipo := item.get("tipo","") as String
-		var td := DADOS.TROPAS.get(tipo,{}) as Dictionary
-		var total_s := int(td.get("tempo_treino_s",60))
-		var pct := clampf(1.0 - float(resto)/float(maxi(total_s,1)), 0.0, 1.0)
-		var prr := Rect2(fx, fila_y, 160, 26)
-		draw_rect(prr, Color(0.05,0.10,0.20,0.95))
-		draw_rect(Rect2(prr.position, Vector2(prr.size.x*pct, prr.size.y)), Color(0.1,0.5,0.9,0.7))
-		draw_rect(prr, Color(0.28,0.65,1.0,0.6), false, 1.5)
-		draw_string(font, Vector2(fx+4, fila_y+18), "%s %s" % [td.get("nome","?"), _fmt_tempo(resto)],
-					HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color(0.9,0.96,1.0))
-		if fila.size() > 1:
-			draw_string(font, Vector2(fx+136, fila_y+18), "+%d" % (fila.size()-1),
-						HORIZONTAL_ALIGNMENT_LEFT, -1, 11, Color(0.6,0.75,1.0))
-		fx += 170.0
-
-# ══════════════════════════════════════════════════════════════════════════════
-#  PESQUISA (laboratório) — melhora nível das tropas/feitiços
-# ══════════════════════════════════════════════════════════════════════════════
-func _draw_pesquisa(vp: Vector2) -> void:
-	var font := ThemeDB.fallback_font
-	draw_rect(Rect2(0, TOP_H, vp.x, vp.y - TOP_H - BOT_H), Color(0.06,0.04,0.12,0.96))
-	draw_string(font, Vector2(20, TOP_H+34), "LABORATÓRIO — PESQUISA",
-				HORIZONTAL_ALIGNMENT_LEFT, -1, 22, Color(0.88,0.38,1.0))
-
-	# pesquisa em andamento
-	if not CocSalvar.pesquisa.is_empty():
-		var pd := CocSalvar.pesquisa
-		var ptipo := pd.get("tipo","") as String
-		var nlvo := int(pd.get("nivel_alvo",1))
-		var rest := maxi(0, (int(pd.get("fim_ms",0)) - Time.get_ticks_msec())/1000)
-		var ptd := DADOS.TROPAS.get(ptipo, DADOS.FEITICOS.get(ptipo,{})) as Dictionary
-		var total_s := 300*nlvo
-		var pct := clampf(1.0 - float(rest)/float(maxi(total_s,1)), 0.0, 1.0)
-		draw_rect(Rect2(20, TOP_H+48, vp.x-40, 44), Color(0.10,0.05,0.18,0.95))
-		draw_rect(Rect2(20, TOP_H+48, (vp.x-40)*pct, 44), Color(0.5,0.2,0.8,0.45))
-		draw_rect(Rect2(20, TOP_H+48, vp.x-40, 44), Color(0.7,0.3,1.0,0.6), false, 2.0)
-		draw_string(font, Vector2(30, TOP_H+76),
-					"Pesquisando %s → N%d   %s" % [ptd.get("nome","?"), nlvo, _fmt_tempo(rest)],
-					HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color(0.9,0.7,1.0))
-
-	# abas tropa / feitiço
-	var cats  : Array = ["tropa","feitico"]
-	var nomes : Array = ["TROPAS","FEITIÇOS"]
-	for ci in range(cats.size()):
-		var cr := Rect2(20+float(ci)*180, TOP_H+102, 168, 34)
-		var on : bool = _pesq_cat == cats[ci]
-		draw_rect(cr, Color(0.12,0.06,0.20,0.95) if on else Color(0.06,0.04,0.10,0.8))
-		draw_rect(cr, Color(0.7,0.3,1.0,0.8 if on else 0.3), false, 2.0)
-		draw_string(font, Vector2(cr.get_center().x-float(nomes[ci].length())*5.0, cr.position.y+23),
-					nomes[ci], HORIZONTAL_ALIGNMENT_LEFT, -1, 14,
-					Color(0.9,0.7,1.0) if on else Color(0.55,0.4,0.7))
-		_hz_pesq.append({"rect":cr,"acao":"cat","cat":cats[ci]})
-
-	# cards
-	var CW := 168.0; var CH := 128.0; var CG := 10.0
-	var fonte_itens : Array = DADOS.TROPAS.keys() if _pesq_cat=="tropa" else DADOS.FEITICOS.keys()
-	var x0 := 20.0; var y0 := TOP_H + 146.0
-	var col := 0; var row := 0
-	var max_col := maxi(int((vp.x-40.0)/(CW+CG)), 1)
-
-	for tipo in fonte_itens:
-		var td := (DADOS.TROPAS.get(tipo,{}) if _pesq_cat=="tropa" else DADOS.FEITICOS.get(tipo,{})) as Dictionary
-		var nivel_atual := int(CocSalvar.niveis.get(tipo, 1))
-		var nivel_alvo  := nivel_atual + 1
-		var cr := Rect2(x0+float(col)*(CW+CG), y0+float(row)*(CH+CG), CW, CH)
-		var pesq_ativa : bool = CocSalvar.pesquisa.get("tipo","") == tipo
-		var outra_ativa : bool = (not CocSalvar.pesquisa.is_empty()) and not pesq_ativa
-		var maxed : bool = nivel_alvo > 3
-
-		var custo_el := 500*nivel_alvo
-		var custo_esc := 0
-		if _pesq_cat=="tropa" and (td.get("quartel_tipo","") as String)=="escuro":
-			custo_esc = 50*nivel_alvo; custo_el = 0
-		var pode_pay : bool = (custo_el==0 or CocSalvar.tem_elixir(custo_el)) and (custo_esc==0 or CocSalvar.tem_escuro(custo_esc))
-		var pode : bool = pode_pay and not outra_ativa and not pesq_ativa and not maxed
-
-		draw_rect(cr, Color(0.08,0.04,0.14,0.92))
-		var bcol := Color(0.88,0.38,1.0) if pesq_ativa else (Color(0.55,0.25,0.8,0.6) if pode else Color(0.3,0.18,0.4,0.4))
-		draw_rect(cr, bcol, false, 2.0)
-		if not pode and not pesq_ativa: draw_rect(cr, Color(0,0,0,0.4))
-
-		draw_string(font, Vector2(cr.position.x+8, cr.position.y+20), td.get("nome","?") as String,
-					HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Color(0.9,0.7,1.0,1.0 if pode or pesq_ativa else 0.4))
-		draw_string(font, Vector2(cr.position.x+8, cr.position.y+40), "Nível atual: %d" % nivel_atual,
-					HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color(0.75,0.85,0.95,0.85))
-		if maxed:
-			draw_string(font, Vector2(cr.position.x+8, cr.position.y+62), "NÍVEL MÁXIMO",
-						HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color(0.5,0.8,0.5))
-		elif pesq_ativa:
-			draw_string(font, Vector2(cr.position.x+8, cr.position.y+62), "EM PESQUISA...",
-						HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color(0.88,0.38,1.0))
+			draw_rect(cr, Color(0,0,0,0.55))
+			var tx2 := _sprites.get(tipo, null) as Texture2D
+			if tx2:
+				var ts2 : float = CW*.60
+				draw_texture_rect(tx2, Rect2(ccx-ts2*.5, cr.position.y+16, ts2, ts2),
+								  false, Color(1,1,1,0.30))
+			draw_string(font, Vector2(ccx-46, ccy+22), "CONSTRUÍDO",
+						HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Color(0.55,0.55,0.55))
 		else:
-			var cs := "%d💜" % custo_el if custo_el>0 else "%d🌑" % custo_esc
-			draw_string(font, Vector2(cr.position.x+8, cr.position.y+62), cs,
-						HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color(0.28,1.0,0.48,1.0 if pode else 0.25))
-			draw_string(font, Vector2(cr.position.x+8, cr.position.y+80), "Tempo: %s" % _fmt_tempo(300*nivel_alvo),
-						HORIZONTAL_ALIGNMENT_LEFT, -1, 11, Color(0.7,0.8,0.9,0.7))
+			var tex  := _sprites.get(tipo, null) as Texture2D
+			var alp  : float = 1.0 if pode else 0.38
+			if tex:
+				var ts : float = CW*.70
+				draw_texture_rect(tex, Rect2(ccx-ts*.5, cr.position.y+10, ts, ts),
+								  false, Color(1,1,1,alp))
+			else:
+				_draw_icon_geo(tipo, Color(cor.r,cor.g,cor.b,alp), Vector2(ccx,ccy-22), 28.0)
+
+			var nome := ef.get("nome","") as String
+			draw_string(font, Vector2(ccx - float(nome.length())*5.5, ccy+26),
+						nome, HORIZONTAL_ALIGNMENT_LEFT, -1, 18,
+						Color(1,1,1,0.95 if pode else 0.40))
+			var bt := ef.get("bonus_txt","") as String
+			draw_string(font, Vector2(ccx - float(bt.length())*3.5, ccy+44),
+						bt, HORIZONTAL_ALIGNMENT_LEFT, -1, 12,
+						Color(cor.r,cor.g,cor.b,0.85 if pode else 0.28))
+			draw_string(font, Vector2(ccx-30, ccy+62),
+						"%d mana" % CUSTO_BUILD, HORIZONTAL_ALIGNMENT_LEFT, -1, 14,
+						Color(0.28,1.0,0.48) if pode else Color(1.0,0.28,0.28))
 			if pode:
-				var btn := Rect2(cr.position.x+CW-66, cr.position.y+CH-32, 60, 28)
-				draw_rect(btn, Color(0.15,0.05,0.25,0.95))
-				draw_rect(btn, Color(0.7,0.3,1.0,0.8), false, 2.0)
-				draw_string(font, Vector2(btn.position.x+10, btn.position.y+19), "PESQ",
-							HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color(0.9,0.7,1.0))
-				_hz_pesq.append({"rect":btn,"acao":"iniciar","tipo":tipo,"nivel_alvo":nivel_alvo,
-								 "custo_el":custo_el,"custo_esc":custo_esc})
-		col += 1
-		if col >= max_col: col = 0; row += 1
+				_hz_shop_cards.append({"rect": cr, "tipo": tipo})
+
 
 # ══════════════════════════════════════════════════════════════════════════════
-#  POPUP de edifício
+#  BUILDING OPTIONS POPUP  (UI_BuildingOptions.cs — SetStatus)
 # ══════════════════════════════════════════════════════════════════════════════
-func _draw_popup(vp: Vector2) -> void:
-	var font := ThemeDB.fallback_font
-	var data := CocSalvar.slot(_sel_key)
-	if data.is_empty(): _state = State.IDLE; return
+func _draw_building_options() -> void:
+	var gxy  := _key_to_gxy(_sel_key)
+	var data  = _building_at(gxy.x, gxy.y)
+	if data.is_empty(): _state = State.IDLE; queue_redraw(); return
 
-	var gxy   := _key_to_gxy(_sel_key)
-	var tipo  := data.get("tipo","") as String
-	var nivel : int = int(data.get("nivel",1))
-	var hp    : int = int(data.get("hp",0))
-	var hp_m  : int = DADOS.hp_max(tipo, nivel)
-	var ef    := DADOS.EDIFICIOS.get(tipo,{}) as Dictionary
-	var cor   := ef.get("cor",Color.WHITE) as Color
-	var max_n : int = int(ef.get("max_nivel",3))
-	var central : bool = ef.get("central",false) as bool
-	var heroi   : bool = ef.get("heroi",false) as bool
-	var em_constr : bool = CocSalvar.slot_em_construcao(_sel_key)
+	var font  := ThemeDB.fallback_font
+	var tipo  := data.get("tipo", "") as String
+	var nivel : int = int(data.get("nivel", 1))
+	var hp    : int = int(data.get("hp", 0))
+	var mhp   : int = _max_hp(data)
+	var ef    := EDIFICIOS.get(tipo, {}) as Dictionary
+	var cor   := ef.get("cor", Color.WHITE) as Color
 
-	# montar botões
-	var btns : Array = []
-	if not em_constr:
-		btns.append("mover")
-		if nivel < max_n: btns.append("upgrade")
-		if hp < hp_m:     btns.append("reparar")
-		if tipo in ["mina_ouro","coletor_elixir","mina_escura"] and CocSalvar.slot_acum(_sel_key) >= 1.0:
-			btns.append("coletar")
-		if tipo == "quartel" or tipo == "quartel_escuro": btns.append("treinar")
-		if tipo == "laboratorio": btns.append("pesquisar")
-		if not central and not heroi: btns.append("demolir")
-	else:
-		btns.append("acelerar")
+	# Calcular altura do popup dinamicamente
+	var num_btns : int = 1  # MOVER sempre
+	if nivel < 3: num_btns += 1      # UPGRADE
+	if hp < mhp:  num_btns += 1      # REPARAR
+	num_btns += 1                    # DEMOLIR
+	if tipo == "quartel": num_btns += 1   # TREINAR
+	if tipo == "arsenal": num_btns += 1   # ATACAR / DESCARREGAR
 
-	var BH := 40.0; var BG := 7.0
-	var PW := 330.0
-	var PH := 92.0 + float(btns.size())*(BH+BG)
+	const BH : float = 42.0; const BG : float = 7.0
+	var PH : float = 100.0 + float(num_btns) * (BH + BG)
+	const PW : float = 340.0
 
-	var c := _cell_center(gxy.x, gxy.y)
-	var px := clampf(c.x - PW*0.5, 8.0, vp.x-PW-8)
-	var py := clampf(c.y - PH - 40.0, TOP_H+4, vp.y-BOT_H-PH-4)
+	var cell_r := _cell_rect(gxy.x, gxy.y)
+	var px : float = clampf(cell_r.get_center().x - PW*.5, 8.0, 1272.0-PW)
+	var py : float = clampf(cell_r.position.y - PH - 12.0, 68.0, 650.0-PH)
 	var po := Vector2(px, py)
 
-	draw_rect(Rect2(po, Vector2(PW,PH)), Color(0.04,0.05,0.10,0.97))
-	draw_rect(Rect2(po, Vector2(PW,PH)), Color(cor.r,cor.g,cor.b,0.62), false, 3.0)
+	draw_rect(Rect2(po, Vector2(PW, PH)), Color(0.04, 0.05, 0.10, 0.97))
+	draw_rect(Rect2(po, Vector2(PW, PH)), Color(cor.r,cor.g,cor.b,0.62), false, 3.0)
 
-	# header
-	var tex := _sprites.get(tipo,null) as Texture2D
-	var icon_s : float = 64.0
-	if tex:
-		var hh := icon_s * (float(tex.get_height())/float(maxi(tex.get_width(),1)))
-		draw_texture_rect(tex, Rect2(po+Vector2(8,6), Vector2(icon_s,hh)), false)
-	var nome := ef.get("nome","") as String
-	if central: nome = "★ " + nome + " ★"
-	draw_string(font, po+Vector2(80,28), nome, HORIZONTAL_ALIGNMENT_LEFT, -1, 20, cor)
-	draw_string(font, po+Vector2(80,50), "N%d   HP %d/%d" % [nivel,hp,hp_m],
+	# Header
+	var tex := _sprites.get(tipo, null) as Texture2D
+	if tex: draw_texture_rect(tex, Rect2(po.x+8, po.y+8, 58, 58), false)
+	else:   _draw_icon_geo(tipo, cor, po+Vector2(37,37), 18.0)
+	draw_string(font, po+Vector2(74, 30), ef.get("nome","") as String,
+				HORIZONTAL_ALIGNMENT_LEFT, -1, 22, cor)
+
+	# Info de nível e bônus
+	var bd := ef.get("bonus_desc", []) as Array
+	var bd_txt := bd[clampi(nivel-1,0,2)] as String if bd.size() > 0 else ""
+	draw_string(font, po+Vector2(74, 50),
+				"Nível %d   HP %d/%d" % [nivel, hp, mhp],
 				HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color(0.75,0.85,0.95))
-	var bd := ef.get("bonus_desc",[]) as Array
-	if bd.size() > 0:
-		draw_string(font, po+Vector2(80,68), bd[clampi(nivel-1,0,bd.size()-1)] as String,
-					HORIZONTAL_ALIGNMENT_LEFT, PW-90, 12, Color(cor.r,cor.g,cor.b,0.85))
+	draw_string(font, po+Vector2(74, 65),
+				bd_txt, HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color(cor.r,cor.g,cor.b,0.85))
 
-	# botões
-	var ay := po.y + 88.0
-	for btn in btns:
-		var br := Rect2(po.x+10, ay, PW-20, BH)
-		var pode := true
-		var label := ""
-		match btn:
-			"mover":   label = "↔ MOVER"; _opt_btn(br, label, Color(0.75,0.55,1.0))
-			"upgrade":
-				var co := DADOS.custo_upgrade(tipo, nivel, "ouro")
-				var ce := DADOS.custo_upgrade(tipo, nivel, "elixir")
-				var cd := DADOS.custo_upgrade(tipo, nivel, "escuro")
-				pode = CocSalvar.tem_ouro(co) and CocSalvar.tem_elixir(ce) and CocSalvar.tem_escuro(cd) and CocSalvar.tem_construtor_livre()
-				var cu := ""
-				if co>0: cu += "%d🥇 " % co
-				if ce>0: cu += "%d💜 " % ce
-				if cd>0: cu += "%d🌑 " % cd
-				_opt_btn(br, "▲ UPGRADE N%d→N%d  %s" % [nivel,nivel+1,cu], Color(0.28,0.68,1.0), pode)
-			"reparar":
-				var cr2 := hp_m/10
-				pode = CocSalvar.tem_ouro(cr2)
-				_opt_btn(br, "♥ REPARAR (%d ouro)" % cr2, Color(0.2,0.9,0.4), pode)
-			"coletar":
-				var acum := int(CocSalvar.slot_acum(_sel_key))
-				_opt_btn(br, "⬇ COLETAR +%d" % acum, Color(1.0,0.85,0.1))
-			"treinar":  _opt_btn(br, "⚔ TREINAR TROPAS", Color(0.3,0.85,1.0))
-			"pesquisar": _opt_btn(br, "🔬 PESQUISAR TROPAS", Color(0.88,0.38,1.0))
-			"acelerar":
-				pode = CocSalvar.tem_gemas(5)
-				_opt_btn(br, "⚡ ACELERAR (5 💎)", Color(0.4,1.0,0.6), pode)
-			"demolir":  _opt_btn(br, "✕ DEMOLIR (50% volta)", Color(1.0,0.28,0.28))
-		if pode:
-			_hz_opt.append({"rect":br,"acao":btn})
-		ay += BH+BG
+	# HP bar
+	var hf  : float = clampf(float(hp)/float(maxi(mhp,1)), 0.0, 1.0)
+	draw_rect(Rect2(po.x+10, po.y+78, PW-20, 6), Color(0.08,0.08,0.08,0.90))
+	var hc := Color(0.20,1.0,0.45) if hf>.50 else (Color(1.0,0.80,0.15) if hf>.25 else Color(1.0,0.22,0.22))
+	draw_rect(Rect2(po.x+10, po.y+78, (PW-20)*hf, 6), hc)
 
-func _opt_btn(r: Rect2, label: String, cor: Color, ativo: bool = true) -> void:
-	var font := ThemeDB.fallback_font
-	draw_rect(r, Color(cor.r*0.10,cor.g*0.10,cor.b*0.10, 0.95 if ativo else 0.4))
-	draw_rect(r, Color(cor.r,cor.g,cor.b, 0.72 if ativo else 0.18), false, 2.0)
-	draw_string(font, Vector2(r.position.x+12, r.position.y+26), label,
-				HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color(cor.r,cor.g,cor.b, 1.0 if ativo else 0.3))
+	# ── Botões de ação ────────────────────────────────────────────────────────
+	var ay : float = po.y + 96.0
+	const ABW : float = PW - 20.0
+
+	# MOVER (todos os edifícios) — CoC: "Move Building"
+	var mr := Rect2(po.x+10, ay, ABW, BH)
+	draw_rect(mr, Color(0.12, 0.10, 0.22, 0.95))
+	draw_rect(mr, Color(0.75, 0.55, 1.0, 0.70), false, 2.0)
+	draw_string(font, Vector2(po.x+20, ay+28), "↔ MOVER",
+				HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color(0.85, 0.70, 1.0))
+	_hz_opt_btns.append({"rect": mr, "acao": "mover"})
+	ay += BH + BG
+
+	# UPGRADE  (UI_BuildingUpgrade.cs)
+	if nivel < 3:
+		var custo_up : int = CUSTOS_UP[nivel]
+		var pode_up  : bool = Salvar.mana_cidade >= custo_up
+		var ur := Rect2(po.x+10, ay, ABW, BH)
+		draw_rect(ur, Color(0.08,0.16,0.28,0.95) if pode_up else Color(0.06,0.07,0.10,0.60))
+		draw_rect(ur, Color(0.28,0.68,1.0,0.72 if pode_up else 0.18), false, 2.0)
+		draw_string(font, Vector2(po.x+20, ay+28),
+					"▲ UPGRADE  L%d → L%d   ( %d mana )" % [nivel, nivel+1, custo_up],
+					HORIZONTAL_ALIGNMENT_LEFT, -1, 16,
+					Color(0.48,0.88,1.0,1.0 if pode_up else 0.28))
+		if pode_up: _hz_opt_btns.append({"rect": ur, "acao": "upgrade"})
+		ay += BH + BG
+
+	# TREINAR soldados (quartel)
+	if tipo == "quartel":
+		var sold    : int  = Salvar.quartel_soldados
+		var espaco  : int  = MAX_SOLDADOS - sold
+		var pode_tr : bool = Salvar.mana_cidade >= CUSTO_TREINAR and espaco >= 10
+		var tr := Rect2(po.x+10, ay, ABW, BH)
+		draw_rect(tr, Color(0.04,0.14,0.22,0.95) if pode_tr else Color(0.06,0.07,0.10,0.60))
+		draw_rect(tr, Color(0.25,0.75,1.0,0.72 if pode_tr else 0.18), false, 2.0)
+		var tr_txt : String
+		if espaco < 10:
+			tr_txt = "TREINAR  ( máx atingido: %d/%d )" % [sold, MAX_SOLDADOS]
+		else:
+			tr_txt = "TREINAR +10 soldados  ( %d mana )   %d/%d" % [CUSTO_TREINAR, sold, MAX_SOLDADOS]
+		draw_string(font, Vector2(po.x+20, ay+28), tr_txt,
+					HORIZONTAL_ALIGNMENT_LEFT, -1, 15,
+					Color(0.50,0.88,1.0,1.0 if pode_tr else 0.28))
+		if pode_tr: _hz_opt_btns.append({"rect": tr, "acao": "treinar"})
+		ay += BH + BG
+
+	# ATACAR (arsenal) — carrega bombardeio para próxima run
+	if tipo == "arsenal":
+		if Salvar.arsenal_carregado:
+			var ar := Rect2(po.x+10, ay, ABW, BH)
+			draw_rect(ar, Color(0.04, 0.20, 0.04, 0.95))
+			draw_rect(ar, Color(0.20, 1.0, 0.40, 0.70), false, 2.0)
+			draw_string(font, Vector2(po.x+20, ay+28),
+						"BOMBARDEIO PRONTO  ( aplica na próxima run )",
+						HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Color(0.30, 1.0, 0.50))
+			_hz_opt_btns.append({"rect": ar, "acao": "decarregar"})
+		else:
+			var pode_at : bool = Salvar.mana_cidade >= CUSTO_ATACAR
+			var ar := Rect2(po.x+10, ay, ABW, BH)
+			draw_rect(ar, Color(0.18,0.08,0.04,0.95) if pode_at else Color(0.06,0.07,0.10,0.60))
+			draw_rect(ar, Color(1.0,0.55,0.15,0.72 if pode_at else 0.18), false, 2.0)
+			draw_string(font, Vector2(po.x+20, ay+28),
+						"CARREGAR BOMBARDEIO  ( %d mana )   +0.8 cad run" % CUSTO_ATACAR,
+						HORIZONTAL_ALIGNMENT_LEFT, -1, 15,
+						Color(1.0,0.70,0.30,1.0 if pode_at else 0.28))
+			if pode_at: _hz_opt_btns.append({"rect": ar, "acao": "atacar"})
+		ay += BH + BG
+
+	# REPARAR
+	if hp < mhp:
+		var pode_rep : bool = Salvar.mana_cidade >= CUSTO_REPAIR
+		var rr := Rect2(po.x+10, ay, ABW, BH)
+		draw_rect(rr, Color(0.07,0.18,0.10,0.95) if pode_rep else Color(0.06,0.07,0.10,0.60))
+		draw_rect(rr, Color(0.20,0.90,0.40,0.72 if pode_rep else 0.18), false, 2.0)
+		draw_string(font, Vector2(po.x+20, ay+28),
+					"♥ REPARAR   ( %d mana )" % CUSTO_REPAIR,
+					HORIZONTAL_ALIGNMENT_LEFT, -1, 16,
+					Color(0.28,1.0,0.50,1.0 if pode_rep else 0.28))
+		if pode_rep: _hz_opt_btns.append({"rect": rr, "acao": "reparar"})
+		ay += BH + BG
+
+	# DEMOLIR
+	var dr := Rect2(po.x+10, ay, ABW, BH)
+	draw_rect(dr, Color(0.22,0.04,0.04,0.95))
+	draw_rect(dr, Color(1.0,0.28,0.28,0.55), false, 2.0)
+	draw_string(font, Vector2(po.x+20, ay+28),
+				"✕ DEMOLIR   ( +10 mana devolvido )",
+				HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color(1.0,0.42,0.42))
+	_hz_opt_btns.append({"rect": dr, "acao": "demolir"})
+
 
 # ══════════════════════════════════════════════════════════════════════════════
-#  NOTIFICAÇÕES
+#  ANIMAÇÃO DE NAVES ATACANDO
 # ══════════════════════════════════════════════════════════════════════════════
-func _draw_noticias(vp: Vector2) -> void:
-	var font := ThemeDB.fallback_font
-	var ny := TOP_H + 10.0
-	for n in _noticias:
-		var nd := n as Dictionary
-		var t_f := float(nd.get("t",0.0))
-		var a := clampf(t_f/0.5, 0.0, 1.0) * clampf(t_f, 0.0, 1.0)
-		var cor := nd.get("cor",Color.WHITE) as Color
-		var msg := nd.get("msg","") as String
-		draw_string(font, Vector2(vp.x-12-float(msg.length())*8.5, ny), msg,
-					HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color(cor.r,cor.g,cor.b,a))
-		ny += 22.0
+func _draw_naves() -> void:
+	for ship in _nav_ships:
+		if ship["dead"] as bool: continue
+		var sx : float = ship["px"] as float
+		var sy : float = ship["py"] as float
+		# Corpo da nave (triângulo vermelho)
+		var pts := PackedVector2Array([
+			Vector2(sx+20, sy),
+			Vector2(sx-20, sy-10),
+			Vector2(sx-20, sy+10),
+		])
+		draw_colored_polygon(pts, Color(0.90, 0.15, 0.15, 0.90))
+		# Asas
+		draw_line(Vector2(sx-10, sy), Vector2(sx-10, sy-20), Color(0.80,0.10,0.10,0.80), 2.5)
+		draw_line(Vector2(sx-10, sy), Vector2(sx-10, sy+20), Color(0.80,0.10,0.10,0.80), 2.5)
+		# Motor
+		draw_circle(Vector2(sx-22, sy), 4.0, Color(1.0, 0.60, 0.10, 0.90))
+	# Explosões
+	for hit in _nav_hits:
+		var r  : float = hit["r"] as float
+		var t  : float = hit["t"] as float
+		var a  : float = clampf(1.0 - t/0.8, 0.0, 1.0)
+		draw_circle(Vector2(hit["px"] as float, hit["py"] as float), r,
+					Color(1.0, 0.55, 0.10, a * 0.75))
+		draw_circle(Vector2(hit["px"] as float, hit["py"] as float), r * 0.5,
+					Color(1.0, 0.90, 0.20, a * 0.90))
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  ÍCONE GEOMÉTRICO (fallback)
+# ══════════════════════════════════════════════════════════════════════════════
+func _draw_icon_geo(tipo: String, cor: Color, c: Vector2, s: float) -> void:
+	match tipo:
+		"forja":
+			draw_line(c+Vector2(0,-s),       c+Vector2(s*.8,s*.7),  cor, 2.5)
+			draw_line(c+Vector2(s*.8,s*.7),  c+Vector2(-s*.8,s*.7), cor, 2.5)
+			draw_line(c+Vector2(-s*.8,s*.7), c+Vector2(0,-s),       cor, 2.5)
+		"quartel":
+			draw_arc(c, s, 0, TAU, 28, cor, 2.5)
+			draw_line(c+Vector2(-s,0), c+Vector2(s,0), cor, 2.0)
+			draw_line(c+Vector2(0,-s), c+Vector2(0,s), cor, 2.0)
+		"arsenal":
+			draw_line(c+Vector2(-s,0),       c+Vector2(s*.4,0),  cor, 3.0)
+			draw_line(c+Vector2(-s*.1,-s*.6),c+Vector2(s*.5,0),  cor, 2.5)
+			draw_line(c+Vector2(-s*.1,s*.6), c+Vector2(s*.5,0),  cor, 2.5)
+		"lab":
+			for hi in range(6):
+				var a1 := float(hi)/6.0*TAU; var a2 := float(hi+1)/6.0*TAU
+				draw_line(c+Vector2(cos(a1),sin(a1))*s,
+						  c+Vector2(cos(a2),sin(a2))*s, cor, 2.5)
+		"muralha":
+			draw_rect(Rect2(c.x-s,c.y-s*.25,s*2.0,s*.85), Color(cor.r,cor.g,cor.b,.18))
+			draw_rect(Rect2(c.x-s,c.y-s*.25,s*2.0,s*.85), cor, false, 2.5)
+		"mina":
+			draw_line(c+Vector2(0,-s),      c+Vector2(s*.65,0), cor, 2.5)
+			draw_line(c+Vector2(s*.65,0),   c+Vector2(0,s),     cor, 2.5)
+			draw_line(c+Vector2(0,s),       c+Vector2(-s*.65,0),cor, 2.5)
+			draw_line(c+Vector2(-s*.65,0),  c+Vector2(0,-s),    cor, 2.5)
+
 
 # ══════════════════════════════════════════════════════════════════════════════
 #  INPUT
@@ -907,513 +731,182 @@ func _input(event: InputEvent) -> void:
 		var ev := event as InputEventKey
 		if ev.pressed and ev.keycode == KEY_ESCAPE:
 			match _state:
-				State.PLACING: _state=State.IDLE; _place_tipo=""; _hover_gx=-1; _hover_gy=-1
-				State.MOVING:  _state=State.SELECTED; _move_src=""
-				State.SHOP:     _state=State.IDLE
-				State.TRAIN:    _state=State.IDLE; _train_key=""
-				State.RESEARCH: _state=State.IDLE
-				State.ATTACK:   pass   # não sai no meio da batalha
-				State.SELECTED: _state=State.IDLE; _sel_key=""
-				_: fechar()
-			queue_redraw(); get_viewport().set_input_as_handled()
+				State.PLACING:
+					_state = State.IDLE; _place_tipo = ""; _hover_gx=-1; _hover_gy=-1
+				State.MOVING:
+					_state = State.SELECTED; _move_src = ""
+				State.SHOP, State.SELECTED:
+					_state = State.IDLE; _sel_key = ""
+				_:
+					fechar()
+			queue_redraw()
+			get_viewport().set_input_as_handled()
 		return
 
 	if event is InputEventMouseMotion:
-		_update_hover((event as InputEventMouseMotion).position); return
+		_update_hover((event as InputEventMouseMotion).position)
+		return
 
-	var pos : Vector2; var pressed := false
+	var pos : Vector2
+	var pressed : bool = false
 	if event is InputEventMouseButton:
 		var ev := event as InputEventMouseButton
-		if ev.button_index == MOUSE_BUTTON_LEFT and ev.pressed: pos = ev.position; pressed = true
+		if ev.button_index == MOUSE_BUTTON_LEFT and ev.pressed:
+			pos = ev.position; pressed = true
 	elif event is InputEventScreenTouch:
 		var ev := event as InputEventScreenTouch
 		if ev.pressed: pos = ev.position; pressed = true
 
 	if pressed:
-		_handle_tap(pos); get_viewport().set_input_as_handled()
+		_handle_tap(pos)
+		get_viewport().set_input_as_handled()
+
 
 func _update_hover(pos: Vector2) -> void:
 	if not (_state in [State.PLACING, State.MOVING]): return
-	var gxy := _screen_to_cell(pos)
-	if _em_grid(gxy.x, gxy.y):
-		if gxy.x != _hover_gx or gxy.y != _hover_gy:
-			_hover_gx = gxy.x; _hover_gy = gxy.y; queue_redraw()
-	elif _hover_gx != -1:
+	for key in _hz_cells.keys():
+		if (_hz_cells[key] as Rect2).has_point(pos):
+			var gxy := _key_to_gxy(key)
+			if gxy.x != _hover_gx or gxy.y != _hover_gy:
+				_hover_gx = gxy.x; _hover_gy = gxy.y; queue_redraw()
+			return
+	if _hover_gx != -1 or _hover_gy != -1:
 		_hover_gx = -1; _hover_gy = -1; queue_redraw()
 
+
 func _handle_tap(pos: Vector2) -> void:
-	# botões fixos sempre primeiro
-	for h in _hz_fixed:
-		if ((h as Dictionary)["rect"] as Rect2).has_point(pos):
-			match (h as Dictionary).get("acao",""):
-				"fechar": fechar()
-				"loja":   _toggle_loja()
-				"atacar": _iniciar_ataque()
-			return
+	# Botão Voltar
+	if BTN_BACK.has_point(pos): fechar(); return
 
-	# tela de batalha
-	if _state == State.ATTACK:
-		_handle_tap_ataque(pos)
-		return
+	# Botão Loja
+	if BTN_SHOP.has_point(pos):
+		_state = State.IDLE if _state == State.SHOP else State.SHOP
+		_sel_key = ""; _place_tipo = ""; queue_redraw(); return
 
-	# painel da loja
-	if _state == State.SHOP:
-		for h in _hz_shop:
-			var hd := h as Dictionary
-			if not (hd["rect"] as Rect2).has_point(pos): continue
-			if hd.get("acao","") == "cat":
-				_shop_cat = hd.get("cat","recurso") as String; queue_redraw(); return
-			if hd.get("acao","") == "construir":
-				_state = State.PLACING; _place_tipo = hd.get("tipo","") as String
-				_hover_gx = -1; _hover_gy = -1; queue_redraw(); return
-		return
-
-	# painel de treino
-	if _state == State.TRAIN:
-		for h in _hz_train:
-			var hd := h as Dictionary
-			if not (hd["rect"] as Rect2).has_point(pos): continue
-			if hd.get("acao","") == "treinar":
-				_treinar_tropa(hd.get("tipo","") as String); return
-		return
-
-	# painel de pesquisa (laboratório)
-	if _state == State.RESEARCH:
-		for h in _hz_pesq:
-			var hd := h as Dictionary
-			if not (hd["rect"] as Rect2).has_point(pos): continue
-			match hd.get("acao",""):
-				"cat":
-					_pesq_cat = hd.get("cat","tropa") as String; queue_redraw(); return
-				"iniciar":
-					_iniciar_pesquisa(hd.get("tipo","") as String, int(hd.get("nivel_alvo",1)),
-									  int(hd.get("custo_el",0)), int(hd.get("custo_esc",0))); return
-		return
-
-	# popup de opções
-	if _state == State.SELECTED:
-		for h in _hz_opt:
-			if ((h as Dictionary)["rect"] as Rect2).has_point(pos):
-				_executar_acao((h as Dictionary).get("acao","") as String); return
-
-	# colocação
+	# Modo PLACING → colocar edifício
 	if _state == State.PLACING:
-		var g := _screen_to_cell(pos)
-		if _em_grid(g.x, g.y) and CocSalvar.slot(_cell_key(g.x,g.y)).is_empty():
-			_construir(_cell_key(g.x,g.y), _place_tipo)
-		_state = State.IDLE; _place_tipo = ""; _hover_gx = -1; _hover_gy = -1
-		queue_redraw(); return
+		for key in _hz_cells.keys():
+			if (_hz_cells[key] as Rect2).has_point(pos):
+				var gxy := _key_to_gxy(key)
+				if _building_at(gxy.x, gxy.y).is_empty():
+					_construir(key, _place_tipo)
+				_state = State.IDLE; _place_tipo = ""; _hover_gx=-1; _hover_gy=-1
+				queue_redraw(); return
+		return
 
-	# movimento
+	# Modo MOVING → mover edifício para nova célula
 	if _state == State.MOVING:
-		var g := _screen_to_cell(pos)
-		if _em_grid(g.x, g.y):
-			var nk := _cell_key(g.x,g.y)
-			if CocSalvar.slot(nk).is_empty() and nk != _move_src:
-				CocSalvar.slots[nk] = CocSalvar.slots[_move_src]
-				CocSalvar.slots.erase(_move_src)
-				_sel_key = nk; CocSalvar.salvar()
-		_state = State.SELECTED; _move_src = ""; _hover_gx = -1; _hover_gy = -1
-		queue_redraw(); return
+		for key in _hz_cells.keys():
+			if (_hz_cells[key] as Rect2).has_point(pos):
+				var gxy := _key_to_gxy(key)
+				if _building_at(gxy.x, gxy.y).is_empty() and key != _move_src:
+					_mover_edificio(_move_src, key)
+				_state = State.SELECTED; _sel_key = _move_src; _move_src = ""
+				_hover_gx=-1; _hover_gy=-1; queue_redraw(); return
+		return
 
-	# seleção — testa corpo dos prédios primeiro (frontmost = último desenhado)
-	for i in range(_hz_builds.size()-1, -1, -1):
-		var hb := _hz_builds[i] as Dictionary
-		if (hb["rect"] as Rect2).has_point(pos):
-			var key := hb["key"] as String
+	# Botões de opção
+	if _state == State.SELECTED:
+		for btn in _hz_opt_btns:
+			if (btn["rect"] as Rect2).has_point(pos):
+				_executar_acao(btn["acao"] as String); return
+
+	# Cards da loja
+	if _state == State.SHOP:
+		for card in _hz_shop_cards:
+			if (card["rect"] as Rect2).has_point(pos):
+				_state = State.PLACING; _place_tipo = card["tipo"] as String
+				_hover_gx=-1; _hover_gy=-1; queue_redraw(); return
+		_state = State.IDLE; queue_redraw(); return
+
+	# Células do mapa
+	for key in _hz_cells.keys():
+		if (_hz_cells[key] as Rect2).has_point(pos):
 			if _state == State.SELECTED and key == _sel_key:
 				_state = State.IDLE; _sel_key = ""
 			else:
-				_state = State.SELECTED; _sel_key = key
+				var gxy := _key_to_gxy(key)
+				if not _building_at(gxy.x, gxy.y).is_empty():
+					_state = State.SELECTED; _sel_key = key
+				else:
+					_state = State.IDLE; _sel_key = ""
 			queue_redraw(); return
 
-	# fallback: seleção pelo tile sob o cursor
-	var gc := _screen_to_cell(pos)
-	if _em_grid(gc.x, gc.y):
-		var key := _cell_key(gc.x, gc.y)
-		if not CocSalvar.slot(key).is_empty():
-			if _state == State.SELECTED and key == _sel_key:
-				_state = State.IDLE; _sel_key = ""
-			else:
-				_state = State.SELECTED; _sel_key = key
-			queue_redraw(); return
 	_state = State.IDLE; _sel_key = ""; queue_redraw()
 
-func _toggle_loja() -> void:
-	if _state == State.SHOP:
-		_state = State.IDLE
-	else:
-		_state = State.SHOP; _sel_key = ""; _train_key = ""
-	queue_redraw()
 
 # ══════════════════════════════════════════════════════════════════════════════
 #  AÇÕES
 # ══════════════════════════════════════════════════════════════════════════════
-func _construir(key: String, tipo: String) -> void:
-	var ef := DADOS.EDIFICIOS.get(tipo,{}) as Dictionary
-	var co := int(ef.get("custo_ouro",0))
-	var ce := int(ef.get("custo_elixir",0))
-	var cd := int(ef.get("custo_escuro",0))
-	if not (CocSalvar.tem_ouro(co) and CocSalvar.tem_elixir(ce) and CocSalvar.tem_escuro(cd)): return
-	if not CocSalvar.tem_construtor_livre(): return
-	CocSalvar.ouro -= co; CocSalvar.elixir -= ce; CocSalvar.escuro -= cd
-	CocSalvar.slots[key] = {"tipo":tipo,"nivel":1,"hp":0,"acum":0.0}
-	var constr_s := int(ef.get("constr_s",30))
-	if constr_s > 0:
-		CocSalvar.construcoes.append({"key":key,"tipo":tipo,"nivel_alvo":1,
-			"fim_ms":Time.get_ticks_msec()+constr_s*1000})
-		notificar("Construindo %s..." % ef.get("nome","?"), Color(0.85,0.55,0.22))
-	else:
-		var hp_arr := ef.get("hp",[100,200,300]) as Array
-		CocSalvar.slots[key]["hp"] = int(hp_arr[0])
-		notificar("%s construído!" % ef.get("nome","?"), Color(0.5,1.0,0.4))
-		if tipo == "cabana_construtor": CocSalvar.construtores_total += 1
-	CocSalvar.salvar()
+func _construir(slot_key: String, tipo: String) -> void:
+	if Salvar.mana_cidade < CUSTO_BUILD: return
+	Salvar.mana_cidade -= CUSTO_BUILD
+	Salvar.cidade_slots[slot_key] = {"tipo": tipo, "nivel": 1, "hp": MAX_HP[0]}
+	Salvar.salvar()
+
+
+func _mover_edificio(src: String, dst: String) -> void:
+	if not Salvar.cidade_slots.has(src): return
+	Salvar.cidade_slots[dst] = Salvar.cidade_slots[src]
+	Salvar.cidade_slots.erase(src)
+	_sel_key = dst
+	Salvar.salvar()
+
 
 func _executar_acao(acao: String) -> void:
 	if _sel_key == "": return
-	var data := CocSalvar.slot(_sel_key)
+	var gxy  := _key_to_gxy(_sel_key)
+	var data  = _building_at(gxy.x, gxy.y)
 	if data.is_empty(): _state = State.IDLE; return
-	var tipo  := data.get("tipo","") as String
-	var nivel : int = int(data.get("nivel",1))
-	var ef    := DADOS.EDIFICIOS.get(tipo,{}) as Dictionary
 
 	match acao:
 		"mover":
-			_move_src = _sel_key; _state = State.MOVING; _hover_gx=-1; _hover_gy=-1
+			_move_src = _sel_key
+			_state    = State.MOVING
+			_hover_gx = -1; _hover_gy = -1
 
 		"upgrade":
-			var max_n : int = int(ef.get("max_nivel",3))
-			if nivel >= max_n: return
-			var co := DADOS.custo_upgrade(tipo, nivel, "ouro")
-			var ce := DADOS.custo_upgrade(tipo, nivel, "elixir")
-			var cd := DADOS.custo_upgrade(tipo, nivel, "escuro")
-			if not (CocSalvar.tem_ouro(co) and CocSalvar.tem_elixir(ce) and CocSalvar.tem_escuro(cd)): return
-			if not CocSalvar.tem_construtor_livre(): return
-			CocSalvar.ouro-=co; CocSalvar.elixir-=ce; CocSalvar.escuro-=cd
-			var ts := DADOS.tempo_upgrade_s(tipo, nivel)
-			data["hp"] = 0
-			CocSalvar.slots[_sel_key] = data
-			CocSalvar.construcoes.append({"key":_sel_key,"tipo":tipo,"nivel_alvo":nivel+1,
-				"fim_ms":Time.get_ticks_msec()+ts*1000})
-			notificar("Melhorando %s N%d..." % [ef.get("nome","?"),nivel+1], Color(0.28,0.68,1.0))
-			CocSalvar.salvar()
-
-		"reparar":
-			var hp_m := DADOS.hp_max(tipo, nivel)
-			var custo := hp_m/10
-			if not CocSalvar.tem_ouro(custo): return
-			CocSalvar.ouro -= custo
-			data["hp"] = hp_m
-			CocSalvar.slots[_sel_key] = data
-			CocSalvar.salvar()
-
-		"coletar":
-			var ganho := CocSalvar.coletar(_sel_key)
-			if ganho > 0: notificar("+%d coletado" % ganho, Color(1.0,0.85,0.1))
+			var nivel : int = int(data.get("nivel", 1))
+			if nivel >= 3: return
+			var custo : int = CUSTOS_UP[nivel]
+			if Salvar.mana_cidade < custo: return
+			Salvar.mana_cidade -= custo
+			data["nivel"] = nivel + 1
+			data["hp"]    = MAX_HP[nivel]
+			Salvar.cidade_slots[_sel_key] = data
+			Salvar.salvar()
 
 		"treinar":
-			_train_key = _sel_key; _state = State.TRAIN; queue_redraw(); return
+			if Salvar.mana_cidade < CUSTO_TREINAR: return
+			if Salvar.quartel_soldados >= MAX_SOLDADOS: return
+			Salvar.mana_cidade -= CUSTO_TREINAR
+			Salvar.quartel_soldados = mini(Salvar.quartel_soldados + 10, MAX_SOLDADOS)
+			Salvar.salvar()
 
-		"pesquisar":
-			_state = State.RESEARCH; queue_redraw(); return
+		"atacar":
+			if Salvar.mana_cidade < CUSTO_ATACAR: return
+			Salvar.mana_cidade -= CUSTO_ATACAR
+			Salvar.arsenal_carregado = true
+			Salvar.salvar()
 
-		"acelerar":
-			if not CocSalvar.tem_gemas(5): return
-			CocSalvar.gemas -= 5
-			for c in CocSalvar.construcoes:
-				if (c as Dictionary).get("key","") == _sel_key:
-					(c as Dictionary)["fim_ms"] = Time.get_ticks_msec() - 1
-			CocSalvar.salvar()
-			notificar("Construção acelerada!", Color(0.4,1.0,0.6))
+		"decarregar":
+			# Cancela bombardeio carregado, devolve metade do custo
+			Salvar.arsenal_carregado = false
+			Salvar.mana_cidade += CUSTO_ATACAR / 2
+			Salvar.salvar()
+
+		"reparar":
+			if Salvar.mana_cidade < CUSTO_REPAIR: return
+			Salvar.mana_cidade -= CUSTO_REPAIR
+			data["hp"] = _max_hp(data)
+			Salvar.cidade_slots[_sel_key] = data
+			Salvar.salvar()
 
 		"demolir":
-			if ef.get("central",false) as bool or ef.get("heroi",false) as bool: return
-			var co := int(int(ef.get("custo_ouro",0))*0.5)
-			var ce := int(int(ef.get("custo_elixir",0))*0.5)
-			var cd := int(int(ef.get("custo_escuro",0))*0.5)
-			CocSalvar.ouro   = mini(CocSalvar.ouro+co,   CocSalvar.cap_ouro())
-			CocSalvar.elixir = mini(CocSalvar.elixir+ce, CocSalvar.cap_elixir())
-			CocSalvar.escuro = mini(CocSalvar.escuro+cd, CocSalvar.cap_escuro())
-			CocSalvar.slots.erase(_sel_key)
-			var rem : Array = []
-			for c in CocSalvar.construcoes:
-				if (c as Dictionary).get("key","") == _sel_key: rem.append(c)
-			for c in rem: CocSalvar.construcoes.erase(c)
-			if tipo == "cabana_construtor":
-				CocSalvar.construtores_total = maxi(2, CocSalvar.construtores_total-1)
+			Salvar.mana_cidade += 10
+			Salvar.cidade_slots.erase(_sel_key)
 			_state = State.IDLE; _sel_key = ""
-			CocSalvar.salvar()
-			notificar("Edifício demolido.", Color(1.0,0.42,0.42))
+			Salvar.salvar()
 
-	if acao != "mover" and acao != "treinar":
+	if acao != "mover":
 		queue_redraw()
-
-func _treinar_tropa(tipo: String) -> void:
-	var td := DADOS.TROPAS.get(tipo,{}) as Dictionary
-	if td.is_empty(): return
-	var ce := int(td.get("custo_elixir",0))
-	var cd := int(td.get("custo_escuro",0))
-	if ce > 0 and not CocSalvar.tem_elixir(ce): return
-	if cd > 0 and not CocSalvar.tem_escuro(cd): return
-	if CocSalvar.cap_tropas_livre() < int(td.get("cap",1)): return
-	CocSalvar.elixir -= ce; CocSalvar.escuro -= cd
-
-	var qt := "quartel" if td.get("quartel_tipo","")=="normal" else "quartel_escuro"
-	var best_key := _quartel_melhor(qt)
-	if best_key == "":
-		CocSalvar.elixir += ce; CocSalvar.escuro += cd
-		notificar("Nenhum quartel disponível!", Color(1.0,0.4,0.4)); return
-	var fila := CocSalvar.fila_treino.get(best_key, []) as Array
-	var agora_ms := Time.get_ticks_msec()
-	var fim_ms : int
-	if fila.is_empty():
-		fim_ms = agora_ms + int(td.get("tempo_treino_s",60))*1000
-	else:
-		var ult := fila[-1] as Dictionary
-		fim_ms = int(ult.get("fim_ms",agora_ms)) + int(td.get("tempo_treino_s",60))*1000
-	fila.append({"tipo":tipo,"fim_ms":fim_ms})
-	CocSalvar.fila_treino[best_key] = fila
-	CocSalvar.salvar()
-	notificar("Treinando %s..." % td.get("nome","?"), Color(0.3,0.85,1.0))
-
-func _iniciar_pesquisa(tipo: String, nivel_alvo: int, custo_el: int, custo_esc: int) -> void:
-	if not CocSalvar.pesquisa.is_empty(): return
-	if custo_el > 0 and not CocSalvar.tem_elixir(custo_el): return
-	if custo_esc > 0 and not CocSalvar.tem_escuro(custo_esc): return
-	CocSalvar.elixir -= custo_el; CocSalvar.escuro -= custo_esc
-	var tempo_s := 300 * nivel_alvo
-	CocSalvar.pesquisa = {
-		"tipo": tipo, "nivel_alvo": nivel_alvo,
-		"fim_ms": Time.get_ticks_msec() + tempo_s*1000
-	}
-	CocSalvar.salvar()
-	var nome : String = (DADOS.TROPAS.get(tipo, DADOS.FEITICOS.get(tipo,{})) as Dictionary).get("nome","?")
-	notificar("Pesquisando %s N%d..." % [nome, nivel_alvo], Color(0.88,0.38,1.0))
-
-# ══════════════════════════════════════════════════════════════════════════════
-#  ATAQUE — batalha clássica CoC (monta exército, ataca base inimiga)
-# ══════════════════════════════════════════════════════════════════════════════
-func _iniciar_ataque() -> void:
-	if CocSalvar.cap_tropas_usada() <= 0:
-		notificar("Treine tropas antes de atacar!", Color(1.0,0.5,0.3)); return
-	var base_inimiga := _gerar_vila_inimiga()
-	var bat = BatalhaC.new()
-	bat.iniciar(base_inimiga, CocSalvar.tropas.duplicate(true), CocSalvar.feiticos.duplicate(true),
-				800 + CocSalvar.trofeus, 800 + CocSalvar.trofeus, 100 + CocSalvar.trofeus/10)
-	_bat = bat
-	_bat_sel_tropa = ""
-	_bat_sel_feitico = ""
-	_bat_result = {}
-	# quantas tropas/feitiços restam para enviar no mapa
-	_bat_restante = CocSalvar.tropas.duplicate(true)
-	_bat_restante_f = CocSalvar.feiticos.duplicate(true)
-	# tropas/feitiços ficam "em batalha" — saem do inventário
-	CocSalvar.tropas.clear()
-	CocSalvar.feiticos.clear()
-	CocSalvar.salvar()
-	_state = State.ATTACK
-	notificar("Batalha iniciada! Toque no mapa para enviar tropas.", Color(1.0,0.7,0.4))
-	queue_redraw()
-
-func _gerar_vila_inimiga() -> Dictionary:
-	var s : Dictionary = {}
-	var nb : int = clampi(CocSalvar.trofeus/500, 1, 3)
-	s["5,3"] = {"tipo":"prefeitura","nivel":nb}
-	for d in [["3,1","canhao"],["7,1","canhao"],["1,3","torre_arqueiros"],["9,3","torre_arqueiros"],
-			  ["4,5","morteiro"],["6,5","morteiro"],["3,3","torre_mago"],["7,3","def_aerea"]]:
-		var k := d[0] as String
-		if not s.has(k): s[k] = {"tipo":d[1] as String,"nivel":clampi(nb,1,3)}
-	for gy in [2,4]:
-		for gx in range(4,8):
-			var k := "%d,%d" % [gx,gy]
-			if not s.has(k): s[k] = {"tipo":"muralha","nivel":nb}
-	s["2,1"] = {"tipo":"mina_ouro","nivel":nb}
-	s["8,1"] = {"tipo":"coletor_elixir","nivel":nb}
-	s["2,6"] = {"tipo":"deposito_ouro","nivel":nb}
-	s["8,6"] = {"tipo":"deposito_elixir","nivel":nb}
-	return s
-
-func _aplicar_resultado_ataque(res: Dictionary) -> void:
-	CocSalvar.ouro   = mini(CocSalvar.ouro   + int(res.get("ouro_loot",0)),   CocSalvar.cap_ouro())
-	CocSalvar.elixir = mini(CocSalvar.elixir + int(res.get("elixir_loot",0)), CocSalvar.cap_elixir())
-	CocSalvar.escuro = mini(CocSalvar.escuro + int(res.get("escuro_loot",0)), CocSalvar.cap_escuro())
-	CocSalvar.trofeus = maxi(0, CocSalvar.trofeus + int(res.get("trofeus",0)))
-	CocSalvar.salvar()
-
-func _handle_tap_ataque(pos: Vector2) -> void:
-	if _bat == null: return
-	# botões/hitzones da batalha
-	for h in _hz_bat:
-		var hd := h as Dictionary
-		if not (hd["rect"] as Rect2).has_point(pos): continue
-		match hd.get("acao",""):
-			"sel_tropa":   _bat_sel_tropa = hd.get("tipo","") as String; _bat_sel_feitico = ""; queue_redraw(); return
-			"sel_feitico": _bat_sel_feitico = hd.get("tipo","") as String; _bat_sel_tropa = ""; queue_redraw(); return
-			"continuar":   _bat = null; _bat_result = {}; _state = State.IDLE; queue_redraw(); return
-		return
-	# clique no mapa = deploy de tropa / feitiço
-	if not _bat_result.is_empty(): return
-	var vp := get_viewport().get_visible_rect().size
-	if pos.y > TOP_H and pos.y < vp.y - 92:
-		if _bat_sel_tropa != "" and int(_bat_restante.get(_bat_sel_tropa,0)) > 0:
-			if _bat.deployar_tropa(_bat_sel_tropa, pos.x, pos.y):
-				_bat_restante[_bat_sel_tropa] = maxi(0, int(_bat_restante.get(_bat_sel_tropa,0)) - 1)
-				queue_redraw()
-		elif _bat_sel_feitico != "" and int(_bat_restante_f.get(_bat_sel_feitico,0)) > 0:
-			if _bat.usar_feitico(_bat_sel_feitico, pos.x, pos.y):
-				_bat_restante_f[_bat_sel_feitico] = maxi(0, int(_bat_restante_f.get(_bat_sel_feitico,0)) - 1)
-				queue_redraw()
-
-func _draw_ataque(vp: Vector2) -> void:
-	var font := ThemeDB.fallback_font
-	draw_rect(Rect2(Vector2.ZERO, vp), Color(0.06,0.10,0.06,1.0))
-	if _bat == null: return
-
-	# edifícios inimigos
-	for key in _bat.inimigo_slots.keys():
-		var bd := _bat.inimigo_slots[key] as Dictionary
-		var tipo := bd.get("tipo","") as String
-		var ef := DADOS.EDIFICIOS.get(tipo,{}) as Dictionary
-		var cor := ef.get("cor",Color.WHITE) as Color
-		var p := Vector2(float(bd.get("px",0)), float(bd.get("py",0)))
-		var hf := clampf(float(bd.get("hp_atual",0))/float(maxf(float(bd.get("hp_max",1)),1.0)),0.0,1.0)
-		var tex := _sprites.get(tipo,null) as Texture2D
-		if tex:
-			var w := 64.0
-			var hh := w * (float(tex.get_height())/float(maxi(tex.get_width(),1)))
-			draw_texture_rect(tex, Rect2(p.x-w*0.5, p.y-hh*0.6, w, hh), false)
-		else:
-			draw_circle(p, 22.0, Color(cor.r*0.6,cor.g*0.6,cor.b*0.6))
-		draw_rect(Rect2(p.x-22,p.y-30,44,4), Color(0.05,0.05,0.05,0.85))
-		draw_rect(Rect2(p.x-22,p.y-30,44*hf,4), Color(0.3,1.0,0.5) if hf>0.5 else Color(1.0,0.3,0.3))
-
-	# tropas
-	for t in _bat.tropas:
-		var td := t as Dictionary
-		if td.get("estado","") == "morto": continue
-		var p := Vector2(float(td.get("px",0)), float(td.get("py",0)))
-		var aer := bool(td.get("aereo",false))
-		draw_circle(p, 9.0 if aer else 7.0, Color(0.35,0.85,1.0) if not aer else Color(0.8,0.6,1.0))
-		draw_circle(p, 9.0 if aer else 7.0, Color(1,1,1,0.4), false)
-		var hf := clampf(float(td.get("hp",0))/float(maxf(float(td.get("hp_max",1)),1.0)),0.0,1.0)
-		draw_rect(Rect2(p.x-8,p.y-13,16,2.5), Color(0.05,0.05,0.05,0.8))
-		draw_rect(Rect2(p.x-8,p.y-13,16*hf,2.5), Color(0.3,1.0,0.5) if hf>0.5 else Color(1.0,0.3,0.3))
-
-	# efeitos
-	for e in _bat.efeitos:
-		var ed := e as Dictionary
-		var a := clampf(1.0 - float(ed.get("t",0.0))/float(ed.get("max_t",0.4)),0.0,1.0)
-		var c := ed.get("cor",Color(1,0.6,0.2,0.8)) as Color
-		draw_circle(Vector2(float(ed.get("px",0)),float(ed.get("py",0))), float(ed.get("r",10.0)), Color(c.r,c.g,c.b,a*c.a))
-
-	# HUD topo
-	draw_rect(Rect2(0,TOP_H-2,vp.x,30), Color(0.05,0.10,0.05,0.92))
-	draw_string(font, Vector2(20, TOP_H+20), "⚔ ATACANDO BASE INIMIGA",
-				HORIZONTAL_ALIGNMENT_LEFT,-1,16,Color(1.0,0.8,0.5))
-	var estr := int(_bat.estrelas)
-	for si in range(3):
-		draw_circle(Vector2(vp.x*0.5-30+float(si)*30, TOP_H+12), 9.0,
-					Color(1.0,0.85,0.1) if si<estr else Color(0.25,0.25,0.3))
-	var pct : float = _bat._pct_destruido()
-	draw_string(font, Vector2(vp.x-200, TOP_H+20), "%d%%  ⏱%s" % [int(pct*100), _fmt_tempo(int(_bat.timer))],
-				HORIZONTAL_ALIGNMENT_LEFT,-1,16,Color(0.9,0.95,1.0))
-
-	# painel de deploy (tropas/feitiços restantes)
-	_draw_painel_deploy(vp)
-
-	# resultado
-	if not _bat_result.is_empty():
-		_draw_resultado_ataque(vp)
-
-func _draw_painel_deploy(vp: Vector2) -> void:
-	var font := ThemeDB.fallback_font
-	var py := vp.y - 88.0
-	draw_rect(Rect2(0,py,vp.x,88), Color(0.03,0.06,0.04,0.97))
-	draw_line(Vector2(0,py), Vector2(vp.x,py), Color(0.3,0.6,0.4,0.5), 1.5)
-	var ix := 14.0
-	for tipo in _bat_restante.keys():
-		var cnt := int(_bat_restante[tipo])
-		if cnt <= 0: continue
-		var td := DADOS.TROPAS.get(tipo,{}) as Dictionary
-		var sel : bool = _bat_sel_tropa == tipo
-		var r := Rect2(ix, py+10, 76, 64)
-		draw_rect(r, Color(0.10,0.30,0.45,0.95) if sel else Color(0.06,0.14,0.22,0.9))
-		draw_rect(r, Color(0.3,0.85,1.0,0.9 if sel else 0.4), false, 2.0)
-		var tex := _sprites.get(_quartel_da_tropa(tipo),null) as Texture2D
-		draw_string(font, Vector2(ix+6,py+30), (td.get("nome","?") as String).substr(0,6),
-					HORIZONTAL_ALIGNMENT_LEFT,-1,12,Color(0.9,0.96,1.0))
-		draw_string(font, Vector2(ix+6,py+58), "×%d" % cnt,
-					HORIZONTAL_ALIGNMENT_LEFT,-1,16,Color(0.5,0.9,1.0))
-		_hz_bat.append({"rect":r,"acao":"sel_tropa","tipo":tipo})
-		ix += 84.0
-	for tipo in _bat_restante_f.keys():
-		var cnt := int(_bat_restante_f[tipo])
-		if cnt <= 0: continue
-		var fd := DADOS.FEITICOS.get(tipo,{}) as Dictionary
-		var sel : bool = _bat_sel_feitico == tipo
-		var r := Rect2(ix, py+10, 76, 64)
-		draw_rect(r, Color(0.25,0.08,0.35,0.95) if sel else Color(0.12,0.05,0.18,0.9))
-		draw_rect(r, Color(0.7,0.3,1.0,0.9 if sel else 0.4), false, 2.0)
-		draw_string(font, Vector2(ix+6,py+30), (fd.get("nome","?") as String).substr(0,6),
-					HORIZONTAL_ALIGNMENT_LEFT,-1,12,Color(0.9,0.7,1.0))
-		draw_string(font, Vector2(ix+6,py+58), "×%d" % cnt,
-					HORIZONTAL_ALIGNMENT_LEFT,-1,16,Color(0.8,0.5,1.0))
-		_hz_bat.append({"rect":r,"acao":"sel_feitico","tipo":tipo})
-		ix += 84.0
-	if _bat_sel_tropa != "" or _bat_sel_feitico != "":
-		draw_string(font, Vector2(ix+10,py+44), "← toque no mapa para enviar",
-					HORIZONTAL_ALIGNMENT_LEFT,-1,14,Color(0.7,0.9,0.7))
-
-func _quartel_da_tropa(_tipo: String) -> String:
-	return "quartel"
-
-func _draw_resultado_ataque(vp: Vector2) -> void:
-	var font := ThemeDB.fallback_font
-	var res := _bat_result
-	var estr := int(res.get("estrelas",0))
-	draw_rect(Rect2(vp*0.5-Vector2(230,150), Vector2(460,300)), Color(0.04,0.07,0.05,0.98))
-	draw_rect(Rect2(vp*0.5-Vector2(230,150), Vector2(460,300)),
-			  Color(1.0,0.85,0.2,0.7) if estr>0 else Color(1.0,0.4,0.4,0.7), false, 3.0)
-	draw_string(font, vp*0.5-Vector2(90,110), "VITÓRIA!" if estr>0 else "DERROTA",
-				HORIZONTAL_ALIGNMENT_LEFT,-1,30, Color(1.0,0.9,0.3) if estr>0 else Color(1.0,0.5,0.5))
-	for si in range(3):
-		draw_circle(vp*0.5+Vector2(-55+float(si)*55,-50), 22.0,
-					Color(1.0,0.85,0.1) if si<estr else Color(0.2,0.2,0.25))
-	draw_string(font, vp*0.5-Vector2(90,-5), "%d%% destruído" % int(float(res.get("pct_destruido",0))*100),
-				HORIZONTAL_ALIGNMENT_LEFT,-1,18,Color(0.9,0.95,1.0))
-	var lo := int(res.get("ouro_loot",0)); var le := int(res.get("elixir_loot",0))
-	draw_string(font, vp*0.5-Vector2(90,-30), "Saque: %d🥇  %d💜" % [lo,le],
-				HORIZONTAL_ALIGNMENT_LEFT,-1,16,Color(1.0,0.85,0.3))
-	var tr := int(res.get("trofeus",0))
-	draw_string(font, vp*0.5-Vector2(90,-52), "%s%d 🏆" % ["+" if tr>=0 else "", tr],
-				HORIZONTAL_ALIGNMENT_LEFT,-1,16,Color(1.0,0.8,0.2))
-	var br := Rect2(vp.x*0.5-80, vp.y*0.5+90, 160, 44)
-	draw_rect(br, Color(0.05,0.18,0.06,0.95))
-	draw_rect(br, Color(0.3,1.0,0.5,0.8), false, 2.5)
-	draw_string(font, Vector2(br.get_center().x-44, br.position.y+28), "CONTINUAR",
-				HORIZONTAL_ALIGNMENT_LEFT,-1,18,Color(0.4,1.0,0.6))
-	_hz_bat.append({"rect":br,"acao":"continuar"})
-
-# ══════════════════════════════════════════════════════════════════════════════
-#  HELPERS
-# ══════════════════════════════════════════════════════════════════════════════
-func _tem_slot_vazio() -> bool:
-	for gy in range(GRID_N):
-		for gx in range(GRID_N):
-			if CocSalvar.slot(_cell_key(gx,gy)).is_empty(): return true
-	return false
-
-func _quartel_melhor(tipo: String) -> String:
-	var best_key := ""; var menor_fila := 9999
-	for key in CocSalvar.slots.keys():
-		if CocSalvar.slot_tipo(key) != tipo: continue
-		if CocSalvar.slot_em_construcao(key): continue
-		var fs := (CocSalvar.fila_treino.get(key,[]) as Array).size()
-		if fs < menor_fila: menor_fila = fs; best_key = key
-	return best_key
-
-func _fmt_tempo(s: int) -> String:
-	if s >= 3600: return "%dh%02dm" % [s/3600, (s%3600)/60]
-	if s >= 60:   return "%dm%02ds" % [s/60, s%60]
-	return "%ds" % s
