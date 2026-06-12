@@ -85,7 +85,7 @@ func _ready() -> void:
 	inst.queue_free()
 	await get_tree().process_frame
 	for sp in ["res://scripts/menu.gd", "res://scripts/menu/ranking.gd", "res://scripts/menu/loja.gd", "res://scripts/menu/inventario.gd", "res://scripts/menu/config_mapas.gd",
-			"res://scripts/main.gd", "res://scripts/mob.gd",
+			"res://scripts/main.gd", "res://scripts/ui.gd", "res://scripts/salvar.gd", "res://scripts/mob.gd",
 			"res://scripts/torre.gd", "res://scripts/boss_dante.gd"]:
 		var s = load(sp)
 		if s == null or not (s as Script).can_instantiate():

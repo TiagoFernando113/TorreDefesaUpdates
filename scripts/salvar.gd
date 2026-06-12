@@ -543,106 +543,6 @@ var melhorias  : Dictionary = {
 var talentos   : Dictionary = {}  # id -> true (apenas os desbloqueados)
 var ascensoes  : int = 0          # Número de prestígios realizados
 
-# ── Mini Cidade ───────────────────────────────────────────────────────────────
-var mana_cidade       : int        = 0     # mana acumulada entre partidas
-var cidade_slots      : Dictionary = {}    # "gx,gy" → {tipo, nivel, hp}
-var quartel_soldados  : int        = 0     # guardas treinados (defendem vs naves)
-var arsenal_carregado : bool       = false # carga de bombardeio pendente p/ próxima run
-
-# Bônus flat por tipo (somados sobre todos os slots vivos)
-func cidade_bonus_dano() -> float:
-	var v : float = 0.0
-	for sd in cidade_slots.values():
-		if (sd as Dictionary).get("tipo","") == "forja" and int((sd as Dictionary).get("hp",0)) > 0:
-			match int((sd as Dictionary).get("nivel",1)):
-				1: v += 10.0
-				2: v += 25.0
-				3: v += 50.0
-	return v
-
-func cidade_bonus_fr() -> float:
-	var v : float = 0.0
-	for sd in cidade_slots.values():
-		if (sd as Dictionary).get("tipo","") == "quartel" and int((sd as Dictionary).get("hp",0)) > 0:
-			match int((sd as Dictionary).get("nivel",1)):
-				1: v += 0.3
-				2: v += 0.6
-				3: v += 1.0
-	return v
-
-func cidade_bonus_range() -> float:
-	var v : float = 0.0
-	for sd in cidade_slots.values():
-		if (sd as Dictionary).get("tipo","") == "arsenal" and int((sd as Dictionary).get("hp",0)) > 0:
-			match int((sd as Dictionary).get("nivel",1)):
-				1: v += 30.0
-				2: v += 65.0
-				3: v += 110.0
-	return v
-
-func cidade_bonus_pierce() -> int:
-	var v : int = 0
-	for sd in cidade_slots.values():
-		if (sd as Dictionary).get("tipo","") == "lab" and int((sd as Dictionary).get("hp",0)) > 0:
-			match int((sd as Dictionary).get("nivel",1)):
-				1: v += 1
-				2: v += 1
-				3: v += 2
-	return v
-
-func cidade_bonus_mana() -> int:
-	# retorna mana extra por kill (flat)
-	var v : int = 0
-	for sd in cidade_slots.values():
-		if (sd as Dictionary).get("tipo","") == "mina" and int((sd as Dictionary).get("hp",0)) > 0:
-			match int((sd as Dictionary).get("nivel",1)):
-				1: v += 1
-				2: v += 2
-				3: v += 3
-	return v
-
-func cidade_hp_muralha() -> int:
-	# HP total da muralha (absorve ataques das naves)
-	for sd in cidade_slots.values():
-		if (sd as Dictionary).get("tipo","") == "muralha":
-			return int((sd as Dictionary).get("hp", 0))
-	return 0
-
-func cidade_aplicar_dano_nave(dano: int) -> void:
-	# 1) Soldados do quartel absorvem dano primeiro (1 soldado = 1 dano)
-	var absorvido_soldados : int = mini(quartel_soldados, dano)
-	quartel_soldados = maxi(0, quartel_soldados - absorvido_soldados)
-	var resto : int = dano - absorvido_soldados
-	if resto <= 0:
-		salvar()
-		return
-	# 2) Muralha absorve o resto
-	for sid in cidade_slots.keys():
-		var sd : Dictionary = cidade_slots[sid] as Dictionary
-		if sd.get("tipo","") == "muralha":
-			var abs_mur : int = mini(int(sd.get("hp",0)), resto)
-			sd["hp"] = int(sd.get("hp",0)) - abs_mur
-			cidade_slots[sid] = sd
-			resto -= abs_mur
-			break
-	if resto <= 0:
-		salvar()
-		return
-	# 3) Distribuir dano restante em edifícios aleatórios com HP > 0
-	var slots_vivos : Array = []
-	for sid in cidade_slots.keys():
-		var sd : Dictionary = cidade_slots[sid] as Dictionary
-		if int(sd.get("hp",0)) > 0:
-			slots_vivos.append(sid)
-	slots_vivos.shuffle()
-	for i in range(mini(2, slots_vivos.size())):
-		var sid : String = slots_vivos[i] as String
-		var sd  : Dictionary = cidade_slots[sid] as Dictionary
-		var dmg : int = resto / (mini(2, slots_vivos.size()) - i)
-		sd["hp"] = maxi(0, int(sd.get("hp",0)) - dmg)
-		cidade_slots[sid] = sd
-	salvar()
-
 # ── Checkpoint de run (save-and-resume) ──────────────────────────────────────
 var run_checkpoint : Dictionary = {}
 
@@ -1527,11 +1427,6 @@ func carregar() -> void:
 		save_bloqueado = true
 	var rcp = data.get("run_checkpoint", {})
 	run_checkpoint = rcp if rcp is Dictionary else {}
-	mana_cidade = int(data.get("mana_cidade", 0))
-	var csd = data.get("cidade_slots", {})
-	cidade_slots      = csd if csd is Dictionary else {}
-	quartel_soldados  = int(data.get("quartel_soldados", 0))
-	arsenal_carregado = bool(data.get("arsenal_carregado", false))
 	# Arquivo dedicado tem precedência (mais recente, sobrevive hot-reload)
 	if FileAccess.file_exists(CHECKPOINT_PATH):
 		var _cf2 := FileAccess.open(CHECKPOINT_PATH, FileAccess.READ)
@@ -1621,10 +1516,6 @@ func _salvar_disco() -> void:
 		"tutorial_jogo_visto":    tutorial_jogo_visto,
 		"versao_max_jogada":      max(versao_max_jogada, VERSAO_SAVE),
 		"run_checkpoint":         run_checkpoint,
-		"mana_cidade":            mana_cidade,
-		"cidade_slots":           cidade_slots,
-		"quartel_soldados":       quartel_soldados,
-		"arsenal_carregado":      arsenal_carregado,
 	}
 	for k in melhorias.keys():
 		data[k] = melhorias[k]

@@ -478,6 +478,8 @@ func _tela_aberta_por_resize() -> String:
 		return "inventario"
 	if _mod_loja and _mod_loja._loja_overlay and is_instance_valid(_mod_loja._loja_overlay):
 		return "loja"
+	if _nexo_overlay and is_instance_valid(_nexo_overlay):
+		return "talentos"
 	if _talentos_overlay and is_instance_valid(_talentos_overlay):
 		return "talentos"
 	if _mod_ranking and _mod_ranking._ranking_overlay and is_instance_valid(_mod_ranking._ranking_overlay):
@@ -518,6 +520,8 @@ func _limpar_referencias_ui_por_resize() -> void:
 	_talentos_overlay = null
 	_talentos_panel = null
 	_talentos_scroll = null
+	_nexo_overlay = null
+	_nexo_btn = null
 	_talent_map_bg_rect = null
 	_talent_map_hitboxes.clear()
 	_talento_detalhe_cover = null
@@ -5628,6 +5632,16 @@ func _fechar_avaliacao() -> void :
 
 
 func _abrir_talentos(ui: CanvasLayer) -> void :
+	# NEXO ESTELAR e a tela principal de talentos. A tela classica continua
+	# disponivel pelo botao ASCENSAO do Nexo (UI de ascensao vive la).
+	if _menu_contents:
+		_menu_contents.hide()
+	_debug_garantir_recursos_talentos()
+	_ui_ref = ui
+	_abrir_nexo()
+
+
+func _abrir_talentos_classico(ui: CanvasLayer) -> void :
 	if _talentos_overlay:
 		return
 	if _menu_contents:
@@ -5648,7 +5662,7 @@ func _criar_botao_nexo() -> void:
 		return
 	var vp := get_viewport().get_visible_rect().size
 	_nexo_btn = Button.new()
-	_nexo_btn.text = "◆ NEXO (BETA)"
+	_nexo_btn.text = "◆ VOLTAR AO NEXO"
 	_nexo_btn.size = Vector2(190, 48)
 	_nexo_btn.position = Vector2((vp.x - 240.0) * 0.5 - 210.0, minf(656.0, vp.y - 58.0))
 	_nexo_btn.focus_mode = Control.FOCUS_NONE
@@ -5675,10 +5689,15 @@ func _abrir_nexo() -> void:
 		_talentos_panel.visible = false
 	_nexo_overlay = TALENTOS_V2.new()
 	_ui_ref.add_child(_nexo_overlay)
+	_nexo_overlay.connect("abrir_classico", func():
+		if _ui_ref != null:
+			_abrir_talentos_classico(_ui_ref))
 	_nexo_overlay.connect("fechado", func():
 		_nexo_overlay = null
 		if _talentos_overlay != null:
-			_rebuild_talentos())
+			_rebuild_talentos()
+		elif _menu_contents:
+			_menu_contents.show())
 
 
 func _debug_garantir_recursos_talentos() -> void:

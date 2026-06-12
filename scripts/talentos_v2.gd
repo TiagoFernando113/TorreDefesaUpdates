@@ -13,6 +13,7 @@ extends Control
 ## Remover = deletar este arquivo + hook no menu.gd. Zero migração de save.
 
 signal fechado
+signal abrir_classico  # abre a tela classica (ascensao vive la)
 
 # ── Layout (espaço-mundo, raiz em (0,0)) ─────────────────────────────────────
 const BRANCH_ORDER : Array = ["p", "b", "t", "e", "g", "r", "s", "m", "x", "f"]
@@ -397,6 +398,10 @@ func _acao_ui(nome: String) -> void:
 		"comprar":
 			if _sel_id != "" and Salvar.pode_comprar_talento(_sel_id):
 				_comprar(_sel_id)
+		"classico":
+			abrir_classico.emit()
+			_fechar()
+			return
 	queue_redraw()
 
 
@@ -959,7 +964,6 @@ func _draw_header() -> void:
 	draw_rect(Rect2(0, 0, size.x, 52), Color(0.01, 0.015, 0.04, 0.88 * a), true)
 	draw_line(Vector2(0, 52), Vector2(size.x, 52), Color(0.35, 0.65, 1.0, 0.25 * a), 1.0)
 	draw_string(_fonte, Vector2(18, 33), "NEXO ESTELAR", HORIZONTAL_ALIGNMENT_LEFT, -1, 20, Color(0.70, 0.88, 1.0, a))
-	draw_string(_fonte, Vector2(176, 31), "BETA", HORIZONTAL_ALIGNMENT_LEFT, -1, 11, Color(1.0, 0.72, 0.2, 0.9 * a))
 	# Cristais
 	var cri : String = "◆ %d" % Salvar.cristais
 	draw_string(_fonte, Vector2(260, 33), cri, HORIZONTAL_ALIGNMENT_LEFT, -1, 18, Color(0.55, 0.95, 1.0, a))
@@ -982,6 +986,8 @@ func _draw_header() -> void:
 	var rtxt : String = "CONFIRMA?" if _reset_arm_t > 0.0 else "REDEFINIR"
 	var rcor : Color = Color(1.0, 0.25, 0.2) if _reset_arm_t > 0.0 else Color(0.75, 0.65, 0.40)
 	_botao("reset", Rect2(bx, 9, 106, 34), rtxt, rcor, a)
+	bx -= 116.0
+	_botao("classico", Rect2(bx, 9, 106, 34), "ASCENSÃO", Color(1.0, 0.82, 0.25), a)
 	bx -= 88.0
 	_botao("centro", Rect2(bx, 9, 78, 34), "CENTRO", Color(0.55, 0.80, 1.0), a)
 	bx -= 50.0

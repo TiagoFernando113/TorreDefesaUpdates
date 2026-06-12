@@ -180,11 +180,6 @@ const HORDA_INTERVALO_PRESSAO : float = 0.12
 var torre   : Node2D
 var ui_node : Node
 
-# ── Mini Cidade ───────────────────────────────────────────────────────────────
-const MINI_CIDADE_SCRIPT = preload("res://scripts/mini_cidade.gd")
-var _mini_cidade : Control = null
-const CIDADE_BTN : Rect2 = Rect2(1152, 650, 110, 42)   # botão flutuante no canto
-
 # Camera e visão do mapa
 var _camera        : Camera2D = null
 const _ZOOM_BASE   : float    = 1.0    # zoom quando alcance = 220
@@ -223,11 +218,6 @@ func _ready() -> void:
 			pet_assistente = scr.new()
 			pet_assistente.jogo = self
 			add_child(pet_assistente)
-	# Mini Cidade: overlay de meta-progressão
-	_mini_cidade = MINI_CIDADE_SCRIPT.new()
-	add_child(_mini_cidade)
-	_mini_cidade.fechado.connect(_on_cidade_fechada)
-
 	# Consumíveis: cria slots no HUD (ativação manual pelo jogador)
 	if ui_node:
 		ui_node.criar_consumivel_hud()
@@ -352,8 +342,6 @@ func _criar_torre() -> void:
 	_aplicar_equipamentos_bonus_torre()
 	_aplicar_bonus_conta_torre()
 	_aplicar_bonus_ascensao_torre()
-	if _mini_cidade and is_instance_valid(_mini_cidade):
-		_mini_cidade.call("aplicar_bonus_torre", torre)
 
 
 func _aplicar_bonus_conta_torre() -> void:
@@ -800,17 +788,6 @@ func _screen_to_world(sp: Vector2) -> Vector2:
 	var cam_zoom : float   = _camera.zoom.x if _camera else 1.0
 	var cam_pos  : Vector2 = _camera.global_position if _camera else Vector2(640, 360)
 	return cam_pos + (sp - vp_size * 0.5) / cam_zoom
-
-
-func _abrir_cidade() -> void:
-	if _mini_cidade and is_instance_valid(_mini_cidade):
-		_mini_cidade.call("abrir", ui_node)
-
-
-func _on_cidade_fechada() -> void:
-	Salvar.salvar()   # garante que mana acumulada durante a sessão seja persistida
-	if ui_node and ui_node.has_method("atualizar_mana_cidade"):
-		ui_node.call("atualizar_mana_cidade", Salvar.mana_cidade)
 
 
 func _aplicar_focus(world_pos: Vector2) -> void:
@@ -1481,8 +1458,6 @@ func _fim_wave() -> void:
 		Salvar.salvar()
 		_tut_fechar_dica()
 	estado = "cartas"
-	if _mini_cidade and is_instance_valid(_mini_cidade):
-		_mini_cidade.call("on_fim_wave", wave, ui_node)
 	var wave_gold_mult : float = 1.0 if modo_abismo else 0.45
 	gold += int(float(5 + wave * 2) * wave_gold_mult)
 	if saque_bonus > 0.0:
@@ -1658,8 +1633,6 @@ func mob_morreu(val_gold: int, val_score: int) -> void:
 	wave_score  += int(float(val_score) * score_mult * score_mult_skin)
 	mobs_mortos      += 1
 	mobs_mortos_wave += 1
-	if _mini_cidade and is_instance_valid(_mini_cidade):
-		_mini_cidade.call("on_mob_morreu", ui_node, mobs_mortos)
 	if torre and is_instance_valid(torre):
 		torre.on_mob_morreu()
 	if ui_node:

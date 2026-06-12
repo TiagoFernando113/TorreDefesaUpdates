@@ -150,7 +150,6 @@ func _criar_hud() -> void:
 	_hud.add_child(_build_lbl)
 
 	_criar_habil_hud()
-	_criar_botao_cidade()
 
 
 
@@ -283,56 +282,6 @@ func _reposicionar_currency_hud(top_text: String) -> void:
 	var x : float = clampf(maxf(min_x, desired_x), min_x, maxf(min_x, max_x))
 	_currency_hud.position = Vector2(x, 8.0)
 
-
-
-var _cidade_btn  : Button = null
-var _mana_lbl    : Label  = null
-
-
-func _criar_botao_cidade() -> void:
-	var vp := get_viewport().get_visible_rect().size
-	var mobile := OS.has_feature("android") or OS.has_feature("ios")
-
-	# Label de mana (canto inferior direito, acima do botão)
-	_mana_lbl = Label.new()
-	_mana_lbl.add_theme_font_size_override("font_size", 17)
-	_mana_lbl.add_theme_color_override("font_color", Color(0.50, 0.82, 1.0))
-	_mana_lbl.text = "Mana: 0"
-	_mana_lbl.size = Vector2(130, 24)
-	_mana_lbl.position = Vector2(vp.x - 148, vp.y - (88 if mobile else 68))
-	_hud.add_child(_mana_lbl)
-
-	# Botão Cidade (canto inferior direito)
-	_cidade_btn = Button.new()
-	_cidade_btn.text = "CIDADE"
-	_cidade_btn.size = Vector2(100, 36)
-	_cidade_btn.position = Vector2(vp.x - 118, vp.y - (52 if mobile else 44))
-	_cidade_btn.add_theme_font_size_override("font_size", 16)
-	_cidade_btn.add_theme_color_override("font_color", Color(0.80, 0.92, 1.0))
-	var sty := StyleBoxFlat.new()
-	sty.bg_color = Color(0.08, 0.12, 0.22, 0.88)
-	sty.border_color = Color(0.30, 0.55, 0.90, 0.80)
-	sty.border_width_top    = 2
-	sty.border_width_bottom = 2
-	sty.border_width_left   = 2
-	sty.border_width_right  = 2
-	sty.corner_radius_top_left     = 5
-	sty.corner_radius_top_right    = 5
-	sty.corner_radius_bottom_left  = 5
-	sty.corner_radius_bottom_right = 5
-	_cidade_btn.add_theme_stylebox_override("normal", sty)
-	_cidade_btn.pressed.connect(_on_cidade_btn_pressed)
-	_hud.add_child(_cidade_btn)
-
-
-func _on_cidade_btn_pressed() -> void:
-	if jogo and jogo.has_method("_abrir_cidade"):
-		jogo.call("_abrir_cidade")
-
-
-func atualizar_mana_cidade(mana: int) -> void:
-	if _mana_lbl and is_instance_valid(_mana_lbl):
-		_mana_lbl.text = "Mana: %d" % mana
 
 
 func _criar_habil_hud() -> void:
