@@ -3,6 +3,7 @@
 const TALENTO_NO = preload("res://scripts/talento_no.gd")
 const ARVORE_FUNDO = preload("res://scripts/arvore_fundo.gd")
 const CONSTELLATION_FUNDO = preload("res://scripts/talent_constellation_fundo.gd")
+const TALENTOS_V2 = preload("res://scripts/talentos_v2.gd")
 const NumberFormatter = preload("res://scripts/number_formatter.gd")
 const MENU_RANKING_TEXTURE = preload("res://assets/menu/menu_ranking_transparent.png")
 const MENU_ACCESSIBILITY_TEXTURE = preload("res://assets/menu/menu_acessibilidade_transparent.png")
@@ -106,6 +107,8 @@ var _mapas_overlay: ColorRect = null
 var _talentos_overlay = null
 var _talentos_panel = null
 var _talentos_scroll: ScrollContainer = null
+var _nexo_btn: Button = null
+var _nexo_overlay: Control = null
 var _talentos_content_y_off: float = 0.0
 var _config_overlay = null
 var _config_panel = null
@@ -5700,26 +5703,65 @@ func _render_campeoes_temporada_anterior(temporada: int, entradas: Array) -> voi
 		return
 	for ch in _ranking_campeoes_cont.get_children():
 		ch.queue_free()
+	var cont: Control = _ranking_campeoes_cont
+	cont.visible = true
+	if not cont.draw.is_connected(_draw_ranking_campeoes_faixa):
+		cont.draw.connect(_draw_ranking_campeoes_faixa)
+	cont.queue_redraw()
+
+	var titulo:= Label.new()
+	titulo.text = "CAMPEOES TEMP. %s" % (str(temporada + 1) if temporada >= 0 else "ANTERIOR")
+	titulo.position = Vector2(10, 1)
+	titulo.size = Vector2(190, 24)
+	titulo.add_theme_font_size_override("font_size", 12)
+	titulo.add_theme_color_override("font_color", Color(1.0, 0.86, 0.22, 0.95))
+	titulo.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	cont.add_child(titulo)
+
 	if temporada < 0 or entradas.is_empty():
-		_ranking_campeoes_cont.visible = false
+		var vazio:= Label.new()
+		vazio.text = "Nenhuma temporada encerrada ainda."
+		vazio.position = Vector2(210, 1)
+		vazio.size = Vector2(cont.size.x - 220, 24)
+		vazio.add_theme_font_size_override("font_size", 12)
+		vazio.add_theme_color_override("font_color", Color(0.60, 0.70, 0.82, 0.82))
+		vazio.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		cont.add_child(vazio)
 		return
-	_ranking_campeoes_cont.visible = true
-	var medalhas: Array = ["🥇", "🥈", "🥉"]
-	var partes: Array = []
+
+	var card_w: float = maxf(210.0, (cont.size.x - 220.0) / 3.0 - 8.0)
 	for i in range(mini(3, entradas.size())):
 		var e: Dictionary = entradas[i] as Dictionary
-		var nome: String = String(e.get("nome", "?")).strip_edges()
+		var nome: String = str(e.get("nome", "?")).strip_edges()
 		if nome == "":
 			nome = "?"
-		var medalha: String = medalhas[i] if i < medalhas.size() else ""
-		partes.append("%s %s" % [medalha, nome])
-	var lbl:= Label.new()
-	lbl.text = "Campeões T%d:  %s" % [temporada, "   ".join(partes)]
-	lbl.add_theme_font_size_override("font_size", 13)
-	lbl.add_theme_color_override("font_color", Color(1.0, 0.85, 0.25))
-	lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	lbl.size = _ranking_campeoes_cont.size
-	_ranking_campeoes_cont.add_child(lbl)
+		if nome.length() > 16:
+			nome = nome.left(15) + "."
+		var wave: int = int(e.get("wave", 0))
+		var score: int = int(e.get("score", 0))
+		var premio: Dictionary = RankingOnline.premio_temporada_info(i + 1)
+		var baus: int = int(premio.get("baus_lendarios", 0))
+		var cristais: int = int(premio.get("cristais", 0))
+		var lbl:= Label.new()
+		lbl.text = "TOP %d  %s  W%d  %s pts  %dx Bau + %d C" % [i + 1, nome, wave, _format_num(score), baus, cristais]
+		lbl.position = Vector2(206.0 + float(i) * (card_w + 8.0), 2)
+		lbl.size = Vector2(card_w, 22)
+		lbl.add_theme_font_size_override("font_size", 11)
+		lbl.add_theme_color_override("font_color", Color(1.0, 0.90, 0.34, 0.95) if i == 0 else Color(0.86, 0.92, 1.0, 0.90))
+		lbl.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+		lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		cont.add_child(lbl)
+
+
+func _draw_ranking_campeoes_faixa() -> void:
+	if not _ranking_campeoes_cont or not is_instance_valid(_ranking_campeoes_cont):
+		return
+	var cont: Control = _ranking_campeoes_cont
+	var r := Rect2(Vector2.ZERO, cont.size)
+	cont.draw_rect(r, Color(0.05, 0.04, 0.012, 0.72), true)
+	cont.draw_rect(r, Color(1.0, 0.78, 0.16, 0.28), false, 1.0)
+	cont.draw_line(Vector2(12, 2), Vector2(80, 2), Color(1.0, 0.86, 0.22, 0.45), 1.0)
+	cont.draw_line(Vector2(cont.size.x - 80, cont.size.y - 2), Vector2(cont.size.x - 12, cont.size.y - 2), Color(1.0, 0.86, 0.22, 0.32), 1.0)
 
 
 func _popular_lista(entradas: Array, is_estimado: bool) -> void :
@@ -11753,6 +11795,40 @@ func _abrir_talentos(ui: CanvasLayer) -> void :
 	_talentos_overlay.size = _vp_tal
 	ui.add_child(_talentos_overlay)
 	_rebuild_talentos()
+	_criar_botao_nexo(ui)
+
+
+func _criar_botao_nexo(ui: CanvasLayer) -> void:
+	if _nexo_btn and is_instance_valid(_nexo_btn):
+		return
+	var vp := get_viewport().get_visible_rect().size
+	_nexo_btn = Button.new()
+	_nexo_btn.text = "◆ NEXO (BETA)"
+	_nexo_btn.size = Vector2(150, 38)
+	_nexo_btn.position = Vector2(16, vp.y - 54)
+	_nexo_btn.add_theme_font_size_override("font_size", 14)
+	_nexo_btn.add_theme_color_override("font_color", Color(0.70, 0.90, 1.0))
+	var sty := StyleBoxFlat.new()
+	sty.bg_color = Color(0.04, 0.10, 0.22, 0.92)
+	sty.border_color = Color(0.35, 0.75, 1.0, 0.75)
+	sty.set_border_width_all(1)
+	sty.set_corner_radius_all(8)
+	_nexo_btn.add_theme_stylebox_override("normal", sty)
+	_nexo_btn.pressed.connect(_abrir_nexo)
+	ui.add_child(_nexo_btn)
+
+
+func _abrir_nexo() -> void:
+	if _nexo_overlay and is_instance_valid(_nexo_overlay):
+		return
+	if _ui_ref == null:
+		return
+	_nexo_overlay = TALENTOS_V2.new()
+	_ui_ref.add_child(_nexo_overlay)
+	_nexo_overlay.connect("fechado", func():
+		_nexo_overlay = null
+		if _talentos_overlay != null:
+			_rebuild_talentos())
 
 
 func _debug_garantir_recursos_talentos() -> void:
@@ -13867,6 +13943,12 @@ func _fechar_talentos() -> void :
 		_talentos_overlay.queue_free()
 	if _talentos_panel:
 		_talentos_panel.queue_free()
+	if _nexo_overlay and is_instance_valid(_nexo_overlay):
+		_nexo_overlay.queue_free()
+	if _nexo_btn and is_instance_valid(_nexo_btn):
+		_nexo_btn.queue_free()
+	_nexo_overlay = null
+	_nexo_btn = null
 	_talentos_overlay = null
 	_talentos_panel = null
 	_ui_ref = null
