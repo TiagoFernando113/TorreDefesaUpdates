@@ -84,7 +84,7 @@ func _ready() -> void:
 		return
 	inst.queue_free()
 	await get_tree().process_frame
-	for sp in ["res://scripts/menu.gd", "res://scripts/menu/ranking.gd",
+	for sp in ["res://scripts/menu.gd", "res://scripts/menu/ranking.gd", "res://scripts/menu/loja.gd",
 			"res://scripts/main.gd", "res://scripts/mob.gd",
 			"res://scripts/torre.gd", "res://scripts/boss_dante.gd"]:
 		var s = load(sp)
