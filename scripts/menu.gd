@@ -11795,27 +11795,28 @@ func _abrir_talentos(ui: CanvasLayer) -> void :
 	_talentos_overlay.size = _vp_tal
 	ui.add_child(_talentos_overlay)
 	_rebuild_talentos()
-	_criar_botao_nexo(ui)
 
 
-func _criar_botao_nexo(ui: CanvasLayer) -> void:
-	if _nexo_btn and is_instance_valid(_nexo_btn):
+func _criar_botao_nexo() -> void:
+	if _talentos_panel == null or not is_instance_valid(_talentos_panel):
 		return
 	var vp := get_viewport().get_visible_rect().size
 	_nexo_btn = Button.new()
 	_nexo_btn.text = "◆ NEXO (BETA)"
-	_nexo_btn.size = Vector2(150, 38)
-	_nexo_btn.position = Vector2(16, vp.y - 54)
-	_nexo_btn.add_theme_font_size_override("font_size", 14)
-	_nexo_btn.add_theme_color_override("font_color", Color(0.70, 0.90, 1.0))
+	_nexo_btn.size = Vector2(190, 48)
+	_nexo_btn.position = Vector2((vp.x - 240.0) * 0.5 - 210.0, minf(656.0, vp.y - 58.0))
+	_nexo_btn.focus_mode = Control.FOCUS_NONE
+	_nexo_btn.z_index = 30
+	_nexo_btn.add_theme_font_size_override("font_size", 18)
+	_nexo_btn.add_theme_color_override("font_color", Color(0.55, 0.92, 1.0))
 	var sty := StyleBoxFlat.new()
-	sty.bg_color = Color(0.04, 0.10, 0.22, 0.92)
-	sty.border_color = Color(0.35, 0.75, 1.0, 0.75)
-	sty.set_border_width_all(1)
-	sty.set_corner_radius_all(8)
+	sty.bg_color = Color(0.03, 0.10, 0.22, 0.95)
+	sty.border_color = Color(0.30, 0.80, 1.0, 0.9)
+	sty.set_border_width_all(2)
+	sty.set_corner_radius_all(10)
 	_nexo_btn.add_theme_stylebox_override("normal", sty)
 	_nexo_btn.pressed.connect(_abrir_nexo)
-	ui.add_child(_nexo_btn)
+	_talentos_panel.add_child(_nexo_btn)
 
 
 func _abrir_nexo() -> void:
@@ -12071,6 +12072,7 @@ func _rebuild_talentos() -> void :
 	btn_f.pressed.connect( func():
 		Acessibilidade.processar("talentos_fechar", "Voltar do centro de tecnologia.", _fechar_talentos))
 	_talentos_panel.add_child(btn_f)
+	_criar_botao_nexo()
 	_corrigir_textos_ui(_talentos_panel)
 
 
@@ -13945,10 +13947,8 @@ func _fechar_talentos() -> void :
 		_talentos_panel.queue_free()
 	if _nexo_overlay and is_instance_valid(_nexo_overlay):
 		_nexo_overlay.queue_free()
-	if _nexo_btn and is_instance_valid(_nexo_btn):
-		_nexo_btn.queue_free()
 	_nexo_overlay = null
-	_nexo_btn = null
+	_nexo_btn = null  # morre junto com o _talentos_panel
 	_talentos_overlay = null
 	_talentos_panel = null
 	_ui_ref = null
