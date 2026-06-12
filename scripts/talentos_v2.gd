@@ -305,15 +305,18 @@ func _gui_input(event: InputEvent) -> void:
 				_press_pos  = mb.position
 				_press_ui   = _hit_ui(mb.position)
 				_drag_vel   = Vector2.ZERO
-				if mb.double_click and _press_ui == "":
-					var nid := _hit_no(mb.position)
-					if nid != "" and Salvar.pode_comprar_talento(nid):
-						_comprar(nid)
 			else:
 				_mouse_down = false
 				if not _dragging:
 					_clique(mb.position)
 				_dragging = false
+		elif mb.button_index == MOUSE_BUTTON_RIGHT and mb.pressed:
+			# Botão direito: só info (painel), nunca compra
+			var nid_r := _hit_no(mb.position)
+			if nid_r != "":
+				_sel_id = nid_r
+				_painel_esq = _w2s(_pos[nid_r] as Vector2).x > size.x * 0.5
+				queue_redraw()
 		accept_event()
 	elif event is InputEventMouseMotion:
 		var mm := event as InputEventMouseMotion
@@ -350,22 +353,19 @@ func _clique(sp: Vector2) -> void:
 		return
 	var nid := _hit_no(sp)
 	if nid != "":
-		if _sel_id == nid:
-			# Segundo clique no mesmo nó: compra (padrão da tela antiga)
-			if Salvar.pode_comprar_talento(nid):
-				_comprar(nid)
-			elif Salvar.talento_ativo(nid):
-				_sel_id = ""
-				Som.upgrade()
-			else:
-				# Falha com motivo — nunca silenciosa
-				_toast(_motivo_bloqueio(nid, Salvar.custo_efetivo_talento(nid)))
+		# CLIQUE ÚNICO COMPRA. Zero fricção.
+		if Salvar.pode_comprar_talento(nid):
+			_comprar(nid)
+		elif _sel_id == nid:
+			_sel_id = ""
+			Som.upgrade()
 		else:
+			# Não-comprável: abre painel de info (lado travado na seleção)
 			_sel_id = nid
-			# Painel abre no lado oposto ao nó; lado fica TRAVADO até nova
-			# seleção (recalcular por frame fazia o painel pular ao dar zoom)
 			_painel_esq = _w2s(_pos[nid] as Vector2).x > size.x * 0.5
 			Som.upgrade()
+			if not Salvar.talento_ativo(nid):
+				_toast(_motivo_bloqueio(nid, Salvar.custo_efetivo_talento(nid)))
 		queue_redraw()
 		return
 	_sel_id = ""
@@ -438,7 +438,6 @@ func _comprar(id: String) -> void:
 	if not Salvar.comprar_talento(id):
 		_toast("Não foi possível desbloquear")
 		return
-	_sel_id = id
 	_recalc_dominio()
 	var cor : Color = _cor_no(id)
 	var p : Vector2 = _pos[id] as Vector2
@@ -553,7 +552,7 @@ func _draw_hover_tooltip() -> void:
 	if Salvar.talento_ativo(_hover_id):
 		sub = "ATIVO"
 	elif Salvar.pode_comprar_talento(_hover_id):
-		sub = "◆ %d — 2 cliques p/ comprar" % Salvar.custo_efetivo_talento(_hover_id)
+		sub = "◆ %d — CLIQUE PARA COMPRAR" % Salvar.custo_efetivo_talento(_hover_id)
 	else:
 		sub = "Bloqueado"
 	var fs_n : int = 14
