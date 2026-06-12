@@ -353,18 +353,15 @@ func _clique(sp: Vector2) -> void:
 			# Segundo clique no mesmo nó: compra (padrão da tela antiga)
 			if Salvar.pode_comprar_talento(nid):
 				_comprar(nid)
-			else:
+			elif Salvar.talento_ativo(nid):
 				_sel_id = ""
 				Som.upgrade()
+			else:
+				# Falha com motivo — nunca silenciosa
+				_toast(_motivo_bloqueio(nid, Salvar.custo_efetivo_talento(nid)))
 		else:
 			_sel_id = nid
 			Som.upgrade()
-			# Câmera só desliza se o nó está longe do centro da tela
-			var spn : Vector2 = _w2s(_pos[nid] as Vector2)
-			var central := Rect2(size * 0.18, size * 0.64)
-			if not central.has_point(spn):
-				_cam_alvo = (_pos[nid] as Vector2) + Vector2(120.0 / _zoom_alvo, 0)
-				_cam_anim = true
 		queue_redraw()
 		return
 	_sel_id = ""
@@ -1012,7 +1009,9 @@ func _draw_painel() -> void:
 	var info : Dictionary = Salvar.TALENTOS_INFO[_sel_id] as Dictionary
 	var cor : Color = _cor_no(_sel_id)
 	var pw : float = minf(330.0, size.x * 0.42)
-	var px : float = size.x - pw - 14.0
+	# Painel fica no lado OPOSTO ao nó selecionado — nunca cobre o alvo do clique
+	var no_na_direita : bool = _w2s(_pos[_sel_id] as Vector2).x > size.x * 0.5
+	var px : float = (14.0) if no_na_direita else (size.x - pw - 14.0)
 	var py : float = 66.0
 	var ph : float = 268.0
 	var r := Rect2(px, py, pw, ph)
