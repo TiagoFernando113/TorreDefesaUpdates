@@ -349,14 +349,22 @@ func _clique(sp: Vector2) -> void:
 		return
 	var nid := _hit_no(sp)
 	if nid != "":
-		if _sel_id != nid:
-			_sel_id = nid
-			# Câmera desliza suave até o nó (deixa espaço pro painel à direita)
-			_cam_alvo = (_pos[nid] as Vector2) + Vector2(120.0 / _zoom_alvo, 0)
-			_cam_anim = true
+		if _sel_id == nid:
+			# Segundo clique no mesmo nó: compra (padrão da tela antiga)
+			if Salvar.pode_comprar_talento(nid):
+				_comprar(nid)
+			else:
+				_sel_id = ""
+				Som.upgrade()
 		else:
-			_sel_id = ""
-		Som.upgrade()
+			_sel_id = nid
+			Som.upgrade()
+			# Câmera só desliza se o nó está longe do centro da tela
+			var spn : Vector2 = _w2s(_pos[nid] as Vector2)
+			var central := Rect2(size * 0.18, size * 0.64)
+			if not central.has_point(spn):
+				_cam_alvo = (_pos[nid] as Vector2) + Vector2(120.0 / _zoom_alvo, 0)
+				_cam_anim = true
 		queue_redraw()
 		return
 	_sel_id = ""
@@ -392,10 +400,15 @@ func _acao_ui(nome: String) -> void:
 
 
 func _hit_ui(sp: Vector2) -> String:
+	# "painel" cobre os botões dentro dele — testa por último
+	var painel_hit : bool = false
 	for nome in _ui_hit.keys():
+		if (nome as String) == "painel":
+			painel_hit = (_ui_hit[nome] as Rect2).has_point(sp)
+			continue
 		if (_ui_hit[nome] as Rect2).has_point(sp):
 			return nome as String
-	return ""
+	return "painel" if painel_hit else ""
 
 
 func _hit_no(sp: Vector2) -> String:
@@ -539,7 +552,7 @@ func _draw_hover_tooltip() -> void:
 	if Salvar.talento_ativo(_hover_id):
 		sub = "ATIVO"
 	elif Salvar.pode_comprar_talento(_hover_id):
-		sub = "◆ %d — clique 2x p/ comprar" % Salvar.custo_efetivo_talento(_hover_id)
+		sub = "◆ %d — 2 cliques p/ comprar" % Salvar.custo_efetivo_talento(_hover_id)
 	else:
 		sub = "Bloqueado"
 	var fs_n : int = 14
