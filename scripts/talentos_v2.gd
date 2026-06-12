@@ -49,6 +49,8 @@ var _press_ui   : String  = ""
 var _dragging   : bool    = false
 var _mouse_down : bool    = false
 var _drag_vel   : Vector2 = Vector2.ZERO
+var _cam_alvo   : Vector2 = Vector2.ZERO
+var _cam_anim   : bool    = false
 var _sel_id     : String  = ""
 var _hover_id   : String  = ""
 
@@ -60,6 +62,10 @@ var _toast_txt    : String = ""
 var _toast_t      : float = 0.0
 var _fx           : Array = []    # partículas de compra
 var _estrelas     : Array = []
+var _cometas      : Array = []    # estrelas cadentes do fundo
+var _cometa_cd    : float = 3.0
+var _floats       : Array = []    # textos flutuantes ("-45" na compra)
+var _dominado     : Dictionary = {}  # letra do ramo -> bool (todos comprados)
 
 var _ui_hit       : Dictionary = {}  # nome -> Rect2 (hitboxes da UI fixa)
 var _redraw_acc   : float = 0.0
@@ -84,9 +90,21 @@ func _ready() -> void:
 	_fonte = get_theme_default_font()
 	_montar_layout()
 	_gerar_estrelas()
+	_recalc_dominio()
 	_zoom = 0.30
 	_zoom_alvo = 0.80
 	_abertura_t = 0.0
+
+
+func _recalc_dominio() -> void:
+	for br in BRANCH_ORDER:
+		var cadeia : Array = _cadeia_do_ramo(br as String)
+		var completo : bool = not cadeia.is_empty()
+		for cid in cadeia:
+			if not Salvar.talento_ativo(cid as String):
+				completo = false
+				break
+		_dominado[br] = completo
 
 
 func _montar_layout() -> void:
@@ -203,11 +221,40 @@ func _process(delta: float) -> void:
 	if _abertura_t < 1.0:
 		_abertura_t = minf(_abertura_t + delta / 0.75, 1.0)
 	_zoom = lerpf(_zoom, _zoom_alvo, minf(delta * 9.0, 1.0))
+	# Câmera animada (foco no nó selecionado / centro)
+	if _cam_anim:
+		_cam = _cam.lerp(_cam_alvo, minf(delta * 6.0, 1.0))
+		if _cam.distance_to(_cam_alvo) < 2.0:
+			_cam_anim = false
 	# Inércia do pan
 	if not _mouse_down and _drag_vel.length() > 2.0:
 		_cam -= _drag_vel * delta / _zoom * 6.0
 		_drag_vel = _drag_vel.lerp(Vector2.ZERO, minf(delta * 7.0, 1.0))
 	_clamp_cam()
+	# Cometas (estrelas cadentes)
+	_cometa_cd -= delta
+	if _cometa_cd <= 0.0:
+		_cometa_cd = randf_range(4.5, 9.0)
+		var ca : float = randf() * TAU
+		_cometas.append({
+			"pos": Vector2(randf_range(-850.0, 850.0), randf_range(-750.0, 750.0)),
+			"vel": Vector2(cos(ca), sin(ca)) * randf_range(650.0, 1000.0), "t": 0.0,
+		})
+	var cvivos : Array = []
+	for c_any in _cometas:
+		var cm : Dictionary = c_any as Dictionary
+		cm["t"] = float(cm["t"]) + delta
+		if float(cm["t"]) < 1.1:
+			cvivos.append(cm)
+	_cometas = cvivos
+	# Textos flutuantes
+	var fvivos : Array = []
+	for f_any in _floats:
+		var fl : Dictionary = f_any as Dictionary
+		fl["t"] = float(fl["t"]) + delta
+		if float(fl["t"]) < 1.2:
+			fvivos.append(fl)
+	_floats = fvivos
 	if _reset_arm_t > 0.0:
 		_reset_arm_t = maxf(_reset_arm_t - delta, 0.0)
 	if _toast_t > 0.0:
@@ -221,7 +268,7 @@ func _process(delta: float) -> void:
 			vivos.append(fx)
 	_fx = vivos
 	_redraw_acc += delta
-	if _redraw_acc >= REDRAW_DT or _dragging or not _fx.is_empty() or _abertura_t < 1.0:
+	if _redraw_acc >= REDRAW_DT or _dragging or _cam_anim or not _fx.is_empty() or _abertura_t < 1.0:
 		_redraw_acc = 0.0
 		queue_redraw()
 
@@ -272,6 +319,7 @@ func _gui_input(event: InputEvent) -> void:
 		if _mouse_down and _press_ui == "":
 			if not _dragging and (mm.position - _press_pos).length() > 7.0:
 				_dragging = true
+				_cam_anim = false
 			if _dragging:
 				_cam -= mm.relative / _zoom
 				_drag_vel = mm.relative
@@ -301,7 +349,13 @@ func _clique(sp: Vector2) -> void:
 		return
 	var nid := _hit_no(sp)
 	if nid != "":
-		_sel_id = nid if _sel_id != nid else ""
+		if _sel_id != nid:
+			_sel_id = nid
+			# Câmera desliza suave até o nó (deixa espaço pro painel à direita)
+			_cam_alvo = (_pos[nid] as Vector2) + Vector2(120.0 / _zoom_alvo, 0)
+			_cam_anim = true
+		else:
+			_sel_id = ""
 		Som.upgrade()
 		queue_redraw()
 		return
@@ -317,11 +371,16 @@ func _acao_ui(nome: String) -> void:
 			_zoom_alvo = clampf(_zoom_alvo * 1.28, ZOOM_MIN, ZOOM_MAX)
 		"zoom_out":
 			_zoom_alvo = clampf(_zoom_alvo / 1.28, ZOOM_MIN, ZOOM_MAX)
+		"centro":
+			_cam_alvo = Vector2.ZERO
+			_cam_anim = true
+			_zoom_alvo = 0.8
 		"reset":
 			if _reset_arm_t > 0.0:
 				var devolvido : int = Salvar.redefinir_talentos()
 				_reset_arm_t = 0.0
 				_sel_id = ""
+				_recalc_dominio()
 				_toast("◆ %d cristais devolvidos" % devolvido)
 				Som.upgrade()
 			else:
@@ -361,12 +420,18 @@ func _fechar() -> void:
 # ── Compra ───────────────────────────────────────────────────────────────────
 
 func _comprar(id: String) -> void:
+	var custo_pago : int = Salvar.custo_efetivo_talento(id)
 	if not Salvar.comprar_talento(id):
 		_toast("Não foi possível desbloquear")
 		return
 	_sel_id = id
+	_recalc_dominio()
 	var cor : Color = _cor_no(id)
 	var p : Vector2 = _pos[id] as Vector2
+	_floats.append({ "pos": p + Vector2(0, -42.0), "txt": "-%d ◆" % custo_pago, "t": 0.0, "cor": Color(0.55, 0.95, 1.0) })
+	var br_d : String = _ramo_de.get(id, "") as String
+	if br_d != "" and bool(_dominado.get(br_d, false)):
+		_floats.append({ "pos": p + Vector2(0, -70.0), "txt": "%s DOMINADO!" % BRANCH_NOMES.get(br_d, ""), "t": 0.0, "cor": Color(1.0, 0.85, 0.25) })
 	_fx.append({ "tipo": "flash", "pos": p, "t": 0.0, "dur": 0.18, "cor": Color.WHITE })
 	_fx.append({ "tipo": "shock", "pos": p, "t": 0.0, "dur": 0.50, "cor": cor })
 	for i in range(16):
@@ -443,26 +508,69 @@ func _draw() -> void:
 	_draw_links()
 	_draw_nos()
 	_draw_fx()
+	_draw_floats()
 	_draw_header()
 	_draw_painel()
+	_draw_hover_tooltip()
 	_draw_toast()
+
+
+func _draw_floats() -> void:
+	for f_any in _floats:
+		var fl : Dictionary = f_any as Dictionary
+		var t : float = float(fl["t"]) / 1.2
+		var cor : Color = fl["cor"] as Color
+		var sp : Vector2 = _w2s((fl["pos"] as Vector2) + Vector2(0, -46.0 * t))
+		var txt : String = str(fl["txt"])
+		var w : float = _fonte.get_string_size(txt, HORIZONTAL_ALIGNMENT_LEFT, -1, 16).x
+		draw_string(_fonte, sp - Vector2(w * 0.5, 0), txt, HORIZONTAL_ALIGNMENT_LEFT, -1, 16,
+				Color(cor.r, cor.g, cor.b, 1.0 - t * t))
+
+
+func _draw_hover_tooltip() -> void:
+	if _hover_id == "" or _hover_id == _sel_id or _dragging:
+		return
+	if not Salvar.TALENTOS_INFO.has(_hover_id):
+		return
+	var info : Dictionary = Salvar.TALENTOS_INFO[_hover_id] as Dictionary
+	var cor : Color = _cor_no(_hover_id)
+	var nome : String = str(info.get("nome", _hover_id)).replace("\n", " ")
+	var sub : String
+	if Salvar.talento_ativo(_hover_id):
+		sub = "ATIVO"
+	elif Salvar.pode_comprar_talento(_hover_id):
+		sub = "◆ %d — clique 2x p/ comprar" % Salvar.custo_efetivo_talento(_hover_id)
+	else:
+		sub = "Bloqueado"
+	var fs_n : int = 14
+	var w : float = maxf(_fonte.get_string_size(nome, HORIZONTAL_ALIGNMENT_LEFT, -1, fs_n).x,
+			_fonte.get_string_size(sub, HORIZONTAL_ALIGNMENT_LEFT, -1, 11).x) + 24.0
+	var mp : Vector2 = get_local_mouse_position() + Vector2(16, -54)
+	mp.x = clampf(mp.x, 4.0, size.x - w - 4.0)
+	mp.y = clampf(mp.y, 56.0, size.y - 50.0)
+	var r := Rect2(mp, Vector2(w, 44))
+	draw_rect(r, Color(0.015, 0.025, 0.06, 0.94), true)
+	draw_rect(r, Color(cor.r, cor.g, cor.b, 0.55), false, 1.0)
+	draw_string(_fonte, mp + Vector2(12, 18), nome, HORIZONTAL_ALIGNMENT_LEFT, -1, fs_n, cor)
+	draw_string(_fonte, mp + Vector2(12, 35), sub, HORIZONTAL_ALIGNMENT_LEFT, -1, 11, Color(0.72, 0.80, 0.92))
 
 
 func _draw_fundo() -> void:
 	draw_rect(Rect2(Vector2.ZERO, size), Color(0.008, 0.012, 0.034), true)
-	# Nebulosas por ramo (blobs suaves atrás de cada braço)
+	# Nebulosas por ramo (blobs suaves atrás de cada braço; fortes se dominado)
 	for i in range(BRANCH_ORDER.size()):
 		var br : String = BRANCH_ORDER[i]
 		if not _cor_ramo.has(br):
 			continue
 		var cor : Color = _cor_ramo[br] as Color
+		var neb_a : float = 0.072 if bool(_dominado.get(br, false)) else 0.030
 		var ang0 : float = ANG_INICIO + TAU * float(i) / float(BRANCH_ORDER.size())
 		for k in range(4):
 			var ang : float = ang0 + deg_to_rad(ESPIRAL_DEG) * float(k + 1)
 			var raio : float = RAIO_T1 + RAIO_STEP * (float(k) + 0.5)
 			var p : Vector2 = _w2s(Vector2(cos(ang), sin(ang)) * raio)
 			var rr : float = (130.0 - float(k) * 12.0) * _zoom
-			draw_circle(p, rr, Color(cor.r, cor.g, cor.b, 0.030))
+			draw_circle(p, rr, Color(cor.r, cor.g, cor.b, neb_a))
 	# Starfield com parallax
 	for s_any in _estrelas:
 		var s : Dictionary = s_any as Dictionary
@@ -472,6 +580,16 @@ func _draw_fundo() -> void:
 			continue
 		var tw : float = 0.35 + 0.30 * sin(_pulse * 0.9 + float(s["ph"]))
 		draw_circle(sp, float(s["r"]) * (0.6 + par * 0.6), Color(0.55, 0.78, 1.0, tw * 0.30))
+	# Cometas (estrelas cadentes, parallax de fundo)
+	for c_any in _cometas:
+		var cm : Dictionary = c_any as Dictionary
+		var ct : float = float(cm["t"])
+		var ca : float = sin(minf(ct / 1.1, 1.0) * PI)  # fade in/out
+		var cp : Vector2 = (cm["pos"] as Vector2) + (cm["vel"] as Vector2) * ct
+		var csp : Vector2 = (cp - _cam * 0.6) * _zoom + size * 0.5
+		var cauda : Vector2 = (cm["vel"] as Vector2).normalized() * -78.0 * _zoom
+		draw_line(csp + cauda, csp, Color(0.65, 0.85, 1.0, 0.30 * ca), 1.4)
+		draw_circle(csp, 2.3, Color(0.88, 0.96, 1.0, 0.85 * ca))
 	# Brilho central do nexo
 	var c : Vector2 = _w2s(Vector2.ZERO)
 	draw_circle(c, 240.0 * _zoom, Color(0.25, 0.55, 1.0, 0.04))
@@ -584,10 +702,17 @@ func _draw_nos() -> void:
 				if Salvar.talento_ativo(cid as String):
 					compr += 1
 			var cor : Color = _cor_ramo[br] as Color
-			var txt : String = "%s  %d/%d" % [BRANCH_NOMES.get(br, br.to_upper()), compr, cadeia.size()]
+			var txt : String
+			var cor_lbl : Color
+			if bool(_dominado.get(br, false)):
+				txt = "%s — DOMINADO" % BRANCH_NOMES.get(br, br.to_upper())
+				var dp : float = 0.75 + 0.25 * sin(_pulse * 2.2)
+				cor_lbl = Color(1.0, 0.85, 0.25, dp * _abertura_t)
+			else:
+				txt = "%s  %d/%d" % [BRANCH_NOMES.get(br, br.to_upper()), compr, cadeia.size()]
+				cor_lbl = Color(cor.r, cor.g, cor.b, 0.85 * _abertura_t)
 			var w : float = _fonte.get_string_size(txt, HORIZONTAL_ALIGNMENT_LEFT, -1, 15).x
-			draw_string(_fonte, p - Vector2(w * 0.5, -5.0), txt, HORIZONTAL_ALIGNMENT_LEFT, -1, 15,
-					Color(cor.r, cor.g, cor.b, 0.85 * _abertura_t))
+			draw_string(_fonte, p - Vector2(w * 0.5, -5.0), txt, HORIZONTAL_ALIGNMENT_LEFT, -1, 15, cor_lbl)
 
 
 func _draw_no(id: String, sp: Vector2, ab: float) -> void:
@@ -608,6 +733,11 @@ func _draw_no(id: String, sp: Vector2, ab: float) -> void:
 		draw_arc(sp, rr * 1.15, 0.0, TAU, 40, Color(1.0, 0.82, 0.25, 0.9 * ab), 2.5)
 		draw_circle(sp, rr * 0.62 * pr, Color(1.0, 0.85, 0.30, 0.85 * ab))
 		_draw_hex(sp, rr * 1.55, _pulse * 0.25, Color(1.0, 0.82, 0.25, 0.35 * ab), 1.5)
+		# Anéis orbitais decorativos (sentidos opostos)
+		var oa1 : float = _pulse * 0.9
+		draw_arc(sp, rr * 2.1, oa1, oa1 + PI * 0.85, 20, Color(0.55, 0.80, 1.0, 0.30 * ab), 1.2)
+		var oa2 : float = -_pulse * 0.6
+		draw_arc(sp, rr * 2.45, oa2, oa2 + PI * 0.55, 16, Color(1.0, 0.82, 0.25, 0.22 * ab), 1.2)
 		return
 
 	# Halo / glow
@@ -833,9 +963,17 @@ func _draw_header() -> void:
 	# Cristais
 	var cri : String = "◆ %d" % Salvar.cristais
 	draw_string(_fonte, Vector2(260, 33), cri, HORIZONTAL_ALIGNMENT_LEFT, -1, 18, Color(0.55, 0.95, 1.0, a))
-	# Progresso
+	# Progresso + disponíveis agora
 	var prog : String = "%d/%d NÓS" % [_comprados(), _total_nos()]
 	draw_string(_fonte, Vector2(380, 33), prog, HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color(0.65, 0.72, 0.85, 0.9 * a))
+	var disp : int = 0
+	for tid in Salvar.TALENTOS_INFO.keys():
+		if Salvar.pode_comprar_talento(tid as String):
+			disp += 1
+	if disp > 0:
+		var dpls : float = 0.65 + 0.35 * sin(_pulse * 2.8)
+		draw_string(_fonte, Vector2(486, 33), "%d DISPONÍVEL%s" % [disp, "" if disp == 1 else "EIS"],
+				HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color(0.30, 1.0, 0.55, dpls * a))
 
 	# Botões à direita
 	var bx : float = size.x - 110.0
@@ -844,6 +982,8 @@ func _draw_header() -> void:
 	var rtxt : String = "CONFIRMA?" if _reset_arm_t > 0.0 else "REDEFINIR"
 	var rcor : Color = Color(1.0, 0.25, 0.2) if _reset_arm_t > 0.0 else Color(0.75, 0.65, 0.40)
 	_botao("reset", Rect2(bx, 9, 106, 34), rtxt, rcor, a)
+	bx -= 88.0
+	_botao("centro", Rect2(bx, 9, 78, 34), "CENTRO", Color(0.55, 0.80, 1.0), a)
 	bx -= 50.0
 	_botao("zoom_in", Rect2(bx, 9, 40, 34), "+", Color(0.55, 0.80, 1.0), a)
 	bx -= 46.0
