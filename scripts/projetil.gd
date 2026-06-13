@@ -27,7 +27,8 @@ var queimadura   := false  # P5 Lenda do Canhão: aplica queimadura 10/s por 2s
 var canhao_g_gelo := false  # Canhão Glacial: congela o alvo ao acertar
 var mobs_group   := "mobs"
 var low_fx       := false
-var free_dir     : Vector2 = Vector2.ZERO  # disparo manual: viaja nesta direção
+var free_dir     : Vector2 = Vector2.ZERO  # disparo manual / perfuração: viaja nesta direção
+var _ultima_dir  : Vector2 = Vector2.ZERO  # direção do último movimento teleguiado
 
 # Multiplicadores de dano por ordem de impacto (100%, 30%, 20%, 10%)
 const PIERCE_MULT : Array = [1.0, 0.3, 0.2, 0.1]
@@ -136,20 +137,21 @@ func _process(delta: float) -> void:
 		return
 
 	if not is_instance_valid(target):
-		if pierce_left > 0:
-			target = _achar_proximo_alvo()
-			if target == null:
-				queue_free()
-				return
-		else:
-			queue_free()
+		# Alvo morreu antes do impacto: se já tinha direção, segue reto
+		# (perfuração não vira atrás de outro alvo).
+		if pierce_left > 0 and _ultima_dir != Vector2.ZERO:
+			free_dir = _ultima_dir
+			target = null
 			return
+		queue_free()
+		return
 
 	var alvo_pos := _target_pos(target)
 	if max_travel > 0.0 and target.is_in_group("boss_dante") and origin_pos.distance_to(alvo_pos) > max_travel + 8.0:
 		queue_free()
 		return
 	var dir: Vector2 = (alvo_pos - global_position).normalized()
+	_ultima_dir = dir
 	global_position += dir * speed * delta
 
 	if global_position.distance_to(alvo_pos) < 14.0:
@@ -196,11 +198,11 @@ func _process(delta: float) -> void:
 
 		if pierce_left > 0:
 			pierce_left -= 1
-			var proximo = _achar_proximo_alvo()
-			if proximo:
-				target = proximo
-			else:
-				morto = true
+			# Perfuração REAL: atravessa em linha reta na direção atual e fura
+			# quem cruzar o caminho (o modo free_dir cuida dos próximos hits).
+			# (antes: virava pro mob mais próximo = ricochete teleguiado)
+			free_dir = _ultima_dir if _ultima_dir != Vector2.ZERO else (alvo_pos - origin_pos).normalized()
+			target = null
 		else:
 			morto = true
 
@@ -246,20 +248,6 @@ func _fissura_at(pos: Vector2) -> void:
 		if pos.distance_to((mob as Node2D).global_position) <= 70.0:
 			mob.set("veneno_dps",   maxf(mob.get("veneno_dps")   as float, 15.0))
 			mob.set("veneno_timer", maxf(mob.get("veneno_timer")  as float, 3.0))
-
-
-func _achar_proximo_alvo() -> Node:
-	var mobs    = get_tree().get_nodes_in_group(mobs_group)
-	var melhor  = null
-	var min_d   = 9999.0
-	for mob in mobs:
-		if not is_instance_valid(mob) or mob in hit_targets:
-			continue
-		var d = global_position.distance_to(mob.global_position)
-		if melhor == null or d < min_d:
-			melhor = mob
-			min_d  = d
-	return melhor
 
 
 func _draw() -> void:
