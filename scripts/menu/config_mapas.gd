@@ -529,6 +529,8 @@ func _abrir_config(ui: CanvasLayer) -> void :
 		btn_logout.add_theme_stylebox_override("hover", sty_loh)
 		btn_logout.add_theme_color_override("font_color", Color(0.82, 0.55, 1.0))
 		btn_logout.pressed.connect(func():
+			# Guarda a conta na lista do aparelho: voltar = 1 clique, sem digitar
+			Salvar.lembrar_conta(Salvar.nome_jogador, Salvar.email_jogador, Salvar.senha_jogador)
 			var _acc_path := Salvar._save_path()
 			Salvar.limpar_dados()
 			Salvar.nome_jogador       = ""

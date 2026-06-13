@@ -11,6 +11,43 @@ func _save_path_for(nome: String) -> String:
 
 func _save_path() -> String:
 	return _save_path_for(nome_jogador)
+
+# ── Contas conhecidas deste aparelho (login de 1 clique) ─────────────────────
+const CONTAS_PATH := "user://contas_conhecidas.json"
+
+func contas_conhecidas() -> Array:
+	if not FileAccess.file_exists(CONTAS_PATH):
+		return []
+	var f := FileAccess.open(CONTAS_PATH, FileAccess.READ)
+	if f == null:
+		return []
+	var data = JSON.parse_string(f.get_as_text())
+	if data is Array:
+		var lista : Array = data
+		lista.sort_custom(func(a, b):
+			return int((a as Dictionary).get("ultima", 0)) > int((b as Dictionary).get("ultima", 0)))
+		return lista
+	return []
+
+func lembrar_conta(nome: String, email: String, senha_hash: String) -> void:
+	if nome.strip_edges() == "" or senha_hash == "":
+		return
+	var lista := contas_conhecidas()
+	lista = lista.filter(func(c): return str((c as Dictionary).get("nome", "")) != nome)
+	lista.append({
+		"nome": nome, "email": email, "senha": senha_hash,
+		"avatar_idx": avatar_idx, "ultima": int(Time.get_unix_time_from_system()),
+	})
+	var f := FileAccess.open(CONTAS_PATH, FileAccess.WRITE)
+	if f:
+		f.store_string(JSON.stringify(lista))
+
+func esquecer_conta(nome: String) -> void:
+	var lista := contas_conhecidas().filter(func(c): return str((c as Dictionary).get("nome", "")) != nome)
+	var f := FileAccess.open(CONTAS_PATH, FileAccess.WRITE)
+	if f:
+		f.store_string(JSON.stringify(lista))
+
 const MAX_LVL   := 3
 const ASCENSAO_DANO_VIDA_POR_NIVEL := 0.01
 const ASCENSAO_CADENCIA_POR_NIVEL := 0.005

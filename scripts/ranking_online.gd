@@ -364,13 +364,18 @@ func sincronizar_nome() -> void:
 
 ## Login por nome OU email + senha. Emite login_verificado(ok, nome, email).
 func verificar_login(identificador: String, senha: String, cb: Callable) -> void:
+	verificar_login_hash(identificador, _hash(senha), cb)
+
+
+## Re-login de 1 clique: credencial ja vem hasheada (lista de contas do aparelho)
+func verificar_login_hash(identificador: String, senha_hash: String, cb: Callable) -> void:
 	if _http_usuario.get_http_client_status() != HTTPClient.STATUS_DISCONNECTED:
 		_http_usuario.cancel_request()
 	_usuario_modo_registro = false
 	_cb_login = cb
 	var id := identificador.strip_edges().uri_encode()
 	var url := _URL_USUARIOS + "?or=(nome.eq.%s,email.eq.%s)&senha=eq.%s&select=nome,email,player_id,id_sequencial" % [
-		id, id, _hash(senha).uri_encode()
+		id, id, senha_hash.uri_encode()
 	]
 	_http_usuario.request(url, _headers_get())
 

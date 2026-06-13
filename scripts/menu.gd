@@ -5,6 +5,7 @@ const MENU_RANKING_MOD = preload("res://scripts/menu/ranking.gd")
 const MENU_LOJA_MOD = preload("res://scripts/menu/loja.gd")
 const MENU_INV_MOD = preload("res://scripts/menu/inventario.gd")
 const MENU_CFG_MOD = preload("res://scripts/menu/config_mapas.gd")
+const MENU_CONTAS_MOD = preload("res://scripts/menu/contas.gd")
 const NumberFormatter = preload("res://scripts/number_formatter.gd")
 const MENU_RANKING_TEXTURE = preload("res://assets/menu/menu_ranking_transparent.png")
 const MENU_ACCESSIBILITY_TEXTURE = preload("res://assets/menu/menu_acessibilidade_transparent.png")
@@ -85,6 +86,7 @@ const CENTRO:= Vector2(640, 360)
 
 var _mod_loja = null  # modulo scripts/menu/loja.gd
 var _mod_cfg = null  # modulo scripts/menu/config_mapas.gd
+var _mod_contas = null  # modulo scripts/menu/contas.gd (quem esta jogando)
 var _nexo_overlay: Control = null
 var _cfg_nome_antigo: String = ""
 var _hist_overlay = null
@@ -138,6 +140,7 @@ func _ready() -> void :
 	_mod_loja = MENU_LOJA_MOD.new(self)
 	_mod_inv = MENU_INV_MOD.new(self)
 	_mod_cfg = MENU_CFG_MOD.new(self)
+	_mod_contas = MENU_CONTAS_MOD.new(self)
 	if not RankingOnline.premio_temporada_aplicado.is_connected(_mod_ranking._on_premio_temporada_aplicado):
 		RankingOnline.premio_temporada_aplicado.connect(_mod_ranking._on_premio_temporada_aplicado)
 	RankingOnline.buscar_premios_pendentes()
@@ -146,6 +149,8 @@ func _ready() -> void :
 	Som.tocar_musica_menu(true)
 	_garantir_musica_menu_depois_de_voltar()
 	RankingOnline.checar_diario()
+	if _mod_contas.deve_abrir_no_boot():
+		_mod_contas.abrir(_ui_main)
 	RankingOnline.checar_premio_temporada()
 
 
@@ -3595,6 +3600,7 @@ func _abrir_perfil(ui: CanvasLayer) -> void :
 				Salvar.senha_jogador = RankingOnline._hash(sw)
 				Salvar.credenciais_versao = 1
 				Salvar.salvar()
+				Salvar.lembrar_conta(nm, em, Salvar.senha_jogador)
 				sl.text = "Conta criada! Bem-vindo, %s!" % nm
 				sl.add_theme_color_override("font_color", Color(0.4, 1.0, 0.55))
 				RankingOnline.envio_inicial()
@@ -3662,6 +3668,7 @@ func _abrir_perfil(ui: CanvasLayer) -> void :
 				Salvar.senha_jogador = RankingOnline._hash(sw)
 				Salvar.credenciais_versao = 1
 				Salvar.salvar()
+				Salvar.lembrar_conta(nome_ret, email_ret, Salvar.senha_jogador)
 				sl.text = "Bem-vindo, %s!" % nome_ret
 				sl.add_theme_color_override("font_color", Color(0.4, 1.0, 0.55))
 				RankingOnline.download_save(nome_ret, func(s_ok: bool, dados: Dictionary, force: bool = false) -> void :
