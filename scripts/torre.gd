@@ -72,6 +72,7 @@ var _raio_flash_pts2   : PackedVector2Array = PackedVector2Array()
 var tempestade_ativa     := false   # Tempestade Arcana: raio acerta TODOS no alcance
 var fissura_ativa        := false   # Fissura Venenosa: projéteis envenenam em 70px
 var corrente_ativa       := false   # Corrente Elétrica: projéteis saltam +2 alvos
+var ricochete_count      := 0      # Ricochete: projétil quica para N inimigos após acertar
 var veneno_dps           := 0.0    # Veneno Arcano: DoT nos acertados
 var crit_chance          := 0.0    # Golpe Crítico: chance de 3× dano
 var explosao_ativa       := false   # Explosão Mortal: explode ao matar
@@ -454,6 +455,7 @@ func _disparar_de(alvo: Node, spawn_gp: Vector2, dmg_mult: float = 1.0) -> void:
 	extras["mobs_group"] = mobs_group
 	extras["low_fx"] = _efeitos_leves_ativos()
 	if corrente_ativa:                  extras["chain"]        = 2
+	if ricochete_count > 0:             extras["ricochete"]    = ricochete_count
 	if veneno_dps > 0.0:               extras["veneno_dps"]   = veneno_dps;  extras["veneno_dur"] = 4.0
 	if armadura_inv:                    extras["armadura_inv"]  = true
 	if eh_bencao:                       extras["is_bencao"]     = true
@@ -613,6 +615,7 @@ func aplicar_carta(efeito: String, val: float) -> void:
 		"tempestade": tempestade_ativa = true
 		"fissura":    fissura_ativa   = true
 		"corrente":   corrente_ativa  = true
+		"ricochete":  ricochete_count = mini(ricochete_count + int(val), 4)
 		"veneno":     veneno_dps     = max(0.0, veneno_dps + val)
 		"critico":    crit_chance    = clampf(crit_chance + val, 0.0, 0.75)
 		"explosao":   explosao_ativa = true

@@ -142,6 +142,7 @@ const CARTAS := [
 	# ── Novas cartas ────────────────────────────────────────────────────────────
 	{"id":"raio",       "nome":"Raio Arcano",         "desc":"Golpeia inimigo aleatório\na cada ~4s (+45 dano/nv)",    "cor":Color(0.40, 0.72, 1.0), "efeito":"raio",       "val":1.0,  "raridade":"epico",   "peso":1, "min_wave":15, "max_picks":5},
 	{"id":"corrente",   "nome":"Corrente Elétrica",   "desc":"Projéteis saltam para\n2 inimigos extras (sem redução)","cor":Color(0.25, 0.95, 1.0), "efeito":"corrente",   "val":1.0,  "raridade":"epico",   "peso":1, "min_wave":15, "max_picks":1},
+	{"id":"ricochete",  "nome":"Bala Saltitante",     "desc":"Projétil quica para +1\ninimigo após acertar\n(dano -30% por quique)","cor":Color(0.35, 1.0, 0.75), "efeito":"ricochete",  "val":1.0,  "raridade":"raro",    "peso":3, "min_wave":8,  "max_picks":3},
 	{"id":"veneno",     "nome":"Veneno Arcano",        "desc":"+8 dano/s por 4s\nem inimigos acertados",             "cor":Color(0.25, 1.0,  0.2),  "efeito":"veneno",     "val":8.0,  "raridade":"incomum", "peso":5, "min_wave":4,  "max_picks":4},
 	{"id":"critico",    "nome":"Golpe Crítico",        "desc":"+12% chance de\n3× dano por tiro",                    "cor":Color(1.0,  0.50, 0.05), "efeito":"critico",    "val":0.12, "raridade":"raro",    "peso":2, "min_wave":6,  "max_picks":3},
 	{"id":"explosao",   "nome":"Explosão Mortal",      "desc":"Ao matar: explode\n40% dano em 80px",                 "cor":Color(1.0,  0.38, 0.05), "efeito":"explosao",   "val":1.0,  "raridade":"epico",   "peso":2, "min_wave":10, "max_picks":2},

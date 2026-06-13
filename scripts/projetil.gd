@@ -17,6 +17,7 @@ var splash_damage := 0.0
 
 # Extras
 var chain_count  := 0     # Corrente Elétrica: salta para N inimigos extras
+var ricochete_left := 0   # Ricochete: projétil quica para N alvos após o impacto
 var veneno_dps   := 0.0   # Veneno Arcano: dano por segundo aplicado ao alvo
 var veneno_dur   := 0.0
 var armadura_inv := false  # Armadura Invertida: +60% dano em alvo abaixo de 30% HP
@@ -58,6 +59,7 @@ func setup(alvo: Node, dano: float, pierce: int = 0, speed_bonus: float = 0.0,
 	splash_radius = splash_r
 	splash_damage = splash_dmg
 	chain_count   = extras.get("chain",          0)     as int
+	ricochete_left = extras.get("ricochete",     0)     as int
 	veneno_dps    = extras.get("veneno_dps",     0.0)   as float
 	veneno_dur    = extras.get("veneno_dur",     0.0)   as float
 	armadura_inv  = extras.get("armadura_inv",   false) as bool
@@ -203,6 +205,18 @@ func _process(delta: float) -> void:
 			# (antes: virava pro mob mais próximo = ricochete teleguiado)
 			free_dir = _ultima_dir if _ultima_dir != Vector2.ZERO else (alvo_pos - origin_pos).normalized()
 			target = null
+		elif ricochete_left > 0:
+			# Ricochete: quica para o mob mais próximo (não atingido).
+			# Decaimento próprio suave (70%/quique); reseta pierce_hit para
+			# não sofrer o multiplicador agressivo de perfuração.
+			var proximo = _achar_proximo_alvo()
+			if proximo:
+				ricochete_left -= 1
+				damage *= 0.70
+				pierce_hit = 0
+				target = proximo
+			else:
+				morto = true
 		else:
 			morto = true
 
@@ -248,6 +262,20 @@ func _fissura_at(pos: Vector2) -> void:
 		if pos.distance_to((mob as Node2D).global_position) <= 70.0:
 			mob.set("veneno_dps",   maxf(mob.get("veneno_dps")   as float, 15.0))
 			mob.set("veneno_timer", maxf(mob.get("veneno_timer")  as float, 3.0))
+
+
+func _achar_proximo_alvo() -> Node:
+	var mobs    = get_tree().get_nodes_in_group(mobs_group)
+	var melhor  = null
+	var min_d   = 9999.0
+	for mob in mobs:
+		if not is_instance_valid(mob) or mob in hit_targets:
+			continue
+		var d = global_position.distance_to(mob.global_position)
+		if melhor == null or d < min_d:
+			melhor = mob
+			min_d  = d
+	return melhor
 
 
 func _draw() -> void:
