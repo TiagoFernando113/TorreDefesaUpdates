@@ -189,25 +189,6 @@ func _desativar_fundo_antigo_menu() -> void:
 
 
 
-func _gerar_mobs_deco() -> void :
-	return
-
-	var formas = ["circulo", "triangulo", "diamante"]
-	var cores = [Color(0.0, 0.82, 1.0), Color(0.75, 1.0, 0.1), Color(1.0, 0.35, 0.1)]
-	for i in range(12):
-		var angulo:= float(i) / 12.0 * TAU
-		var raio:= randf_range(260.0, 520.0)
-		_deco_mobs.append({
-			"angulo": angulo, 
-			"raio": raio, 
-			"speed": randf_range(0.15, 0.35) * (1.0 if randf() > 0.5 else -1.0), 
-			"tamanho": randf_range(8.0, 18.0), 
-			"forma": formas[i % 3], 
-			"cor": cores[i % 3], 
-			"pulse": randf_range(0.0, TAU), 
-		})
-
-
 func _unhandled_input(event: InputEvent) -> void :
 	if OS.has_feature("android") or OS.has_feature("ios"): return
 	if not (event is InputEventKey): return
@@ -516,47 +497,6 @@ func _reconstruir_ui_por_resize() -> void:
 func _draw() -> void :
 	pass
 
-
-
-func _draw_torre_deco() -> void :
-	var p:= sin(pulse) * 0.3 + 0.7
-	var cor:= Color(0.0, 0.72, 1.0)
-	var pos:= CENTRO
-
-
-	for r in [90.0, 160.0, 240.0]:
-		var rf: float = r as float
-		var rp: float = rf + sin(pulse * 0.7 + rf * 0.01) * 6.0
-		draw_arc(pos, rp, 0.0, TAU, 80, Color(cor.r, cor.g, cor.b, 0.12), 1.2)
-
-
-	for i in range(6, 0, -1):
-		draw_circle(pos, 32.0 + float(i) * 7.0, Color(cor.r, cor.g, cor.b, 0.07 * p / float(i)))
-
-
-	var pts:= PackedVector2Array()
-	for i in range(6):
-		var a:= float(i) * TAU / 6.0 + PI / 6.0 + hex_angle
-		pts.append(pos + Vector2(cos(a), sin(a)) * 32.0)
-	draw_polygon(pts, _cores(pts.size(), Color(0.02, 0.08, 0.22, 0.92)))
-	var borda:= PackedVector2Array(pts);borda.append(pts[0])
-	for i in range(3, 0, -1):
-		draw_polyline(borda, Color(cor.r, cor.g, cor.b, 0.22 / float(i) * p), float(i) * 2.5)
-	draw_polyline(borda, Color(cor.r + 0.2, cor.g + 0.15, 1.0, 1.0), 2.2)
-
-
-	draw_circle(pos, 10.0, Color(cor.r + 0.2, cor.g + 0.2, 1.0, p))
-	draw_circle(pos, 5.0, Color(1.0, 1.0, 1.0, p))
-
-
-func _draw_titulo() -> void :
-
-	var p:= sin(pulse * 1.2) * 0.3 + 0.7
-	var lw:= 280.0 + sin(pulse) * 20.0
-	draw_line(Vector2(640 - lw, 115), Vector2(640 + lw, 115), 
-			Color(0.2, 0.6, 1.0, 0.5 * p), 1.5)
-	draw_line(Vector2(640 - lw * 0.6, 180), Vector2(640 + lw * 0.6, 180), 
-			Color(0.2, 0.6, 1.0, 0.3 * p), 1.0)
 
 
 func _construir_ui() -> void :
@@ -1203,15 +1143,6 @@ func _mostrar_popup_cyron(titulo: String, corpo: String, linhas: Array, cor: Col
 	content.add_child(btn)
 
 
-func _mostrar_popup_premio_discord() -> void:
-	_mostrar_popup_cyron(
-		"PREMIO RECEBIDO",
-		"Recompensas do Discord adicionadas na sua conta.",
-		["+2 BAUS LENDARIOS", "+25 CRISTAIS", "+1 ORBE"],
-		Color(0.22, 0.86, 1.0)
-	)
-
-
 func _mostrar_popup_discord_aviso(titulo: String, corpo: String) -> void:
 	_mostrar_popup_cyron(titulo, corpo, [], Color(0.62, 0.36, 1.0))
 
@@ -1667,31 +1598,6 @@ func _ocultar_menu_hint() -> void:
 	_menu_hint_popup = null
 
 
-func _comandante_menu_bg(pid: String) -> Texture2D:
-	var key := _comandante_asset_key(pid)
-	var bg_key := _comandante_fundo_key(pid)
-	if _comandante_bg_cache.has(bg_key):
-		return _comandante_bg_cache[bg_key] as Texture2D
-	var tex : Texture2D = null
-	var nomes := [
-		bg_key,
-		key + "_fundo",
-		key + "_full",
-		key
-	]
-	var exts := [".png", ".jpg", ".jpeg", ".webp"]
-	for nome in nomes:
-		for ext in exts:
-			var path : String = COMANDANTE_MENU_BG_BASE + str(nome) + str(ext)
-			tex = _load_texture_file(path)
-			if tex != null:
-				break
-		if tex != null:
-			break
-	_comandante_bg_cache[bg_key] = tex
-	return tex
-
-
 func _mapa_fundo_texture(mapa: Dictionary) -> Texture2D:
 	var path := str(mapa.get("bg", ""))
 	if path == "":
@@ -1902,21 +1808,6 @@ func _draw_texture_cover_chamfered(c: Control, tex: Texture2D, rect: Rect2, src:
 	for _i in range(pts.size()):
 		cols.append(Color(1.0, 1.0, 1.0, alpha))
 	c.draw_polygon(pts, cols, uvs, tex)
-
-
-func _draw_texture_contain_region(c: Control, tex: Texture2D, rect: Rect2, src: Rect2, alpha: float = 1.0) -> Rect2:
-	if tex == null:
-		return Rect2()
-	var source := Rect2(src.position, src.size)
-	if source.size.x <= 0.0 or source.size.y <= 0.0:
-		source = Rect2(0.0, 0.0, float(tex.get_width()), float(tex.get_height()))
-	if source.size.x <= 0.0 or source.size.y <= 0.0 or rect.size.x <= 0.0 or rect.size.y <= 0.0:
-		return Rect2()
-	var scale := minf(rect.size.x / source.size.x, rect.size.y / source.size.y)
-	var dst_size := Vector2(source.size.x * scale, source.size.y * scale)
-	var dst := Rect2(rect.position + (rect.size - dst_size) * 0.5, dst_size)
-	c.draw_texture_rect_region(tex, dst, source, Color(1, 1, 1, alpha))
-	return dst
 
 
 func _comandante_card_source_rect(tex: Texture2D) -> Rect2:
@@ -2201,14 +2092,6 @@ func _draw_item_sprite(c: Control, key: String, rect: Rect2, alpha: float = 1.0)
 	return true
 
 
-func _draw_item_sprite_contain(c: Control, key: String, rect: Rect2, alpha: float = 1.0) -> bool:
-	var tex := _item_sprite(key)
-	if tex == null:
-		return false
-	_draw_texture_contain(c, tex, rect, alpha)
-	return true
-
-
 func _reward_card_texture(raridade: String) -> Texture2D:
 	var key := str(raridade)
 	if not REWARD_CARD_TEXTURE_PATHS.has(key):
@@ -2485,18 +2368,6 @@ func _draw_reward_sealed_card(c: Control, rect: Rect2, raridade: String, cor: Co
 		var a : float = float(pi) * TAU / 16.0 + t * 1.25
 		c.draw_circle(center + Vector2(cos(a) * diamond_r * 1.85, sin(a) * diamond_r * 1.22), 1.8,
 			Color(cor.r + 0.20, cor.g + 0.20, cor.b + 0.20, 0.34 * alpha))
-
-
-func _draw_reward_card_portrait_cutouts(c: Control, rect: Rect2, bg: Color, cor: Color, alpha: float = 1.0) -> void:
-	var cut_x : float = minf(rect.size.x * 0.28, 46.0)
-	var cut_y : float = minf(rect.size.y * 0.16, 52.0)
-	var p0 : Vector2 = rect.position
-	var p1 : Vector2 = rect.end
-	var fill := Color(bg.r, bg.g, bg.b, 0.98 * alpha)
-	c.draw_polygon(PackedVector2Array([p0, p0 + Vector2(cut_x, 0.0), p0 + Vector2(0.0, cut_y)]), PackedColorArray([fill, fill, fill]))
-	c.draw_polygon(PackedVector2Array([Vector2(p1.x, p0.y), Vector2(p1.x - cut_x, p0.y), Vector2(p1.x, p0.y + cut_y)]), PackedColorArray([fill, fill, fill]))
-	c.draw_polygon(PackedVector2Array([Vector2(p0.x, p1.y), Vector2(p0.x + cut_x, p1.y), Vector2(p0.x, p1.y - cut_y)]), PackedColorArray([fill, fill, fill]))
-	c.draw_polygon(PackedVector2Array([p1, p1 - Vector2(cut_x, 0.0), p1 - Vector2(0.0, cut_y)]), PackedColorArray([fill, fill, fill]))
 
 
 func _show_reward_special_overlay(parent: Node, item: Dictionary, finished: Callable, preview_mode: bool = false) -> void:
@@ -3889,22 +3760,6 @@ func _rebuild_patente() -> void:
 	p.add_child(fechar)
 
 
-func _criar_patente_recurso(parent: Node, pos: Vector2, icone: String, valor: int, cor: Color) -> void:
-	var box := Control.new()
-	box.position = pos
-	box.size = Vector2(86, 34)
-	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	box.draw.connect(func():
-		box.draw_rect(Rect2(Vector2.ZERO, box.size), Color(0.015, 0.020, 0.040, 0.82))
-		box.draw_rect(Rect2(Vector2.ZERO, box.size), Color(cor.r, cor.g, cor.b, 0.34), false, 1.0)
-		box.draw_circle(Vector2(16, 17), 10.0, Color(cor.r, cor.g, cor.b, 0.20))
-		box.draw_arc(Vector2(16, 17), 10.0, 0.0, TAU, 28, Color(cor.r, cor.g, cor.b, 0.95), 1.4, true)
-		box.draw_string(_font_tech, Vector2(10, 22), icone, HORIZONTAL_ALIGNMENT_CENTER, 12, 14, cor)
-		box.draw_string(_font_tech, Vector2(32, 23), _format_num(valor), HORIZONTAL_ALIGNMENT_LEFT, 50, 16, Color(0.92, 0.94, 1.0))
-	)
-	parent.add_child(box)
-
-
 func _format_num(v: int) -> String:
 	return NumberFormatter.compact_int(v)
 
@@ -4043,73 +3898,6 @@ func _criar_patente_resumo_bonus(parent: Node, pos: Vector2, sz: Vector2) -> voi
 		_ui_tech_label(desc, 0.0)
 		desc.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		panel.add_child(desc)
-
-
-func _criar_patente_nav_inferior(parent: Node, pw: float, ph: float) -> void:
-	var nav := Control.new()
-	nav.position = Vector2(28, ph - 48)
-	nav.size = Vector2(pw - 190, 30)
-	nav.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var labels : Array[String] = ["INICIO", "ARSENAL", "COMANDANTES", "ATRIBUTOS", "INVENTARIO", "MISSOES", "LOJA"]
-	nav.draw.connect(func():
-		nav.draw_rect(Rect2(Vector2.ZERO, nav.size), Color(0.010, 0.014, 0.032, 0.92))
-		nav.draw_rect(Rect2(Vector2.ZERO, nav.size), Color(0.25, 0.40, 0.90, 0.35), false, 1.0)
-		var item_w := nav.size.x / float(labels.size())
-		for i in range(labels.size()):
-			var x := float(i) * item_w
-			var active := labels[i] == "ATRIBUTOS"
-			var cc := Color(0.72, 0.28, 1.0, 0.30) if active else Color(0.10, 0.16, 0.32, 0.28)
-			nav.draw_rect(Rect2(x + 2, 3, item_w - 4, nav.size.y - 6), cc)
-			nav.draw_line(Vector2(x + item_w, 6), Vector2(x + item_w, nav.size.y - 6), Color(0.25, 0.40, 0.90, 0.22), 1.0)
-			nav.draw_string(_font_tech, Vector2(x, 20), labels[i], HORIZONTAL_ALIGNMENT_CENTER, item_w, 11, Color(0.95, 0.80, 1.0, 0.98) if active else Color(0.64, 0.70, 0.88, 0.84))
-	)
-	parent.add_child(nav)
-
-
-func _criar_patente_modulo(parent: Node, aid: String, pos: Vector2, sz: Vector2) -> void:
-	var info : Dictionary = Salvar.ATRIBUTOS_CONTA_INFO[aid] as Dictionary
-	var lvl : int = int(Salvar.atributos_conta.get(aid, 0))
-	var max_lvl : int = int(info.get("max", 0))
-	var cor : Color = _patente_attr_cor(aid)
-	var card := _inv_painel(parent, pos.x, pos.y, sz.x, sz.y,
-		Color(cor.r * 0.055, cor.g * 0.055, cor.b * 0.065, 0.96),
-		Color(cor.r, cor.g, cor.b, 0.74), 1)
-	card.mouse_filter = Control.MOUSE_FILTER_PASS
-	var fx := Control.new()
-	fx.size = sz
-	fx.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	fx.draw.connect(func():
-		var cut := 13.0
-		var poly := PackedVector2Array([
-			Vector2(cut, 0), Vector2(sz.x - cut, 0), Vector2(sz.x, cut),
-			Vector2(sz.x, sz.y - cut), Vector2(sz.x - cut, sz.y), Vector2(cut, sz.y),
-			Vector2(0, sz.y - cut), Vector2(0, cut), Vector2(cut, 0)
-		])
-		fx.draw_colored_polygon(poly, Color(cor.r * 0.035, cor.g * 0.035, cor.b * 0.052, 0.98))
-		fx.draw_polyline(poly, Color(cor.r, cor.g, cor.b, 0.92), 1.6)
-		fx.draw_circle(Vector2(33, 34), 24.0, Color(cor.r, cor.g, cor.b, 0.10))
-		fx.draw_arc(Vector2(33, 34), 24.0, -PI * 0.80 + pulse * 0.55, PI * 1.20 + pulse * 0.55, 64, Color(cor.r, cor.g, cor.b, 0.95), 2.8, true)
-		fx.draw_arc(Vector2(33, 34), 16.0, PI * 0.20 - pulse * 0.35, PI * 1.72 - pulse * 0.35, 42, Color(1.0, 1.0, 1.0, 0.22), 1.2, true)
-		fx.draw_string(_font_title, Vector2(15, 40), _patente_attr_sigla(aid), HORIZONTAL_ALIGNMENT_CENTER, 36, 18, Color(cor.r + 0.22, cor.g + 0.22, cor.b + 0.22, 0.96))
-		var pct := clampf(float(lvl) / maxf(float(max_lvl), 1.0), 0.0, 1.0)
-		fx.draw_rect(Rect2(12, sz.y - 12, sz.x - 24, 4), Color(0.0, 0.0, 0.0, 0.58))
-		fx.draw_rect(Rect2(12, sz.y - 12, (sz.x - 24) * pct, 4), Color(cor.r, cor.g, cor.b, 0.96))
-		fx.draw_circle(Vector2(sz.x - 22, sz.y - 20), 24.0, Color(cor.r, cor.g, cor.b, 0.055))
-	)
-	card.add_child(fx)
-	_inv_lbl(card, str(info.get("nome", aid)).to_upper(), 66, 13, sz.x - 104, 20, 14, cor)
-	_inv_lbl(card, "Nv %d/%d" % [lvl, max_lvl], sz.x - 66, 15, 50, 17, 11, Color(0.78, 0.84, 0.92), HORIZONTAL_ALIGNMENT_RIGHT)
-	_inv_lbl(card, str(info.get("desc", "")), 16, 48, sz.x - 58, 20, 11, Color(0.60, 0.70, 0.82))
-	var plus := Button.new()
-	plus.text = "+"
-	plus.position = Vector2(sz.x - 40, sz.y - 42)
-	plus.size = Vector2(30, 30)
-	plus.focus_mode = Control.FOCUS_NONE
-	plus.disabled = Salvar.pontos_atributo <= 0 or lvl >= max_lvl
-	plus.add_theme_font_size_override("font_size", 18)
-	_ui_premium_button(plus, cor, not plus.disabled)
-	plus.pressed.connect(_on_patente_atributo_pressed.bind(aid))
-	card.add_child(plus)
 
 
 func _on_patente_atributo_pressed(id: String) -> void:
@@ -4767,22 +4555,6 @@ func _ui_tech_label(label: Control, spacing: float = 1.0) -> void:
 	label.add_theme_constant_override("letter_spacing", int(spacing))
 
 
-func _ui_add_button_texture_icon(btn: Button, tex: Texture2D, region: Rect2, icon_size: Vector2 = Vector2(32, 32)) -> void:
-	var atlas := AtlasTexture.new()
-	atlas.atlas = tex
-	atlas.region = region
-
-	var icon := TextureRect.new()
-	icon.position = Vector2(4, (btn.size.y - icon_size.y) * 0.5)
-	icon.size = icon_size
-	icon.custom_minimum_size = Vector2.ZERO
-	icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	icon.texture = atlas
-	icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	btn.add_child(icon)
-
-
 func _ui_image_menu_button(tex: Texture2D, pos: Vector2, sz: Vector2) -> Button:
 	var btn := Button.new()
 	btn.text = ""
@@ -4832,12 +4604,6 @@ func _ui_title_label(label: Label, spacing: float = 4.0) -> void:
 	label.add_theme_constant_override("shadow_offset_y", 1)
 
 
-func _ui_trim_fit(txt: String, max_len: int) -> String:
-	if txt.length() <= max_len:
-		return txt
-	return txt.substr(0, max_len - 1) + "."
-
-
 func _ui_panel_frame(parent: Node, rect: Rect2, cor: Color, alpha: float = 0.65) -> Control:
 	var fr := Control.new()
 	fr.position = rect.position
@@ -4885,18 +4651,6 @@ func _ui_header_title(parent: Node, txt: String, y: float, w: float, cor: Color)
 	parent.add_child(deco)
 	var h := _inv_lbl(parent, txt, 0, y + 5.0, w, 34, 23, Color(0.92, 0.92, 0.98, 0.96), HORIZONTAL_ALIGNMENT_CENTER)
 	_ui_title_label(h, 4.0)
-
-
-func _ui_top_button(parent: Node, txt: String, x: float, y: float, w: float, cor: Color) -> Button:
-	var btn := Button.new()
-	btn.text = txt
-	btn.position = Vector2(x, y)
-	btn.size = Vector2(w, 32.0)
-	btn.focus_mode = Control.FOCUS_NONE
-	btn.add_theme_font_size_override("font_size", 12)
-	_ui_premium_button(btn, cor, false)
-	parent.add_child(btn)
-	return btn
 
 
 func _ui_draw_stat_icon(c: Control, kind: String, center: Vector2, cor: Color, sc: float = 1.0) -> void:

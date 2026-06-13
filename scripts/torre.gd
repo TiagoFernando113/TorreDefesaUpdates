@@ -520,19 +520,6 @@ func _achar_alvo_em_direcao(dir: Vector2) -> Node:
 	return melhor
 
 
-func _achar_segundo_alvo(primeiro: Node) -> Node:
-	var alvo  = null
-	var min_d = range_r
-	for mob in _alvos_validos():
-		if not is_instance_valid(mob) or mob == primeiro:
-			continue
-		var d = global_position.distance_to(_target_pos(mob))
-		if d <= _range_para_alvo(mob) and (alvo == null or d < min_d):
-			alvo  = mob
-			min_d = d
-	return alvo
-
-
 func _range_para_alvo(alvo: Node) -> float:
 	return range_r
 

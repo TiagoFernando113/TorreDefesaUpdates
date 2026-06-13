@@ -947,24 +947,6 @@ func fechar_cartas() -> void:
 	_carta_pendente_val = 0.0
 
 
-func _cor_texto_card(cor: Color, alpha: float = 1.0) -> Color:
-	return Color(minf(cor.r + 0.35, 1.0), minf(cor.g + 0.35, 1.0), minf(cor.b + 0.35, 1.0), alpha)
-
-
-func _adicionar_label_card(parent: Control, text: String, pos: Vector2, size: Vector2, font_size: int, cor: Color, align := HORIZONTAL_ALIGNMENT_CENTER) -> Label:
-	var lbl := Label.new()
-	lbl.text = text
-	lbl.position = pos
-	lbl.size = size
-	lbl.horizontal_alignment = align
-	lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	lbl.add_theme_font_size_override("font_size", font_size)
-	lbl.add_theme_color_override("font_color", cor)
-	lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	parent.add_child(lbl)
-	return lbl
-
-
 func atualizar_build_nome(nome: String) -> void:
 	if not _build_lbl or not is_instance_valid(_build_lbl):
 		return

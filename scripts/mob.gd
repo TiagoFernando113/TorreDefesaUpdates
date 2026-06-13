@@ -1,4 +1,4 @@
-﻿extends Node2D
+extends Node2D
 
 var jogo     = null
 var tipo     := "normal"
@@ -470,25 +470,6 @@ func _impulsionar_aliados_proximos() -> void:
 				mob.set("_habil_cd",   1.0)
 				mob.set("_cura_raio",  260.0)
 				mob.set("_bruxo_buff_timer", 6.0)
-
-
-func _invocar_para_boss(qtd: int) -> void:
-	if not jogo: return
-	var pool := ["normal", "fast", "elite", "berserker"]
-	for _i in range(qtd):
-		var t : String = pool[randi() % pool.size()]
-		var off := Vector2(randf_range(-140.0, 140.0), randf_range(-140.0, 140.0))
-		jogo.spawnar_mob_proximo(global_position + off, t)
-
-
-func _grito_de_guerra() -> void:
-	Som.impacto()
-	for mob in get_tree().get_nodes_in_group("mobs"):
-		if not is_instance_valid(mob) or mob == self: continue
-		if mob.get("morto"): continue
-		mob.call("_aplicar_grito_guerra")
-
-
 
 
 func _processar_habil_chefe(delta: float) -> void:

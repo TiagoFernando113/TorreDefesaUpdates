@@ -1411,20 +1411,6 @@ func _posicao_spawn() -> Vector2:
 		_: return Vector2(cx + half_w, randf_range(cy - half_h, cy + half_h))
 
 
-func _posicao_borda_aleatoria() -> Vector2:
-	# Retorna posição na BORDA da tela visível (para a sombra do boss)
-	var zoom   : float = _camera.zoom.x if _camera else 1.0
-	var half_w : float = 640.0 / zoom
-	var half_h : float = 360.0 / zoom
-	var cx     : float = 640.0
-	var cy     : float = 360.0
-	match randi() % 4:
-		0: return Vector2(randf_range(cx - half_w * 0.6, cx + half_w * 0.6), cy - half_h + 60.0)
-		1: return Vector2(randf_range(cx - half_w * 0.6, cx + half_w * 0.6), cy + half_h - 60.0)
-		2: return Vector2(cx - half_w + 60.0, randf_range(cy - half_h * 0.6, cy + half_h * 0.6))
-		_: return Vector2(cx + half_w - 60.0, randf_range(cy - half_h * 0.6, cy + half_h * 0.6))
-
-
 func _carta_max_picks(carta: Dictionary) -> int:
 	var base : int = carta["max_picks"] as int
 	match carta["id"] as String:
@@ -1861,10 +1847,6 @@ func game_over() -> void:
 	get_tree().paused = true
 
 
-func _verificar_revive_loja() -> void:
-	_finalizar_game_over()
-
-
 func reviver_com_loja() -> void:
 	if not Salvar.usar_revive_loja(): return
 	gold = Salvar.ouro_banco
@@ -1911,10 +1893,6 @@ func _finalizar_game_over() -> void:
 	RankingOnline.verificar_e_enviar(Salvar.nome_jogador, score, wave)
 	if Salvar.nome_jogador != "" and Salvar.senha_jogador != "" and not Salvar.save_bloqueado:
 		RankingOnline.upload_save(Salvar.nome_jogador, Salvar.exportar_cloud())
-
-
-func _confirmar_game_over() -> void:
-	_finalizar_game_over()
 
 
 func reviver_com_alma(custo: int) -> void:
