@@ -392,7 +392,7 @@ func _abrir_ranking(ui: CanvasLayer) -> void :
 		bg.add_child(banner)
 
 		var lban:= Label.new()
-		lban.text = "Voce ainda nao definiu seu nome â€” configure no perfil para aparecer no ranking!"
+		lban.text = "Voce ainda nao definiu seu nome — configure no perfil para aparecer no ranking!"
 		lban.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		lban.autowrap_mode = TextServer.AUTOWRAP_WORD
 		lban.position = Vector2(10, 5)
@@ -458,7 +458,7 @@ func _atualizar_timestamp(estimado: bool) -> void :
 		return
 	var seg: int = RankingOnline.segundos_desde_atualizacao()
 	if seg < 0:
-		_ranking_ts_lbl.text = "Sem dados em cache â€” sincronizando..."
+		_ranking_ts_lbl.text = "Sem dados em cache — sincronizando..."
 	elif estimado:
 		if seg < 60:
 			_ranking_ts_lbl.text = "Estimado · atualizado há menos de 1 min"
@@ -917,7 +917,7 @@ func _draw_podio(ctrl: Control, entradas: Array) -> void :
 				Color(pcor.r * 0.05, pcor.g * 0.05, pcor.b * 0.05, 0.65))
 			ctrl.draw_rect(Rect2(dx, BASE_Y - ph, dw, ph), 
 				Color(pcor.r * 0.2, pcor.g * 0.2, pcor.b * 0.2, 0.3), false, 1.5)
-			m._draw_text_centered(ctrl, "â€”", Vector2(px, BASE_Y - ph * 0.5 + 6.0), 
+			m._draw_text_centered(ctrl, "—", Vector2(px, BASE_Y - ph * 0.5 + 6.0), 
 				14, Color(pcor.r * 0.4, pcor.g * 0.4, pcor.b * 0.4, 0.4))
 			continue
 

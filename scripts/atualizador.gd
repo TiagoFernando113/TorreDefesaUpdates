@@ -96,7 +96,7 @@ func _mostrar_banner(versao_sv: int, notas: String) -> void:
 	escuro.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_camada.add_child(escuro)
 
-	# DimensÃµes do painel
+	# Dimensões do painel
 	var pw : float = min(500.0, vp_w - 60)
 	var ph : float = 270.0
 	var px : float = (vp_w - pw) * 0.5
@@ -123,7 +123,7 @@ func _mostrar_banner(versao_sv: int, notas: String) -> void:
 		col.size     = Vector2(1, ph)
 		_camada.add_child(col)
 
-	# Bordas ciano (igual aos botÃµes do jogo)
+	# Bordas ciano (igual aos botões do jogo)
 	for borda_data in [
 		[Vector2(px,           py),           Vector2(pw, 2)],   # topo
 		[Vector2(px,           py + ph - 2),  Vector2(pw, 2)],   # base
@@ -136,7 +136,7 @@ func _mostrar_banner(versao_sv: int, notas: String) -> void:
 		b.size     = borda_data[1]
 		_camada.add_child(b)
 
-	# TÃ­tulo estilo do jogo
+	# Título estilo do jogo
 	var titulo := Label.new()
 	titulo.text                 = "ATUALIZACAO DISPONIVEL"
 	titulo.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -153,7 +153,7 @@ func _mostrar_banner(versao_sv: int, notas: String) -> void:
 	sep.size     = Vector2(pw - 60, 1)
 	_camada.add_child(sep)
 
-	# VersÃ£o
+	# Versão
 	var ver_lbl := Label.new()
 	ver_lbl.text                 = "Versao %d" % versao_sv
 	ver_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -174,7 +174,7 @@ func _mostrar_banner(versao_sv: int, notas: String) -> void:
 	notas_lbl.add_theme_color_override("font_color", Color(0.75, 0.88, 1.0))
 	_camada.add_child(notas_lbl)
 
-	# Borda do botÃ£o principal (ciano, estilo do jogo)
+	# Borda do botão principal (ciano, estilo do jogo)
 	var btn_bw : float = pw * 0.62
 	var btn_bx : float = px + (pw - btn_bw) * 0.5
 	var btn_by : float = py + ph - 72
@@ -196,7 +196,7 @@ func _mostrar_banner(versao_sv: int, notas: String) -> void:
 	btn.pressed.connect(_abrir_download)
 	_camada.add_child(btn)
 
-	# BotÃ£o fechar
+	# Botão fechar
 	var fechar := Button.new()
 	fechar.text     = "agora nao"
 	fechar.position = Vector2(px + (pw - 120) * 0.5, py + ph - 24)

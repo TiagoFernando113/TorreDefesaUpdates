@@ -105,15 +105,15 @@ func _abrir_mapas(ui: CanvasLayer) -> void:
 			_abrir_mapas(ui)
 		)
 
-	# â”€â”€ ComparaÃ§Ã£o de mÃ©todos de sprite â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+	# ── Comparação de métodos de sprite ──────────────────────────────────────
 	var rows_used  : int   = (Salvar.MAPAS_TORRE.size() + cols - 1) / cols
 	var amostras_y : float = start_y + float(rows_used) * (card_h + gap) + 14.0
 
-	m._inv_lbl(pnl, "COMPARAÃ‡ÃƒO DE MÃ‰TODOS DE GERAÃ‡ÃƒO DE SPRITE", 0, amostras_y, pw, 22, 14,
+	m._inv_lbl(pnl, "COMPARAÇÃO DE MÉTODOS DE GERAÇÃO DE SPRITE", 0, amostras_y, pw, 22, 14,
 		Color(0.55, 1.0, 0.92), HORIZONTAL_ALIGNMENT_CENTER)
 
-	# Colunas: cada mÃ©todo. Linhas: nave tipo.
-	# MÃ©todos: ChatGPT | Python Skia | Node.js Canvas | Python aggdraw
+	# Colunas: cada método. Linhas: nave tipo.
+	# Métodos: ChatGPT | Python Skia | Node.js Canvas | Python aggdraw
 	var metodos := ["ChatGPT\n(IA)", "Python\nSkia", "Node.js\nCanvas", "Python\naggdraw"]
 	var cores_metodo := [Color(1.0,0.85,0.2), Color(0.2,0.9,0.4), Color(0.3,0.7,1.0), Color(0.8,0.5,1.0)]
 
@@ -145,7 +145,7 @@ func _abrir_mapas(ui: CanvasLayer) -> void:
 	var sx0 : float = (pw - total_cols_w) * 0.5
 	var sy0 : float = amostras_y + 30.0
 
-	# CabeÃ§alhos de mÃ©todo
+	# Cabeçalhos de método
 	for mi in range(metodos.size()):
 		var hx : float = sx0 + label_w + float(mi) * col_w
 		var header := Panel.new()
@@ -170,7 +170,7 @@ func _abrir_mapas(ui: CanvasLayer) -> void:
 		m._inv_lbl(pnl, nave_nome, sx0, ry + sz_s * 0.5 - 8, label_w - 4, 18, 11,
 			Color(0.78, 0.88, 0.96), HORIZONTAL_ALIGNMENT_RIGHT)
 
-		# Cards de sprite por mÃ©todo
+		# Cards de sprite por método
 		for mi in range(metodos.size()):
 			var sx : float = sx0 + label_w + float(mi) * col_w
 			var scard := Panel.new()
@@ -197,7 +197,7 @@ func _abrir_mapas(ui: CanvasLayer) -> void:
 			else:
 				m._inv_lbl(scard, "N/A", 0, sz_s*0.4, sz_s, 18, 10, Color(0.5,0.5,0.5), HORIZONTAL_ALIGNMENT_CENTER)
 
-	# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+	# ─────────────────────────────────────────────────────────────────────────
 	var fechar := Button.new()
 	fechar.text = "FECHAR"
 	fechar.position = Vector2((pw - 240.0) * 0.5, ph - 66.0)
@@ -313,7 +313,7 @@ func _abrir_config(ui: CanvasLayer) -> void :
 
 
 	var lmus:= Label.new()
-	lmus.text = "Volume MÃºsica:"
+	lmus.text = "Volume Música:"
 	lmus.position = Vector2(40, 153)
 	lmus.size = Vector2(220, 34)
 	lmus.add_theme_font_size_override("font_size", 20)
@@ -336,7 +336,7 @@ func _abrir_config(ui: CanvasLayer) -> void :
 
 
 	var lpausa:= Label.new()
-	lpausa.text = "Pausa automÃ¡tica entre waves:"
+	lpausa.text = "Pausa automática entre waves:"
 	lpausa.position = Vector2(40, 194)
 	lpausa.size = Vector2(500, 34)
 	lpausa.add_theme_font_size_override("font_size", 20)
@@ -421,7 +421,7 @@ func _abrir_config(ui: CanvasLayer) -> void :
 	m._cfg_nome_antigo = Salvar.nome_jogador
 	var nome_edit:= LineEdit.new()
 	nome_edit.text = Salvar.nome_jogador
-	nome_edit.placeholder_text = "Seu nome no ranking (mÃ¡x 20)"
+	nome_edit.placeholder_text = "Seu nome no ranking (máx 20)"
 	nome_edit.position = Vector2(470, 342)
 	nome_edit.size = Vector2(590, 38)
 	nome_edit.focus_mode = Control.FOCUS_CLICK
@@ -561,7 +561,7 @@ func _abrir_config(ui: CanvasLayer) -> void :
 	btn_f.add_theme_stylebox_override("normal", sty_f)
 	btn_f.add_theme_color_override("font_color", Color(0.6, 0.62, 0.68))
 	btn_f.pressed.connect( func():
-		Acessibilidade.processar("config_fechar", "Fechar configuraÃ§Ãµes.", _fechar_config))
+		Acessibilidade.processar("config_fechar", "Fechar configurações.", _fechar_config))
 	_config_panel.add_child(btn_f)
 	m._corrigir_textos_ui(_config_panel)
 

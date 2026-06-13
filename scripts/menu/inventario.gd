@@ -1289,8 +1289,8 @@ func _abrir_inventario(ui: CanvasLayer) -> void:
 	var IW:float=(scroll_w - 28.0) / 3.0; var IH:float=SCROLL_H-36
 	var _cons_rebuild_wrap : Array = [null]
 	var _rebuild_slots_wrap : Array = [null]
-	var _upd_wrap_ref : Array = []  # preenchido apÃ³s upd_wrap ser criado
-	# Closure reutilizÃ¡vel â€” rebuild ao equipar/desequipar
+	var _upd_wrap_ref : Array = []  # preenchido após upd_wrap ser criado
+	# Closure reutilizável — rebuild ao equipar/desequipar
 	var _build_cons := func():
 		for _old in hcont.get_children(): _old.queue_free()
 		var _iw2 : float = IW; var _ih2 : float = IH; var _ix2 : float = 0.0
@@ -1577,7 +1577,7 @@ func _abrir_inventario(ui: CanvasLayer) -> void:
 	bp.add_child(det_icon2)
 	_anim_nodes.append(det_icon2)
 
-	var det_nome: Label = m._inv_lbl(bp,"â€”",DET_X,88,DET_W,22,(22 if _mob else 16),
+	var det_nome: Label = m._inv_lbl(bp,"—",DET_X,88,DET_W,22,(22 if _mob else 16),
 		Color(0.85,0.85,0.9),HORIZONTAL_ALIGNMENT_CENTER)
 	var det_tipo: Label = m._inv_lbl(bp,"",DET_X,108,DET_W,18,(16 if _mob else 13),
 		Color(0.55,0.6,0.78,0.8),HORIZONTAL_ALIGNMENT_CENTER)
@@ -2186,7 +2186,7 @@ func _abrir_inventario(ui: CanvasLayer) -> void:
 				"ativo":false,"tipo":"cons","cons_id":_prev_cid,"preview":true,
 				"desc":"PREVIEW DEBUG\n%s" % str(_prev_cd.get("desc", ""))})
 
-	# â”€â”€ Filtros da mochila â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+	# ── Filtros da mochila ──────────────────────────────────────────────────
 	var _cat_rank := {"bau": 0, "arsenal": 1, "skin": 2, "pet": 3, "hab": 4, "cons": 5}
 	var _rar_rank := {"lendario": 0, "epico": 1, "raro": 2, "comum": 3}
 	bag_items.sort_custom(func(a, b):
@@ -2569,7 +2569,7 @@ func _abrir_inventario(ui: CanvasLayer) -> void:
 				m._inv_lbl(sbtn,"Nv.%d"%_plv,0,2,SLOT_SZ,14,(12 if _mob else 10),Color(icor.r+0.3,icor.g+0.3,icor.b+0.3,0.95),HORIZONTAL_ALIGNMENT_RIGHT)
 			_slot_cont.add_child(sbtn)
 
-	# â”€â”€ Chamada inicial e marcar TUDO ativo â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+	# ── Chamada inicial e marcar TUDO ativo ─────────────────────────────────
 	_rebuild_slots_wrap[0] = _rebuild_slots
 	for _afbi_ini in _fbtns_wrap.size():
 		var _afbd_ini : Array = _fbtns_wrap[_afbi_ini] as Array

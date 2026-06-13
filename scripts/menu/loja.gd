@@ -288,7 +288,7 @@ func _rebuild_loja() -> void :
 
 		_criar_grid_premium(2410.0)
 
-	# â”€â”€ COMANDANTES â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+	# ── COMANDANTES ────────────────────────────────────────────────────────────
 	var sep_ass:= ColorRect.new()
 	sep_ass.color = Color(0.25, 0.65, 1.0, 0.28)
 	sep_ass.position = Vector2(15, 1035)
@@ -585,7 +585,7 @@ func _criar_card_loja(tipo: String, idx: int) -> void :
 		btn_c.pressed.connect( func() -> void :
 			Acessibilidade.processar(
 				"loja_" + tipo, 
-				"%s â€” %s. Custo: %d ouro." % [nome_loja, desc_loja, custo], 
+				"%s — %s. Custo: %d ouro." % [nome_loja, desc_loja, custo], 
 				func(): _comprar_upgrade(tipo)
 			)
 		)
@@ -929,8 +929,8 @@ func _criar_card_habil(hid: String, idx: int) -> void :
 
 	var stats_txt: Dictionary = {
 		"eletrico": ["Paralisa mobs: 1.8s", "Boss: imune", "Cooldown: 45s"], 
-		"gelo": ["Reduz vel. 80% / 2.5s", "Boss: âˆ’40% vel.", "Cooldown: 45s"], 
-		"devastador": ["Remove 35% HP atual", "Boss: âˆ’12% HP", "Cooldown: 45s"], 
+		"gelo": ["Reduz vel. 80% / 2.5s", "Boss: −40% vel.", "Cooldown: 45s"], 
+		"devastador": ["Remove 35% HP atual", "Boss: −12% HP", "Cooldown: 45s"], 
 	}
 	var linhas: Array = stats_txt.get(hid, []) as Array
 	var stat_cores: Array = [
@@ -997,7 +997,7 @@ func _criar_card_habil(hid: String, idx: int) -> void :
 		bcmp.pressed.connect( func():
 			Acessibilidade.processar(
 				"habil_carga_" + hid, 
-				"%s â€” %s. Custo: %d cristais." % [info["nome"] as String, desc_h, custo], 
+				"%s — %s. Custo: %d cristais." % [info["nome"] as String, desc_h, custo], 
 				func():
 					if Salvar.comprar_carga_habil(hid):
 						var recompensas : Array = [_reward_compra_habil(hid)]
@@ -1176,7 +1176,7 @@ func _criar_grid_consumiveis() -> void:
 					icone.draw_colored_polygon(pts, Color(c3.r*0.15, c3.g*0.2, c3.b*0.3, 0.9))
 					icone.draw_polyline(pts + PackedVector2Array([pts[0]]), Color(c3.r, c3.g, c3.b, 0.9), 3.0)
 					icone.draw_arc(ic, 14, 0, TAU, 48, Color(c3.r, c3.g, c3.b, 0.4), 1.5)
-					icone.draw_string(f, ic+Vector2(-8, 7), "âœ¦", HORIZONTAL_ALIGNMENT_LEFT, -1, 18, Color(c3.r+0.3, c3.g+0.3, c3.b+0.3, 0.9))
+					icone.draw_string(f, ic+Vector2(-8, 7), "✦", HORIZONTAL_ALIGNMENT_LEFT, -1, 18, Color(c3.r+0.3, c3.g+0.3, c3.b+0.3, 0.9))
 				"furia":
 					# Runa: losango com raio
 					var pts2 := PackedVector2Array([ic+Vector2(0,-28), ic+Vector2(20,0), ic+Vector2(0,28), ic+Vector2(-20,0)])
@@ -1409,10 +1409,10 @@ else Color(0.88, 0.0, 1.0, 0.05 / float(gi))
 
 
 	var bonus_items: Array = [
-		["âš”  +4% Dano", Color(0.0, 1.0, 0.88)], 
-		["âš¡  +4% CadÃªncia", Color(0.0, 1.0, 0.88)], 
+		["⚔  +4% Dano", Color(0.0, 1.0, 0.88)], 
+		["⚡  +4% Cadência", Color(0.0, 1.0, 0.88)], 
 		["ðŸŽ¯  +4% Alcance", Color(0.0, 1.0, 0.88)], 
-		["â™¥  +1 HP/s Regen", Color(0.55, 1.0, 0.55)], 
+		["♥  +1 HP/s Regen", Color(0.55, 1.0, 0.55)], 
 		["â˜…  +1% Score/kill", Color(1.0, 0.88, 0.2)], 
 	]
 	for bi in range(bonus_items.size()):
@@ -1478,7 +1478,7 @@ else Color(0.88, 0.0, 1.0, 0.05 / float(gi))
 				Salvar.equipar_skin("saberpunk")
 				_rebuild_loja())
 	elif not logado:
-		btn_principal.text = "FAÃ‡A LOGIN PARA RESGATAR"
+		btn_principal.text = "FAÇA LOGIN PARA RESGATAR"
 		btn_principal.disabled = true
 		btn_principal.add_theme_stylebox_override("normal", _mk_sty_b.call(cor, false))
 		btn_principal.add_theme_color_override("font_color", Color(0.35, 0.55, 0.5))
@@ -1499,7 +1499,7 @@ else Color(0.88, 0.0, 1.0, 0.05 / float(gi))
 						_beta_donos_cache.append(Salvar.nome_jogador)
 					_rebuild_loja()
 				else:
-					btn_principal.text = erro if erro != "" else "Sem amostras disponÃ­veis"
+					btn_principal.text = erro if erro != "" else "Sem amostras disponíveis"
 					btn_principal.disabled = true
 			, CONNECT_ONE_SHOT)
 			RankingOnline.resgatar_beta(Salvar.nome_jogador))
@@ -1522,7 +1522,7 @@ else Color(0.88, 0.0, 1.0, 0.05 / float(gi))
 	if _on_beta_info_loja.is_valid() and RankingOnline.beta_info_recebida.is_connected(_on_beta_info_loja):
 		RankingOnline.beta_info_recebida.disconnect(_on_beta_info_loja)
 	_on_beta_info_loja = func(restantes: int, _donos: Array):
-		restantes_lbl.text = "%d de %d amostras disponÃ­veis" % [restantes, RankingOnline._BETA_MAX]
+		restantes_lbl.text = "%d de %d amostras disponíveis" % [restantes, RankingOnline._BETA_MAX]
 		restantes_lbl.add_theme_color_override("font_color", 
 			Color(0.0, 1.0, 0.6) if restantes > 0 else Color(0.8, 0.25, 0.25))
 		if not ja_tem and logado:
@@ -1572,7 +1572,7 @@ func _abrir_painel_beta_donos() -> void :
 	pnl.add_child(tit)
 
 	var sub:= Label.new()
-	sub.text = "Skin SaberPunk â€” Exclusiva"
+	sub.text = "Skin SaberPunk — Exclusiva"
 	sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	sub.position = Vector2(0, 52)
 	sub.size = Vector2(460, 27)
@@ -1631,7 +1631,7 @@ func _abrir_painel_beta_donos() -> void :
 			_beta_donos_cache = donos
 			_preencher_lista.call(donos)
 			var cnt_lbl:= sub
-			cnt_lbl.text = "Skin SaberPunk  â€¢  %d/%d amostras resgatadas" %\
+			cnt_lbl.text = "Skin SaberPunk  •  %d/%d amostras resgatadas" %\
 [donos.size(), RankingOnline._BETA_MAX]
 		, CONNECT_ONE_SHOT)
 		RankingOnline.buscar_info_beta()

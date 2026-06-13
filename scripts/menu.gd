@@ -1,8 +1,5 @@
 extends Node2D
 
-const TALENTO_NO = preload("res://scripts/talento_no.gd")
-const ARVORE_FUNDO = preload("res://scripts/arvore_fundo.gd")
-const CONSTELLATION_FUNDO = preload("res://scripts/talent_constellation_fundo.gd")
 const TALENTOS_V2 = preload("res://scripts/talentos_v2.gd")
 const MENU_RANKING_MOD = preload("res://scripts/menu/ranking.gd")
 const MENU_LOJA_MOD = preload("res://scripts/menu/loja.gd")
@@ -26,7 +23,6 @@ const ITEM_SPRITE_BASE : String = "res://assets/sprites/itens/"
 const REWARD_CARD_BASE_PATH : String = "res://assets/sprites/ui_hud/reward_card_base.png"
 const UI_COIN_TEXTURE_PATH : String = "res://assets/sprites/ui_hud/cytron_coin_icon.png"
 const UI_CRYSTAL_TEXTURE_PATH : String = "res://assets/sprites/ui_hud/cyron_crystal_icon.png"
-const TALENT_MAP_TEXTURE_PATH : String = "res://assets/talents/talent_constellation_map.png"
 const TALENT_MAP_SOURCE_SIZE : Vector2 = Vector2(1774.0, 887.0)
 const TALENT_MAP_WORLD_MIN_WIDTH : float = 1900.0
 const TALENT_MAP_WORLD_WIDTH_FACTOR : float = 1.72
@@ -89,12 +85,7 @@ const CENTRO:= Vector2(640, 360)
 
 var _mod_loja = null  # modulo scripts/menu/loja.gd
 var _mod_cfg = null  # modulo scripts/menu/config_mapas.gd
-var _talentos_overlay = null
-var _talentos_panel = null
-var _talentos_scroll: ScrollContainer = null
-var _nexo_btn: Button = null
 var _nexo_overlay: Control = null
-var _talentos_content_y_off: float = 0.0
 var _cfg_nome_antigo: String = ""
 var _hist_overlay = null
 var _hist_panel = null
@@ -113,7 +104,6 @@ var _aval_conteudo: Control = null
 var _mod_ranking = null  # modulo scripts/menu/ranking.gd
 var _ui_ref = null
 var _ui_main: CanvasLayer = null
-var _tree_tweens: Array = []
 var _menu_contents: Control = null
 var _menu_comandante_atual: String = ""
 var _discord_premio_poll_ativo: bool = false
@@ -123,37 +113,6 @@ var _cyron_popup_overlay: CanvasLayer = null
 var _menu_hint_popup: Control = null
 var _menu_hint_seq: int = 0
 
-var _tab_talentos: String = "ramos"
-var _talento_pendente: String = ""
-var _talento_pendente_toques: int = 0
-var _talento_detalhe_nome: Label = null
-var _talento_detalhe_sub: Label = null
-var _talento_detalhe_desc: Label = null
-var _talento_detalhe_estado: Label = null
-var _talento_detalhe_pontos: Label = null
-var _talento_detalhe_cover: Control = null
-var _talento_reset_btn: Button = null
-var _talento_reset_confirmar: bool = false
-var _talent_map_bg_rect: TextureRect = null
-var _talent_constellation_layer: Control = null
-var _talent_map_hitboxes: Dictionary = {}
-var _talent_map_pan: Vector2 = Vector2.ZERO
-var _talent_map_zoom: float = 0.0
-var _talent_map_dragging: bool = false
-var _talent_map_drag_last: Vector2 = Vector2.ZERO
-var _talent_calibration_active: bool = false
-var _talent_calibration_area_mode: bool = false
-var _talent_calibration_index: int = 0
-var _talent_calibration_group_index: int = 0
-var _talent_calibration_positions: Dictionary = {}
-var _talent_calibration_groups_by_id: Dictionary = {}
-var _talent_calibration_notes_by_id: Dictionary = {}
-var _talent_calibration_text_rect_norm: Rect2 = Rect2(0.022, 0.330, 0.190, 0.575)
-var _talent_calibration_layer: Control = null
-var _talent_calibration_desc_edit: LineEdit = null
-var _talent_calibration_dragging: bool = false
-var _talent_calibration_drag_start: Vector2 = Vector2.ZERO
-var _talent_calibration_drag_current: Vector2 = Vector2.ZERO
 
 var _tut_overlay  : CanvasLayer = null
 var _tut_jogar_rect  : Rect2 = Rect2()
@@ -172,7 +131,6 @@ func _ready() -> void :
 	_carregar_fonte_titulo()
 	_deco_mobs.clear()
 	_desativar_fundo_antigo_menu()
-	_load_talent_calibration()
 	_last_viewport_size = get_viewport().get_visible_rect().size
 	_construir_ui()
 	_configurar_discord_link()
@@ -258,10 +216,6 @@ func _unhandled_input(event: InputEvent) -> void :
 
 
 func _input(event: InputEvent) -> void:
-	if _handle_talent_calibration_input(event):
-		return
-	if _handle_talent_map_navigation_input(event):
-		return
 	_handle_inventario_wheel(event)
 
 
@@ -326,7 +280,7 @@ func _bytes_utf8_validos(bytes: PackedByteArray) -> bool:
 
 func _texto_ui_limpador_manual(txt: String) -> String:
 	var s := txt
-	s = s.replace("âš ", "[!]")
+	s = s.replace("⚠", "[!]")
 	s = s.replace("âš”", "ATK")
 	s = s.replace("â˜…", "*")
 	s = s.replace("â˜ ", "KO")
@@ -342,7 +296,7 @@ func _texto_ui_limpador_manual(txt: String) -> String:
 	s = s.replace("â—†", "◆")
 	s = s.replace("â—", "●")
 	s = s.replace("â—‹", "○")
-	s = s.replace("â€¢", "•")
+	s = s.replace("•", "•")
 	s = s.replace("â€¦", "...")
 	s = s.replace("â€™", "'")
 	s = s.replace("â€˜", "'")
@@ -480,8 +434,6 @@ func _tela_aberta_por_resize() -> String:
 		return "loja"
 	if _nexo_overlay and is_instance_valid(_nexo_overlay):
 		return "talentos"
-	if _talentos_overlay and is_instance_valid(_talentos_overlay):
-		return "talentos"
 	if _mod_ranking and _mod_ranking._ranking_overlay and is_instance_valid(_mod_ranking._ranking_overlay):
 		return "ranking"
 	if _mod_cfg and _mod_cfg._config_overlay and is_instance_valid(_mod_cfg._config_overlay):
@@ -499,10 +451,6 @@ func _tela_aberta_por_resize() -> String:
 
 func _limpar_referencias_ui_por_resize() -> void:
 	_limpar_scroll_mochila()
-	for tw in _tree_tweens:
-		if is_instance_valid(tw):
-			(tw as Tween).kill()
-	_tree_tweens.clear()
 	if _ui_main and is_instance_valid(_ui_main):
 		_ui_main.hide()
 		_ui_main.queue_free()
@@ -517,15 +465,7 @@ func _limpar_referencias_ui_por_resize() -> void:
 		_mod_inv.limpar_refs()
 	if _mod_loja:
 		_mod_loja.limpar_refs()
-	_talentos_overlay = null
-	_talentos_panel = null
-	_talentos_scroll = null
 	_nexo_overlay = null
-	_nexo_btn = null
-	_talent_map_bg_rect = null
-	_talent_map_hitboxes.clear()
-	_talento_detalhe_cover = null
-	_talento_reset_btn = null
 	if _mod_cfg:
 		_mod_cfg.limpar_refs()
 	_hist_overlay = null
@@ -734,9 +674,9 @@ func _construir_ui() -> void :
 	mc.add_child(diff_lbl)
 
 	var diff_dados := [
-		["FÃCIL",   0, Color(0.1, 0.88, 0.42)],
+		["FÁCIL",   0, Color(0.1, 0.88, 0.42)],
 		["NORMAL",  1, Color(0.0, 0.72, 1.0)],
-		["DIFÃCIL", 2, Color(1.0, 0.28, 0.18)],
+		["DIFÍCIL", 2, Color(1.0, 0.28, 0.18)],
 		["ABISMO",  3, Color(0.85, 0.18, 0.18)],
 	]
 	var diff_unlock := [
@@ -796,7 +736,7 @@ func _construir_ui() -> void :
 					"Modo Abismo. Partida sem fim com dificuldade crescente.",
 					_jogar_abismo)
 				return
-			var descs_dif := ["FÃ¡cil. Score x0.4.", "Normal. Score x1.0.", "DifÃ­cil. Score x1.6. Cristal extra por wave."]
+			var descs_dif := ["Fácil. Score x0.4.", "Normal. Score x1.0.", "Difícil. Score x1.6. Cristal extra por wave."]
 			Acessibilidade.processar("dificuldade_" + str(didx_cap), descs_dif[didx_cap], func():
 				Salvar.dificuldade = didx_cap
 				Salvar.salvar()
@@ -846,7 +786,7 @@ func _construir_ui() -> void :
 		btn_jogar.disabled = true
 		btn_jogar.modulate = Color(0.4, 0.4, 0.4, 0.6)
 		var lbloq:= Label.new()
-		lbloq.text = "âš   Save requer v%d+  â€”  Atualize o jogo" % Salvar.versao_max_jogada
+		lbloq.text = "⚠  Save requer v%d+  —  Atualize o jogo" % Salvar.versao_max_jogada
 		lbloq.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		lbloq.position = Vector2(0, mb_y - 22)
 		lbloq.size = Vector2(vp_w, 20)
@@ -877,7 +817,7 @@ func _construir_ui() -> void :
 	_tut_inv_rect = Rect2(mb_x, mb_y, mb_w, mb_h)
 	btn_inv.pressed.connect(func():
 		Acessibilidade.processar("menu_inventario",
-			"InventÃ¡rio. Veja e equipe itens na sua torre.",
+			"Inventário. Veja e equipe itens na sua torre.",
 			func(): _abrir_inventario(ui)))
 	mc.add_child(btn_inv)
 	mb_y += mb_h + mb_gap
@@ -891,13 +831,13 @@ func _construir_ui() -> void :
 	mc.add_child(btn_tal)
 	mb_y += mb_h + mb_gap
 
-	var btn_hist:= _criar_btn("ESTATÃSTICAS", Vector2(mb_x, mb_y), Color(0.1, 0.85, 0.6), mb_sz)
+	var btn_hist:= _criar_btn("ESTATÍSTICAS", Vector2(mb_x, mb_y), Color(0.1, 0.85, 0.6), mb_sz)
 	_tut_hist_rect = Rect2(8, 8, 80, 120)
 	btn_hist.visible = false
 	btn_hist.disabled = true
 	btn_hist.pressed.connect( func():
 		Acessibilidade.processar("menu_stats", 
-			"EstatÃ­sticas. Ver histÃ³rico das Ãºltimas partidas e recordes.", 
+			"Estatísticas. Ver histórico das últimas partidas e recordes.", 
 			func(): _abrir_hist(ui)))
 	mc.add_child(btn_hist)
 
@@ -930,7 +870,7 @@ func _construir_ui() -> void :
 	_ui_tech_label(btn_cfg, 1.0)
 	btn_cfg.pressed.connect( func():
 		Acessibilidade.processar("menu_config", 
-			"ConfiguraÃ§Ãµes. Ajustar volume de som, mÃºsica, dificuldade e acessibilidade.", 
+			"Configurações. Ajustar volume de som, música, dificuldade e acessibilidade.", 
 			func(): _abrir_config(ui)))
 	mc.add_child(btn_cfg)
 
@@ -956,7 +896,7 @@ func _construir_ui() -> void :
 
 	var btn_rank:= _ui_image_menu_button(MENU_RANKING_TEXTURE, Vector2(quick_x, quick_y + quick_sz.y + quick_gap), quick_sz)
 	btn_rank.pressed.connect( func():
-		if not (_mod_ranking and _mod_ranking._ranking_overlay) and not (_mod_cfg and _mod_cfg._config_overlay) and not (_mod_loja and _mod_loja._loja_overlay) and not _talentos_overlay:
+		if not (_mod_ranking and _mod_ranking._ranking_overlay) and not (_mod_cfg and _mod_cfg._config_overlay) and not (_mod_loja and _mod_loja._loja_overlay) and not _nexo_overlay:
 			_abrir_ranking(ui))
 	mc.add_child(btn_rank)
 
@@ -1055,7 +995,7 @@ func _criar_btn(texto: String, pos: Vector2, cor: Color, sz: Vector2 = Vector2(3
 			kind = "jogar"; sub = "ENTRAR EM BATALHA"
 		"LOJA":
 			kind = "loja"; sub = "ADQUIRA RECURSOS"
-		"INVENTÁRIO", "INVENT\u00c1RIO", "INVENTÃRIO", "INVENTÃƒÂRIO":
+		"INVENTÁRIO", "INVENT\u00c1RIO", "INVENTÁRIO", "INVENTÃÂRIO":
 			kind = "inventario"; sub = "GERENCIE SEUS ITENS"
 		"TECNOLOGIAS":
 			kind = "talentos"; sub = "CENTRO TECNOLOGICO"
@@ -2921,7 +2861,7 @@ func _perfil_nome_curto() -> String:
 	var nome: String = Salvar.nome_jogador.strip_edges()
 	if nome == "":
 		return "sem nome"
-	return nome.left(12) + ("â€¦" if nome.length() > 12 else "")
+	return nome.left(12) + ("…" if nome.length() > 12 else "")
 
 
 const _AVATAR_NOMES:= ["Iniciais", "Torre", "Berserker", "Raio", "Boss"]
@@ -3120,7 +3060,7 @@ func _on_perfil_input(event: InputEvent) -> void :
 	if _is_primary_press(event):
 		if (
 			not _perfil_overlay and not (_mod_cfg and _mod_cfg._config_overlay) and not (_mod_loja and _mod_loja._loja_overlay)
-			and not _talentos_overlay and not (_mod_ranking and _mod_ranking._ranking_overlay)
+			and not _nexo_overlay and not (_mod_ranking and _mod_ranking._ranking_overlay)
 		):
 			_abrir_perfil(_ui_main)
 
@@ -3299,7 +3239,7 @@ func _abrir_perfil(ui: CanvasLayer) -> void :
 
 		if not _tem_email:
 			var aviso:= Label.new()
-			aviso.text = "Adicione um e-mail para recuperar sua conta caso esqueÃ§a a senha."
+			aviso.text = "Adicione um e-mail para recuperar sua conta caso esqueça a senha."
 			aviso.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 			aviso.autowrap_mode = TextServer.AUTOWRAP_WORD
 			aviso.position = Vector2(40, 254)
@@ -3363,7 +3303,7 @@ func _abrir_perfil(ui: CanvasLayer) -> void :
 					sl.text = "E-mail salvo!"
 					sl.add_theme_color_override("font_color", Color(0.4, 1.0, 0.55))
 				else:
-					sl.text = "Senha incorreta ou erro de conexÃ£o."
+					sl.text = "Senha incorreta ou erro de conexão."
 					sl.add_theme_color_override("font_color", Color(1.0, 0.4, 0.35))
 			if not RankingOnline.email_atualizado.is_connected(_email_conn):
 				RankingOnline.email_atualizado.connect(_email_conn)
@@ -3373,14 +3313,14 @@ func _abrir_perfil(ui: CanvasLayer) -> void :
 				var sw: String = senha_ed.text.strip_edges()
 				var sl: Label = pnl.get_node_or_null("StatusEmail") as Label
 				if em == "" or "@" not in em:
-					if sl: sl.text = "E-mail invÃ¡lido"
+					if sl: sl.text = "E-mail inválido"
 					if sl: sl.add_theme_color_override("font_color", Color(1.0, 0.88, 0.2))
 					return
 				if sw == "":
 					if sl: sl.text = "Digite sua senha"
 					if sl: sl.add_theme_color_override("font_color", Color(1.0, 0.88, 0.2))
 					return
-				if sl: sl.text = "Salvandoâ€¦"
+				if sl: sl.text = "Salvando…"
 				if sl: sl.add_theme_color_override("font_color", Color(0.6, 0.8, 1.0))
 				RankingOnline.adicionar_email(Salvar.nome_jogador, sw, em)
 			)
@@ -3444,7 +3384,7 @@ func _abrir_perfil(ui: CanvasLayer) -> void :
 
 		var _rec_y: float = _av_y + 26 + av_size + 20
 
-		# â”€â”€ TÃ­tulo MEUS RECORDES â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+		# ── Título MEUS RECORDES ────────────────────────────────────────────
 		var sep_rec:= ColorRect.new()
 		sep_rec.color = Color(_perfil_cor().r, _perfil_cor().g, _perfil_cor().b, 0.18)
 		sep_rec.position = Vector2(30, _rec_y)
@@ -3459,7 +3399,7 @@ func _abrir_perfil(ui: CanvasLayer) -> void :
 		lrec.add_theme_color_override("font_color", Color(0.5, 0.6, 0.8, 0.75))
 		pnl.add_child(lrec)
 
-		# â”€â”€ Painel de fundo da tabela â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+		# ── Painel de fundo da tabela ────────────────────────────────────────
 		var rec_bg := Panel.new()
 		rec_bg.position = Vector2(30, _rec_y + 32)
 		rec_bg.size = Vector2(pw - 60.0, 142)
@@ -3472,7 +3412,7 @@ func _abrir_perfil(ui: CanvasLayer) -> void :
 		rec_bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		pnl.add_child(rec_bg)
 
-		# â”€â”€ CabeÃ§alho da tabela â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+		# ── Cabeçalho da tabela ──────────────────────────────────────────────
 		var hdr_bg := ColorRect.new()
 		hdr_bg.color = Color(0.12, 0.16, 0.26, 0.80)
 		hdr_bg.position = Vector2(0, 0); hdr_bg.size = Vector2(pw - 60.0, 26)
@@ -3497,7 +3437,7 @@ func _abrir_perfil(ui: CanvasLayer) -> void :
 		sep_hdr.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		rec_bg.add_child(sep_hdr)
 
-		# â”€â”€ Linhas de dados â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+		# ── Linhas de dados ──────────────────────────────────────────────────
 		var rec_dados:= [
 			["Fácil",   Salvar.melhor_wave_facil,   Salvar.high_score_facil,   Color(0.1, 0.88, 0.42)],
 			["Normal",  Salvar.melhor_wave_normal,  Salvar.high_score_normal,  Color(0.0, 0.72, 1.0)],
@@ -3535,7 +3475,7 @@ func _abrir_perfil(ui: CanvasLayer) -> void :
 			rec_bg.add_child(lname)
 
 			var lwave := Label.new()
-			lwave.text = "%d" % rwave if rwave > 0 else "â€”"
+			lwave.text = "%d" % rwave if rwave > 0 else "—"
 			lwave.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 			lwave.position = Vector2(140, ry + 5); lwave.size = Vector2(90, 20)
 			lwave.add_theme_font_size_override("font_size", 14)
@@ -3545,7 +3485,7 @@ func _abrir_perfil(ui: CanvasLayer) -> void :
 			rec_bg.add_child(lwave)
 
 			var lscore := Label.new()
-			lscore.text = _format_num(rscore) if rscore > 0 else "â€”"
+			lscore.text = _format_num(rscore) if rscore > 0 else "—"
 			lscore.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 			lscore.position = Vector2(240, ry + 5); lscore.size = Vector2(pw - 60.0 - 250.0, 20)
 			lscore.add_theme_font_size_override("font_size", 14)
@@ -3614,9 +3554,9 @@ func _abrir_perfil(ui: CanvasLayer) -> void :
 			cont_ent.visible = not reg
 
 
-		var nome_reg: LineEdit = _perfil_add_field(cont_reg, "Nome no ranking:", 6, "Apelido (mÃ¡x 20)", false, 20, _sty_input)
+		var nome_reg: LineEdit = _perfil_add_field(cont_reg, "Nome no ranking:", 6, "Apelido (máx 20)", false, 20, _sty_input)
 		var email_reg: LineEdit = _perfil_add_field(cont_reg, "E-mail:", 76, "seu@email.com", false, 80, _sty_input)
-		var senha_reg: LineEdit = _perfil_add_field(cont_reg, "Criar senha:", 146, "MÃ­nimo 4 caracteres", true, 40, _sty_input)
+		var senha_reg: LineEdit = _perfil_add_field(cont_reg, "Criar senha:", 146, "Mínimo 4 caracteres", true, 40, _sty_input)
 		nome_reg.name = "NomeReg"
 		email_reg.name = "EmailReg"
 		senha_reg.name = "SenhaReg"
@@ -3676,10 +3616,10 @@ func _abrir_perfil(ui: CanvasLayer) -> void :
 			if nm == "":
 				sl.text = "Digite um nome";sl.add_theme_color_override("font_color", Color(1.0, 0.88, 0.2));return
 			if em == "" or "@" not in em:
-				sl.text = "Digite um e-mail vÃ¡lido";sl.add_theme_color_override("font_color", Color(1.0, 0.88, 0.2));return
+				sl.text = "Digite um e-mail válido";sl.add_theme_color_override("font_color", Color(1.0, 0.88, 0.2));return
 			if sw.length() < 4:
-				sl.text = "Senha muito curta (mÃ­n. 4)";sl.add_theme_color_override("font_color", Color(1.0, 0.88, 0.2));return
-			sl.text = "Registrandoâ€¦";sl.add_theme_color_override("font_color", Color(0.6, 0.8, 1.0))
+				sl.text = "Senha muito curta (mín. 4)";sl.add_theme_color_override("font_color", Color(1.0, 0.88, 0.2));return
+			sl.text = "Registrando…";sl.add_theme_color_override("font_color", Color(0.6, 0.8, 1.0))
 			RankingOnline.registrar_nome(nm, em, sw)
 		)
 
@@ -3755,7 +3695,7 @@ func _abrir_perfil(ui: CanvasLayer) -> void :
 				sl.text = "Digite seu nome ou e-mail";sl.add_theme_color_override("font_color", Color(1.0, 0.88, 0.2));return
 			if sw == "":
 				sl.text = "Digite sua senha";sl.add_theme_color_override("font_color", Color(1.0, 0.88, 0.2));return
-			sl.text = "Verificandoâ€¦";sl.add_theme_color_override("font_color", Color(0.6, 0.8, 1.0))
+			sl.text = "Verificando…";sl.add_theme_color_override("font_color", Color(0.6, 0.8, 1.0))
 			RankingOnline.verificar_login(id, sw, Callable())
 		)
 
@@ -4278,30 +4218,30 @@ func _abrir_hist(_ui: CanvasLayer) -> void :
 		"vel": {"nome": "Projétil Sônico", "cor": Color(0.95, 0.95, 0.12)},
 		"escudo": {"nome": "Escudo Arcano", "cor": Color(0.2, 0.6, 1.0)},
 		"dano": {"nome": "Dano", "cor": Color(1.0, 0.42, 0.1)}, 
-		"cadencia": {"nome": "CadÃªncia", "cor": Color(0.75, 0.2, 1.0)}, 
+		"cadencia": {"nome": "Cadência", "cor": Color(0.75, 0.2, 1.0)}, 
 		"alcance": {"nome": "Alcance", "cor": Color(0.12, 0.62, 1.0)}, 
 		"vida": {"nome": "Vida / Cura", "cor": Color(0.12, 1.0, 0.45)}, 
 		"pierce": {"nome": "Bala Perfurante", "cor": Color(1.0, 0.88, 0.12)}, 
-		"multi": {"nome": "CanhÃ£o Duplo", "cor": Color(0.12, 1.0, 0.88)}, 
-		"speed": {"nome": "ProjÃ©til SÃ´nico", "cor": Color(0.95, 0.95, 0.12)}, 
-		"regen": {"nome": "RegeneraÃ§Ã£o", "cor": Color(0.4, 1.0, 0.55)}, 
+		"multi": {"nome": "Canhão Duplo", "cor": Color(0.12, 1.0, 0.88)}, 
+		"speed": {"nome": "Projétil Sônico", "cor": Color(0.95, 0.95, 0.12)}, 
+		"regen": {"nome": "Regeneração", "cor": Color(0.4, 1.0, 0.55)}, 
 		"reducao": {"nome": "Escudo Arcano", "cor": Color(0.2, 0.6, 1.0)}, 
 		"ouro": {"nome": "Toque de Midas", "cor": Color(1.0, 0.82, 0.1)}, 
 		"fragmento": {"nome": "Fragmento Arcano", "cor": Color(1.0, 0.65, 0.0)}, 
 		"raio": {"nome": "Raio Arcano", "cor": Color(0.4, 0.72, 1.0)}, 
-		"corrente": {"nome": "Corrente ElÃ©trica", "cor": Color(0.25, 0.95, 1.0)}, 
+		"corrente": {"nome": "Corrente Elétrica", "cor": Color(0.25, 0.95, 1.0)}, 
 		"veneno": {"nome": "Veneno Arcano", "cor": Color(0.25, 1.0, 0.2)}, 
-		"critico": {"nome": "Golpe CrÃ­tico", "cor": Color(1.0, 0.5, 0.05)}, 
-		"explosao": {"nome": "ExplosÃ£o Mortal", "cor": Color(1.0, 0.38, 0.05)}, 
-		"chama": {"nome": "Chama PerpÃ©tua", "cor": Color(1.0, 0.58, 0.08)}, 
+		"critico": {"nome": "Golpe Crítico", "cor": Color(1.0, 0.5, 0.05)}, 
+		"explosao": {"nome": "Explosão Mortal", "cor": Color(1.0, 0.38, 0.05)}, 
+		"chama": {"nome": "Chama Perpétua", "cor": Color(1.0, 0.58, 0.08)}, 
 		"overdrive": {"nome": "Overdrive", "cor": Color(1.0, 0.8, 0.0)}, 
 		"armadura_i": {"nome": "Armadura Invertida", "cor": Color(0.85, 0.25, 0.95)}, 
-		"bencao": {"nome": "BÃªnÃ§Ã£o de Energia", "cor": Color(1.0, 0.95, 0.25)}, 
+		"bencao": {"nome": "Bênção de Energia", "cor": Color(1.0, 0.95, 0.25)}, 
 		"saque": {"nome": "Saque em Massa", "cor": Color(1.0, 0.82, 0.08)}, 
-		"recuperacao": {"nome": "RecuperaÃ§Ã£o RÃ¡pida", "cor": Color(0.25, 1.0, 0.5)}, 
+		"recuperacao": {"nome": "Recuperação Rápida", "cor": Color(0.25, 1.0, 0.5)}, 
 		"tempestade": {"nome": "Tempestade Arcana", "cor": Color(0.55, 0.8, 1.0)}, 
 		"fissura": {"nome": "Fissura Venenosa", "cor": Color(0.38, 1.0, 0.3)}, 
-		"cacador": {"nome": "CaÃ§ador de Fantasmas", "cor": Color(0.88, 0.55, 1.0)}, 
+		"cacador": {"nome": "Caçador de Fantasmas", "cor": Color(0.88, 0.55, 1.0)}, 
 		"rajada": {"nome": "Rajada de Tiros", "cor": Color(1.0, 0.72, 0.15)}, 
 		"carga": {"nome": "Tiro Carregado", "cor": Color(0.88, 0.3, 0.05)}, 
 		"gelo": {"nome": "Campo de Gelo", "cor": Color(0.45, 0.82, 1.0)}, 
@@ -4427,7 +4367,7 @@ func _abrir_hist(_ui: CanvasLayer) -> void :
 	cy += 16.0
 
 	var hist_hdr:= Label.new()
-	hist_hdr.text = "ÃšLTIMAS 10 PARTIDAS"
+	hist_hdr.text = "ÚLTIMAS 10 PARTIDAS"
 	hist_hdr.position = Vector2(0, cy)
 	hist_hdr.size = Vector2(450, 40)
 	hist_hdr.add_theme_font_size_override("font_size", 24)
@@ -4435,7 +4375,7 @@ func _abrir_hist(_ui: CanvasLayer) -> void :
 	left_cont_g.add_child(hist_hdr)
 	cy += 44.0
 
-	const _DIFF_NOMES: Array = ["FÃCIL", "NORMAL", "DIFÃCIL", "ABISMO"]
+	const _DIFF_NOMES: Array = ["FÁCIL", "NORMAL", "DIFÍCIL", "ABISMO"]
 	const _DIFF_CORES: Array = [Color(0.1, 0.88, 0.42), Color(0.2, 1.0, 0.55), Color(1.0, 0.65, 0.15), Color(1.0, 0.32, 0.32)]
 
 	if Salvar.historico_partidas.is_empty():
@@ -4558,7 +4498,7 @@ func _abrir_hist(_ui: CanvasLayer) -> void :
 
 	if partidas == 0:
 		var nota:= Label.new()
-		nota.text = "Jogue algumas partidas para acumular estatÃ­sticas!"
+		nota.text = "Jogue algumas partidas para acumular estatísticas!"
 		nota.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		nota.position = Vector2(0, 550)
 		nota.size = Vector2(1000, 28)
@@ -4612,28 +4552,28 @@ func _abrir_tutorial() -> void:
 
 	var passos := [
 		{"titulo": "Bem-vindo ao Cyron Defense!",
-		 "texto": "VocÃª controla uma torre que defende contra\nondas de inimigos cada vez mais fortes.\nVamos aprender a jogar passo a passo!",
+		 "texto": "Você controla uma torre que defende contra\nondas de inimigos cada vez mais fortes.\nVamos aprender a jogar passo a passo!",
 		 "rect": Rect2(), "cor": Color(0.25, 0.78, 1.0)},
 		{"titulo": "DIFICULDADE",
-		 "texto": "Escolha a dificuldade aqui antes de jogar.\nComece pelo FÃCIL para aprender!\nModos mais difÃ­ceis se desbloqueiam com o tempo.",
+		 "texto": "Escolha a dificuldade aqui antes de jogar.\nComece pelo FÁCIL para aprender!\nModos mais difíceis se desbloqueiam com o tempo.",
 		 "rect": _tut_diff_rect, "cor": Color(0.25, 0.78, 1.0)},
 		{"titulo": "JOGAR",
-		 "texto": "Clique aqui para iniciar uma partida.\nSua torre ATIRA AUTOMATICAMENTE nos inimigos.\nSobreviva o mÃ¡ximo de waves possÃ­vel!",
+		 "texto": "Clique aqui para iniciar uma partida.\nSua torre ATIRA AUTOMATICAMENTE nos inimigos.\nSobreviva o máximo de waves possível!",
 		 "rect": _tut_jogar_rect, "cor": Color(0.0, 0.72, 1.0)},
 		{"titulo": "LOJA",
-		 "texto": "Use o ouro ganho nas partidas para comprar\nmelhorias PERMANENTES da sua torre.\nForÃ§a, ResistÃªncia, VisÃ£o, CadÃªncia e Fortuna.",
+		 "texto": "Use o ouro ganho nas partidas para comprar\nmelhorias PERMANENTES da sua torre.\nForça, Resistência, Visão, Cadência e Fortuna.",
 		 "rect": _tut_loja_rect, "cor": Color(1.0, 0.78, 0.0)},
-		{"titulo": "INVENTÃRIO",
-		 "texto": "Equipe Skins que dÃ£o bÃ´nus Ã  torre,\nComandantes que operam a torre por vocÃª\ne Habilidades especiais ativÃ¡veis em jogo.",
+		{"titulo": "INVENTÁRIO",
+		 "texto": "Equipe Skins que dão bônus Ã  torre,\nComandantes que operam a torre por você\ne Habilidades especiais ativáveis em jogo.",
 		 "rect": _tut_inv_rect, "cor": Color(0.35, 0.82, 0.6)},
 		{"titulo": "TALENTOS",
-		 "texto": "Desbloqueie Talentos com cristais ganhos nas partidas.\nDÃ£o bÃ´nus PERMANENTES a cada partida.\nConstrua uma Ã¡rvore poderosa ao longo do tempo!",
+		 "texto": "Desbloqueie Talentos com cristais ganhos nas partidas.\nDão bônus PERMANENTES a cada partida.\nConstrua uma árvore poderosa ao longo do tempo!",
 		 "rect": _tut_tal_rect, "cor": Color(0.5, 0.25, 1.0)},
-		{"titulo": "ESTATÃSTICAS",
-		 "texto": "Acompanhe seu progresso: recordes,\nhistÃ³rico de partidas e mobs eliminados.\nCompita no RANKING GLOBAL com outros jogadores!",
+		{"titulo": "ESTATÍSTICAS",
+		 "texto": "Acompanhe seu progresso: recordes,\nhistórico de partidas e mobs eliminados.\nCompita no RANKING GLOBAL com outros jogadores!",
 		 "rect": _tut_hist_rect, "cor": Color(0.1, 0.85, 0.6)},
 		{"titulo": "Pronto para jogar!",
-		 "texto": "VocÃª aprendeu o bÃ¡sico!\nAgora jogue sua primeira partida no modo FÃCIL.\nDicas em jogo vÃ£o te guiar durante as waves.",
+		 "texto": "Você aprendeu o básico!\nAgora jogue sua primeira partida no modo FÁCIL.\nDicas em jogo vão te guiar durante as waves.",
 		 "rect": Rect2(), "cor": Color(0.25, 0.78, 1.0)},
 	]
 
@@ -4699,7 +4639,7 @@ func _abrir_tutorial() -> void:
 
 	var btn_prox := Button.new()
 	btn_prox.name = "BtnProx"
-	btn_prox.text = "PrÃ³ximo  â†’"
+	btn_prox.text = "Próximo  →"
 	btn_prox.position = Vector2(464, panel_h - 46); btn_prox.size = Vector2(160, 34)
 	btn_prox.focus_mode = Control.FOCUS_NONE
 	btn_prox.add_theme_font_size_override("font_size", 15)
@@ -4726,7 +4666,7 @@ func _abrir_tutorial() -> void:
 
 		var btn_p : Button = btn_prox
 		var eh_ultimo := (idx == total - 1)
-		btn_p.text = "Jogar Agora!" if eh_ultimo else "PrÃ³ximo  â†’"
+		btn_p.text = "Jogar Agora!" if eh_ultimo else "Próximo  →"
 		var sty_nn := sty_n.duplicate() as StyleBoxFlat
 		sty_nn.border_color = Color(cor.r*0.6, cor.g*0.6, cor.b*0.6, 0.85) if not eh_ultimo else Color(0.1,0.65,0.2,0.9)
 		sty_nn.bg_color = Color(0.06,0.14,0.06,0.95) if eh_ultimo else Color(0.06,0.12,0.28,0.95)
@@ -5232,12 +5172,12 @@ const _AVAL_CORES:= [
 	Color(0.25, 0.85, 1.0), Color(1.0, 0.35, 0.35), Color(0.25, 1.0, 0.65)
 ]
 const _AVAL_PERGUNTAS:= [
-	"Como vocÃª avalia a Loja Permanente?\n(upgrades, preÃ§os, variedade)", 
-	"Como vocÃª avalia o sistema de Cartas?\n(variedade, balanceamento, sinergia)", 
-	"Como vocÃª avalia a Ãrvore de Talentos?\n(progressÃ£o, custo, impacto)", 
-	"Como vocÃª avalia as ConfiguraÃ§Ãµes?\n(opÃ§Ãµes disponÃ­veis, acessibilidade)", 
-	"Como vocÃª avalia as Dificuldades?\n(balanceamento, progressÃ£o de dificuldade)", 
-	"AvaliaÃ§Ã£o geral do jogo.\n(experiÃªncia completa, diversÃ£o, vontade de jogar novamente)", 
+	"Como você avalia a Loja Permanente?\n(upgrades, preços, variedade)", 
+	"Como você avalia o sistema de Cartas?\n(variedade, balanceamento, sinergia)", 
+	"Como você avalia a Árvore de Talentos?\n(progressão, custo, impacto)", 
+	"Como você avalia as Configurações?\n(opções disponíveis, acessibilidade)", 
+	"Como você avalia as Dificuldades?\n(balanceamento, progressão de dificuldade)", 
+	"Avaliação geral do jogo.\n(experiência completa, diversão, vontade de jogar novamente)", 
 ]
 
 func _abrir_avaliacao(ui: CanvasLayer) -> void :
@@ -5253,7 +5193,7 @@ func _abrir_avaliacao(ui: CanvasLayer) -> void :
 	ui.add_child(_aval_overlay)
 
 	var tit:= Label.new()
-	tit.text = "AVALIAÃ‡ÃƒO DO JOGO"
+	tit.text = "AVALIAÇÃO DO JOGO"
 	tit.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	tit.position = Vector2(0, 14)
 	tit.size = Vector2(vw, 38)
@@ -5307,7 +5247,7 @@ func _abrir_avaliacao(ui: CanvasLayer) -> void :
 	btn_fechar.pressed.connect(_fechar_avaliacao)
 	_aval_overlay.add_child(btn_fechar)
 	var btn_enviar:= Button.new()
-	btn_enviar.text = "ENVIAR AVALIAÃ‡ÃƒO"
+	btn_enviar.text = "ENVIAR AVALIAÇÃO"
 	btn_enviar.position = Vector2(vw * 0.5 + 20.0, vh - 62.0)
 	btn_enviar.size = Vector2(290, 50)
 	btn_enviar.focus_mode = Control.FOCUS_NONE
@@ -5325,7 +5265,7 @@ func _abrir_avaliacao(ui: CanvasLayer) -> void :
 
 	if Salvar.nome_jogador == "BOSS QUEIXO":
 		var btn_admin:= Button.new()
-		btn_admin.text = "VER AVALIAÃ‡Ã•ES"
+		btn_admin.text = "VER AVALIAÇÃ•ES"
 		btn_admin.position = Vector2(vw - 200.0, 14)
 		btn_admin.size = Vector2(186, 36)
 		btn_admin.focus_mode = Control.FOCUS_NONE
@@ -5377,7 +5317,7 @@ func _aval_trocar_aba(idx: int) -> void :
 			_aval_trocar_aba(_aval_aba))
 		_aval_conteudo.add_child(btn_s)
 
-	var nota_txt:= ["Sem nota", "Ruim", "Regular", "Bom", "Ã“timo", "Excelente"]
+	var nota_txt:= ["Sem nota", "Ruim", "Regular", "Bom", "Ótimo", "Excelente"]
 	var lbl_nota:= Label.new()
 	lbl_nota.text = nota_txt[_aval_notas[idx]]
 	lbl_nota.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -5394,7 +5334,7 @@ func _aval_trocar_aba(idx: int) -> void :
 	_aval_conteudo.add_child(sep)
 
 	var lbl_c:= Label.new()
-	lbl_c.text = "ComentÃ¡rio (opcional):"
+	lbl_c.text = "Comentário (opcional):"
 	lbl_c.position = Vector2(cw * 0.5 - 280.0, 176)
 	lbl_c.size = Vector2(380, 22)
 	lbl_c.add_theme_font_size_override("font_size", 14)
@@ -5405,7 +5345,7 @@ func _aval_trocar_aba(idx: int) -> void :
 	te.text = _aval_textos[idx]
 	te.position = Vector2(cw * 0.5 - 280.0, 200)
 	te.size = Vector2(560, 110)
-	te.placeholder_text = "Escreva seu comentÃ¡rio aqui..."
+	te.placeholder_text = "Escreva seu comentário aqui..."
 	te.add_theme_font_size_override("font_size", 15)
 	var sty_te:= StyleBoxFlat.new()
 	sty_te.bg_color = Color(0.06, 0.07, 0.1)
@@ -5492,7 +5432,7 @@ func _abrir_admin_avaliacoes() -> void :
 	_aval_overlay.add_child(pnl)
 
 	var tit:= Label.new()
-	tit.text = "AVALIAÃ‡Ã•ES RECEBIDAS"
+	tit.text = "AVALIAÇÃ•ES RECEBIDAS"
 	tit.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	tit.position = Vector2(0, 10);tit.size = Vector2(vw, 34)
 	tit.add_theme_font_size_override("font_size", 26)
@@ -5522,7 +5462,7 @@ func _abrir_admin_avaliacoes() -> void :
 		lbl_load.queue_free()
 		if not ok or lista.is_empty():
 			var lbl_vazio:= Label.new()
-			lbl_vazio.text = "Nenhuma avaliaÃ§Ã£o ainda."
+			lbl_vazio.text = "Nenhuma avaliação ainda."
 			lbl_vazio.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 			lbl_vazio.position = Vector2(0, vh * 0.5 - 15)
 			lbl_vazio.size = Vector2(vw, 30)
@@ -5541,7 +5481,7 @@ func _abrir_admin_avaliacoes() -> void :
 				if n > 0: soma += n;cnt += 1
 			medias_txt += "%s: %.1f  " % [ABAS_N[k], soma / cnt if cnt > 0 else 0.0]
 		var lbl_med:= Label.new()
-		lbl_med.text = "MÃ‰DIAS â€” " + medias_txt + "  (%d respostas)" % lista.size()
+		lbl_med.text = "MÉDIAS — " + medias_txt + "  (%d respostas)" % lista.size()
 		lbl_med.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		lbl_med.position = Vector2(10, 48);lbl_med.size = Vector2(vw - 20, 26)
 		lbl_med.add_theme_font_size_override("font_size", 14)
@@ -5584,7 +5524,7 @@ func _abrir_admin_avaliacoes() -> void :
 
 			var data_str: String = str(e.get("criado_em", "")).left(10)
 			var lnome:= Label.new()
-			lnome.text = "%s  â€”  %s" % [str(e.get("nome", "?")), data_str]
+			lnome.text = "%s  —  %s" % [str(e.get("nome", "?")), data_str]
 			lnome.add_theme_font_size_override("font_size", 15)
 			lnome.add_theme_color_override("font_color", Color(0.9, 0.85, 0.5))
 			lnome.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -5641,59 +5581,16 @@ func _abrir_talentos(ui: CanvasLayer) -> void :
 	_abrir_nexo()
 
 
-func _abrir_talentos_classico(ui: CanvasLayer) -> void :
-	if _talentos_overlay:
-		return
-	if _menu_contents:
-		_menu_contents.hide()
-	_debug_garantir_recursos_talentos()
-	_ui_ref = ui
-	var _vp_tal:= get_viewport().get_visible_rect().size
-	_talentos_overlay = ColorRect.new()
-	_talentos_overlay.color = Color(0.02, 0.03, 0.07, 0.92)
-	_talentos_overlay.position = Vector2.ZERO
-	_talentos_overlay.size = _vp_tal
-	ui.add_child(_talentos_overlay)
-	_rebuild_talentos()
-
-
-func _criar_botao_nexo() -> void:
-	if _talentos_panel == null or not is_instance_valid(_talentos_panel):
-		return
-	var vp := get_viewport().get_visible_rect().size
-	_nexo_btn = Button.new()
-	_nexo_btn.text = "◆ VOLTAR AO NEXO"
-	_nexo_btn.size = Vector2(190, 48)
-	_nexo_btn.position = Vector2((vp.x - 240.0) * 0.5 - 210.0, minf(656.0, vp.y - 58.0))
-	_nexo_btn.focus_mode = Control.FOCUS_NONE
-	_nexo_btn.z_index = 30
-	_nexo_btn.add_theme_font_size_override("font_size", 18)
-	_nexo_btn.add_theme_color_override("font_color", Color(0.55, 0.92, 1.0))
-	var sty := StyleBoxFlat.new()
-	sty.bg_color = Color(0.03, 0.10, 0.22, 0.95)
-	sty.border_color = Color(0.30, 0.80, 1.0, 0.9)
-	sty.set_border_width_all(2)
-	sty.set_corner_radius_all(10)
-	_nexo_btn.add_theme_stylebox_override("normal", sty)
-	_nexo_btn.pressed.connect(_abrir_nexo)
-	_talentos_panel.add_child(_nexo_btn)
-
-
 func _abrir_nexo() -> void:
 	if _nexo_overlay and is_instance_valid(_nexo_overlay):
 		return
 	if _ui_ref == null:
 		return
-	_talent_map_dragging = false
-	if _talentos_panel != null and is_instance_valid(_talentos_panel):
-		_talentos_panel.visible = false
 	_nexo_overlay = TALENTOS_V2.new()
 	_ui_ref.add_child(_nexo_overlay)
 	_nexo_overlay.connect("fechado", func():
 		_nexo_overlay = null
-		if _talentos_overlay != null:
-			_rebuild_talentos()
-		elif _menu_contents:
+		if _menu_contents:
 			_menu_contents.show())
 
 
@@ -5709,2120 +5606,6 @@ func _debug_garantir_recursos_talentos() -> void:
 		alterou = true
 	if alterou:
 		Salvar.salvar(false)
-
-
-func _rebuild_talentos() -> void :
-	_talento_pendente = ""
-	_talento_pendente_toques = 0
-	for tw in _tree_tweens:
-		if is_instance_valid(tw):
-			(tw as Tween).kill()
-	_tree_tweens.clear()
-
-	if _talentos_panel != null and is_instance_valid(_talentos_panel):
-		_talentos_panel.queue_free()
-	_talento_reset_confirmar = false
-	var _vp_w: float = get_viewport().get_visible_rect().size.x
-
-
-	var mg: float = 16.0
-	_COL_W = (_vp_w - mg * 2.0) / 10.0
-	_COL_OFF = mg + _COL_W * 0.5
-	_no_half = clampf(_COL_W * 0.24, 28.0, 34.0)
-	_fus_xs = [_vp_w * 0.167, _vp_w * 0.5, _vp_w * 0.833]
-	_fus_ys = [240.0, 440.0]
-	_sit_xs = [_vp_w * 0.125, _vp_w * 0.375, _vp_w * 0.625, _vp_w * 0.875]
-	_sit_y = 230.0
-	_leg_xs = [_vp_w * 0.2, _vp_w * 0.5, _vp_w * 0.8]
-	_leg_y = 450.0
-	if OS.has_feature("android") or OS.has_feature("ios"):
-		_sit_y = 270.0
-		_leg_y = 490.0
-
-	var _SCROLL_Y_OFF: float = 146.0 if (OS.has_feature("android") or OS.has_feature("ios")) else 134.0
-	var _vp_h: float = get_viewport().get_visible_rect().size.y
-	_ROW_H = maxf(80.0, _no_half * 2.0 + 14.0)
-	_ROW_OFF = _SCROLL_Y_OFF + _no_half + 64.0
-
-
-	var _max_tiers: int = 1
-	for _br_k in _BRANCH_TIERS:
-		var _bt: int = (_BRANCH_TIERS[_br_k] as Array).size()
-		if _bt > _max_tiers: _max_tiers = _bt
-	_talentos_content_y_off = _SCROLL_Y_OFF
-	var _content_h: float = (_ROW_OFF - _SCROLL_Y_OFF) + float(_max_tiers) * _ROW_H + _no_half + 30.0
-	if _tab_talentos == "ramos":
-		_content_h = maxf(_content_h, _fan_root_pos().y - _SCROLL_Y_OFF + _no_half * 2.0 + 68.0)
-
-	_talentos_panel = Control.new()
-	_talentos_panel.position = Vector2(0, 0)
-	_talentos_panel.size = Vector2(_vp_w, _vp_h)
-	_talentos_panel.clip_contents = true
-	_ui_ref.add_child(_talentos_panel)
-	_talent_map_hitboxes.clear()
-	_talent_map_bg_rect = null
-	_talent_constellation_layer = null
-
-	var fundo:= ARVORE_FUNDO.new()
-	fundo.size = Vector2(_vp_w, _vp_h)
-	fundo.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	fundo.z_index = 1
-	_talentos_panel.add_child(fundo)
-
-
-	var titulo:= Label.new()
-	titulo.text = "CENTRO  DE  TECNOLOGIA"
-	titulo.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	titulo.position = Vector2(0, 8)
-	titulo.size = Vector2(_vp_w, 34)
-	titulo.z_index = 20
-	titulo.add_theme_font_size_override("font_size", 30)
-	titulo.add_theme_color_override("font_color", Color(0.68, 0.45, 1.0))
-	_ui_title_label(titulo, 4.0)
-	_talentos_panel.add_child(titulo)
-
-	var desbloq: int = Salvar.talentos.size()
-	var total_t: int = Salvar.TALENTOS_INFO.size() - 1
-	var is_mobile_tal : bool = OS.has_feature("android") or OS.has_feature("ios")
-	var info_w : float = minf(420.0, _vp_w - 32.0)
-	var info_bg:= Panel.new()
-	info_bg.position = Vector2((_vp_w - info_w) * 0.5, 43)
-	info_bg.size = Vector2(info_w, 34 if is_mobile_tal else 30)
-	info_bg.z_index = 19
-	var info_sty:= StyleBoxFlat.new()
-	info_sty.bg_color = Color(0.03, 0.04, 0.08, 0.76)
-	info_sty.border_color = Color(0.25, 0.55, 0.8, 0.35)
-	for side in ["left", "right", "top", "bottom"]:
-		info_sty.set("border_width_" + side, 1)
-	for corner in ["top_left", "top_right", "bottom_left", "bottom_right"]:
-		info_sty.set("corner_radius_" + corner, 8)
-	info_bg.add_theme_stylebox_override("panel", info_sty)
-	_talentos_panel.add_child(info_bg)
-	var lc:= Label.new()
-	lc.text = "%d / %d tecnologias" % [desbloq, total_t]
-	lc.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	lc.position = Vector2(0, 46)
-	lc.size = Vector2(_vp_w, 22)
-	lc.z_index = 20
-	lc.add_theme_font_size_override("font_size", 18)
-	lc.add_theme_color_override("font_color", Color(0.55, 0.88, 1.0))
-	_talentos_panel.add_child(lc)
-	var currency_tal_x : float = maxf(14.0, _vp_w - 252.0)
-	var currency_tal_y : float = 12.0
-	_add_currency_status(_talentos_panel, Vector2(currency_tal_x, currency_tal_y), true, 90)
-
-
-	var tabs_data: Array = [
-		["TECNOLOGIAS", "ramos", Color(0.68, 0.45, 1.0)], 
-		["FUSOES", "fusoes", Color(0.4, 0.82, 0.4)], 
-		["PROTOCOLOS", "especiais", Color(0.88, 0.72, 0.28)], 
-	]
-	var tab_w: float = minf(190.0, (_vp_w - 32.0 - 20.0) / 3.0)
-	var tab_gap: float = 10.0
-	var tab_h: float = 52.0 if is_mobile_tal else 44.0
-	var tab_y: float = 84.0 if is_mobile_tal else 78.0
-	var tab_total_w: float = float(tabs_data.size()) * tab_w + float(tabs_data.size() - 1) * tab_gap
-	var tab_x_start: float = (_vp_w - tab_total_w) * 0.5
-	for ti in range(tabs_data.size()):
-		var td: Array = tabs_data[ti] as Array
-		var tbtn:= Button.new()
-		tbtn.text = td[0] as String
-		tbtn.position = Vector2(tab_x_start + float(ti) * (tab_w + tab_gap), tab_y)
-		tbtn.size = Vector2(tab_w, tab_h)
-		tbtn.focus_mode = Control.FOCUS_NONE
-		tbtn.z_index = 20
-		tbtn.add_theme_font_size_override("font_size", 22)
-		var sty_t:= StyleBoxFlat.new()
-		var tab_cor: Color = td[2] as Color
-		var ativo_t: bool = (_tab_talentos == (td[1] as String))
-		sty_t.bg_color = Color(tab_cor.r * 0.2, tab_cor.g * 0.12, tab_cor.b * 0.22, 0.95) if ativo_t else Color(0.04, 0.04, 0.08, 0.88)
-		sty_t.border_color = Color(tab_cor.r, tab_cor.g, tab_cor.b, 0.9) if ativo_t else Color(0.28, 0.24, 0.35)
-		for side in ["left", "right", "top", "bottom"]:
-			sty_t.set("border_width_" + side, 2)
-		for corner in ["top_left", "top_right", "bottom_left", "bottom_right"]:
-			sty_t.set("corner_radius_" + corner, 7)
-		tbtn.add_theme_stylebox_override("normal", sty_t)
-		tbtn.add_theme_color_override("font_color", Color(tab_cor.r + 0.1, tab_cor.g + 0.05, tab_cor.b, 1.0) if ativo_t else Color(0.5, 0.46, 0.58))
-		var tab_id: String = td[1] as String
-		var tab_nom: String = td[0] as String
-		var tab_descs:= {
-			"ramos": "Tecnologias. Mapa orbital de talentos com requisitos interligados a partir do nucleo.", 
-			"fusoes": "Fusoes. Tecnologias especiais que combinam dois ou mais ramos diferentes.", 
-			"especiais": "Protocolos. Tecnologias situacionais e de legado desbloqueadas por conquistas globais.", 
-		}
-		tbtn.pressed.connect( func() -> void :
-			Acessibilidade.processar("tab_talento_" + tab_id, 
-				tab_descs.get(tab_id, tab_nom) as String, 
-				func():
-					_tab_talentos = tab_id
-					_rebuild_talentos()
-			)
-		)
-		_talentos_panel.add_child(tbtn)
-
-
-	var sc:= ScrollContainer.new()
-	sc.position = Vector2(0, _SCROLL_Y_OFF)
-	sc.size = Vector2(_vp_w, maxf(100.0, _vp_h - _SCROLL_Y_OFF - 70.0))
-	sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	sc.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED if _tab_talentos == "ramos" else ScrollContainer.SCROLL_MODE_AUTO
-	sc.mouse_filter = Control.MOUSE_FILTER_STOP
-	sc.z_index = 2
-	_talentos_panel.add_child(sc)
-	_talentos_scroll = sc
-
-	var content:= Control.new()
-	content.custom_minimum_size = Vector2(_vp_w, _content_h)
-	content.mouse_filter = Control.MOUSE_FILTER_PASS
-	sc.add_child(content)
-
-
-	var tooltip:= _mk_tooltip()
-	tooltip.z_index = 30
-	_talentos_panel.add_child(tooltip)
-
-
-	match _tab_talentos:
-		"ramos": _build_tab_ramos(fundo, tooltip, content)
-		"fusoes": _build_tab_fusoes(fundo, tooltip, content)
-		"especiais": _build_tab_especiais(fundo, tooltip, content)
-
-
-	var pode_asc: bool = Salvar.pode_ascender()
-	var total_asc: int = Salvar.talentos_necessarios_ascensao()
-	var liberados_asc: int = Salvar.talentos_liberados_para_ascensao()
-	var proxima_asc: int = Salvar.ascensoes + 1
-	var btn_asc:= Button.new()
-	btn_asc.text = ("ASCENDER +%d" % proxima_asc) if pode_asc else ("ASCENSAO %d/%d" % [liberados_asc, total_asc])
-	var asc_x: float = 24.0
-	var asc_y: float = tab_y + tab_h + 12.0
-	btn_asc.position = Vector2(asc_x, asc_y)
-	btn_asc.size = Vector2(248.0, 38.0)
-	btn_asc.focus_mode = Control.FOCUS_NONE
-	btn_asc.z_index = 20
-	btn_asc.disabled = not pode_asc
-	btn_asc.add_theme_font_size_override("font_size", 17)
-	var sty_a:= StyleBoxFlat.new()
-	sty_a.bg_color = Color(0.22, 0.1, 0.04, 0.95) if pode_asc else Color(0.06, 0.06, 0.08, 0.85)
-	sty_a.border_color = Color(1.0, 0.6, 0.1, 0.8) if pode_asc else Color(0.3, 0.3, 0.32)
-	for side in ["left", "right", "top", "bottom"]:
-		sty_a.set("border_width_" + side, 2)
-	for corner in ["top_left", "top_right", "bottom_left", "bottom_right"]:
-		sty_a.set("corner_radius_" + corner, 10)
-	btn_asc.add_theme_stylebox_override("normal", sty_a)
-	btn_asc.add_theme_color_override("font_color", Color(1.0, 0.72, 0.2) if pode_asc else Color(0.45, 0.45, 0.45))
-	btn_asc.pressed.connect( func() -> void :
-		if Salvar.pode_ascender():
-			_mostrar_confirmacao_ascensao(proxima_asc)
-	)
-	_talentos_panel.add_child(btn_asc)
-
-
-	var btn_f:= Button.new()
-	btn_f.text = "VOLTAR"
-	btn_f.position = Vector2((_vp_w - 240.0) * 0.5, minf(656.0, _vp_h - 58.0))
-	btn_f.size = Vector2(240.0, 48)
-	btn_f.focus_mode = Control.FOCUS_NONE
-	btn_f.z_index = 20
-	btn_f.add_theme_font_size_override("font_size", 27)
-	var sty_f:= StyleBoxFlat.new()
-	sty_f.bg_color = Color(0.08, 0.08, 0.1, 0.95)
-	sty_f.border_color = Color(0.4, 0.4, 0.42)
-	for side in ["left", "right", "top", "bottom"]:
-		sty_f.set("border_width_" + side, 2)
-	for corner in ["top_left", "top_right", "bottom_left", "bottom_right"]:
-		sty_f.set("corner_radius_" + corner, 10)
-	btn_f.add_theme_stylebox_override("normal", sty_f)
-	btn_f.add_theme_color_override("font_color", Color(0.72, 0.72, 0.72))
-	btn_f.pressed.connect( func():
-		Acessibilidade.processar("talentos_fechar", "Voltar do centro de tecnologia.", _fechar_talentos))
-	_talentos_panel.add_child(btn_f)
-	_criar_botao_nexo()
-	_corrigir_textos_ui(_talentos_panel)
-
-
-
-
-
-
-func _mostrar_confirmacao_ascensao(nivel_destino: int) -> void:
-	if _ui_ref == null or not is_instance_valid(_ui_ref):
-		return
-	# Remove confirmacao anterior se existir (em qualquer pai)
-	for _cn in [_talentos_panel, _ui_ref]:
-		if _cn != null and is_instance_valid(_cn) and _cn.has_node("AscensaoConfirm"):
-			_cn.get_node("AscensaoConfirm").queue_free()
-
-	var vp: Vector2 = get_viewport().get_visible_rect().size
-	var overlay := ColorRect.new()
-	overlay.name = "AscensaoConfirm"
-	overlay.color = Color(0.0, 0.0, 0.0, 0.68)
-	overlay.position = Vector2.ZERO
-	overlay.size = vp
-	# Direto no CanvasLayer — acima de tudo, sem conflito de z_index interno
-	overlay.z_index = 200
-	overlay.mouse_filter = Control.MOUSE_FILTER_STOP
-	_ui_ref.add_child(overlay)
-
-	var panel_w: float = minf(640.0, vp.x - 32.0)
-	var panel_h: float = minf(500.0, vp.y - 40.0)
-	var panel := Panel.new()
-	panel.position = Vector2((vp.x - panel_w) * 0.5, (vp.y - panel_h) * 0.5)
-	panel.size = Vector2(panel_w, panel_h)
-	panel.z_index = 0   # filho do overlay — z_index relativo ao pai ja e 200
-	var sty := StyleBoxFlat.new()
-	sty.bg_color = Color(0.025, 0.020, 0.014, 0.97)
-	sty.border_color = Color(1.0, 0.66, 0.12, 0.88)
-	for side in ["left", "right", "top", "bottom"]:
-		sty.set("border_width_" + side, 2)
-	for corner in ["top_left", "top_right", "bottom_left", "bottom_right"]:
-		sty.set("corner_radius_" + corner, 12)
-	panel.add_theme_stylebox_override("panel", sty)
-	overlay.add_child(panel)
-
-	var titulo := Label.new()
-	titulo.text = "ASCENSAO +%d" % nivel_destino
-	titulo.position = Vector2(24.0, 18.0)
-	titulo.size = Vector2(panel_w - 48.0, 42.0)
-	titulo.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	titulo.add_theme_font_size_override("font_size", 30)
-	titulo.add_theme_color_override("font_color", Color(1.0, 0.78, 0.22))
-	_ui_tech_label(titulo, 0.0)
-	panel.add_child(titulo)
-
-	var custo_cristais: int = Salvar.ascensao_custo_cristais()
-	var total_talentos: int = Salvar.talentos_necessarios_ascensao()
-	var talentos_ok: int = Salvar.talentos_liberados_para_ascensao()
-	var bonus_txt: String = Salvar.ascensao_bonus_texto(nivel_destino)
-
-	var btn_w: float = minf(220.0, (panel_w - 76.0) * 0.5)
-	var btn_y: float = panel_h - 60.0
-	var aviso_y: float = btn_y - 32.0
-	var corpo_h: float = aviso_y - 84.0
-
-	var corpo := Label.new()
-	corpo.position = Vector2(24.0, 70.0)
-	corpo.size = Vector2(panel_w - 48.0, corpo_h)
-	corpo.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	corpo.vertical_alignment = VERTICAL_ALIGNMENT_TOP
-	corpo.add_theme_font_size_override("font_size", 15)
-	corpo.add_theme_color_override("font_color", Color(0.86, 0.88, 0.92))
-	_ui_tech_label(corpo, 0.0)
-	corpo.text = (
-		"ZERA: ouro, arvore de talentos, melhorias de loja.\n"
-		+ "MANTEM: cristais, skins, baus, consumiveis, atributos, nivel e recordes.\n\n"
-		+ "⚠  GASTE seu ouro antes — ele sera perdido!\n\n"
-		+ "Custo: %d cristais    Talentos: %d/%d\n\n" % [custo_cristais, talentos_ok, total_talentos]
-		+ "Bonus apos ascensao:\n%s" % bonus_txt
-	)
-	panel.add_child(corpo)
-
-	var aviso := Label.new()
-	aviso.position = Vector2(24.0, aviso_y)
-	aviso.size = Vector2(panel_w - 48.0, 28.0)
-	aviso.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	aviso.add_theme_font_size_override("font_size", 13)
-	aviso.add_theme_color_override("font_color", Color(1.0, 0.54, 0.22))
-	aviso.text = "Confirme somente se quiser gastar os recursos agora."
-	panel.add_child(aviso)
-	var cancelar := Button.new()
-	cancelar.text = "CANCELAR"
-	cancelar.position = Vector2(24.0, btn_y)
-	cancelar.size = Vector2(btn_w, 42.0)
-	cancelar.focus_mode = Control.FOCUS_NONE
-	cancelar.add_theme_font_size_override("font_size", 18)
-	_ui_premium_button(cancelar, Color(0.55, 0.55, 0.60), false)
-	cancelar.pressed.connect(func() -> void:
-		if is_instance_valid(overlay):
-			overlay.queue_free()
-	)
-	panel.add_child(cancelar)
-
-	var confirmar := Button.new()
-	confirmar.text = "ASCENDER"
-	confirmar.position = Vector2(panel_w - btn_w - 24.0, btn_y)
-	confirmar.size = Vector2(btn_w, 42.0)
-	confirmar.focus_mode = Control.FOCUS_NONE
-	confirmar.add_theme_font_size_override("font_size", 18)
-	_ui_premium_button(confirmar, Color(1.0, 0.66, 0.10), true)
-	confirmar.pressed.connect(func() -> void:
-		if Salvar.ascender():
-			Som.upgrade()
-			if is_instance_valid(overlay):
-				overlay.queue_free()
-			# Sincroniza novo nivel de prestigio com servidor imediatamente
-			RankingOnline.envio_inicial()
-			# Atualiza badge no botao de perfil (menu principal)
-			if _perfil_btn and is_instance_valid(_perfil_btn):
-				_perfil_btn.queue_redraw()
-			_rebuild_talentos()
-		else:
-			aviso.text = "Recursos insuficientes ou arvore incompleta."
-			aviso.add_theme_color_override("font_color", Color(1.0, 0.25, 0.22))
-	)
-	panel.add_child(confirmar)
-
-
-var _COL_W: float = 118.0
-var _COL_OFF: float = 79.0
-var _ROW_H: float = 80.0
-var _ROW_OFF: float = 168.0
-var _no_half: float = 40.0
-var _fus_xs: Array = [204.0, 610.0, 1016.0]
-var _fus_ys: Array = [240.0, 430.0]
-var _sit_xs: Array = [153.0, 459.0, 765.0, 1071.0]
-var _sit_y: float = 230.0
-var _leg_xs: Array = [244.0, 610.0, 976.0]
-var _leg_y: float = 440.0
-const _BRANCH_ORDER: Array = ["p", "b", "r", "t", "e", "g", "s", "m", "f", "x"]
-const _BRANCH_NAMES: Array = ["ARSENAL", "RISCO", "DEFESA", "CONTROLE", 
-								"ENERGIA", "CRIO", "SOMBRA", "COMANDO", "RECOMPENSAS", "CAOS"]
-const _BRANCH_TIERS: Dictionary = {
-	"p": ["p1", "p2", "p3", "p4", "p5"], 
-	"b": ["b1", "b2", "b3", "b4"], 
-	"r": ["r1", "r2", "r3", "r4", "token", "r5"], 
-	"t": ["t1", "t2", "t3", "t4"], 
-	"e": ["e1", "e2", "e3", "e4", "e5"], 
-	"g": ["g1", "g2", "g3", "g4"], 
-	"s": ["s1", "s2", "s3", "s4", "s5"], 
-	"m": ["m1", "m2", "m3", "m4"], 
-	"f": ["f1", "f2", "f3", "f4", "f5"], 
-	"x": ["x1", "x2", "x3", "x4"], 
-}
-const _BRANCH_COLORS: Dictionary = {
-	"p": Color(1.0, 0.42, 0.1), 
-	"b": Color(0.88, 0.08, 0.08), 
-	"r": Color(0.12, 0.62, 1.0), 
-	"t": Color(0.52, 0.28, 1.0), 
-	"e": Color(0.22, 0.92, 1.0), 
-	"g": Color(0.18, 0.68, 1.0), 
-	"s": Color(0.62, 0.12, 0.88), 
-	"m": Color(0.75, 0.28, 0.95), 
-	"f": Color(1.0, 0.88, 0.12), 
-	"x": Color(0.95, 0.55, 0.0), 
-}
-const _TECH_TREE_IDS: Array = [
-	"p1", "p2", "p3", "p4", "p5",
-	"b1", "b2", "b3", "b4",
-	"r1", "r2", "r3", "r4", "token", "r5",
-	"t1", "t2", "t3", "t4",
-	"e1", "e2", "e3", "e4", "e5",
-	"g1", "g2", "g3", "g4",
-	"s1", "s2", "s3", "s4", "s5",
-	"m1", "m2", "m3", "m4",
-	"f1", "f2", "f3", "f4", "f5",
-	"x1", "x2", "x3", "x4",
-	"colosso", "predador", "alquim", "tita", "relamp", "canhao_g",
-]
-const _TECH_MAJOR_IDS: Array = [
-	"p3", "p5", "b4", "r3", "token", "r5", "t4", "e4", "e5",
-	"g4", "s4", "s5", "m4", "f5", "x4",
-]
-const _TECH_FUSION_IDS: Array = ["colosso", "predador", "alquim", "tita", "relamp", "canhao_g"]
-const _TECH_TREE_POS: Dictionary = {
-	"p1": Vector2(0.42, 0.42), "p2": Vector2(0.33, 0.37), "p3": Vector2(0.25, 0.32), "p4": Vector2(0.17, 0.27), "p5": Vector2(0.10, 0.21),
-	"b1": Vector2(0.39, 0.50), "b2": Vector2(0.30, 0.55), "b3": Vector2(0.21, 0.59), "b4": Vector2(0.12, 0.65),
-	"r1": Vector2(0.43, 0.58), "r2": Vector2(0.34, 0.68), "r3": Vector2(0.25, 0.76), "r4": Vector2(0.18, 0.84), "token": Vector2(0.12, 0.93), "r5": Vector2(0.28, 0.92),
-	"t1": Vector2(0.49, 0.61), "t2": Vector2(0.45, 0.72), "t3": Vector2(0.43, 0.84), "t4": Vector2(0.40, 0.94),
-	"e1": Vector2(0.54, 0.62), "e2": Vector2(0.57, 0.75), "e3": Vector2(0.57, 0.88), "e4": Vector2(0.52, 0.96), "e5": Vector2(0.63, 0.96),
-	"g1": Vector2(0.60, 0.58), "g2": Vector2(0.69, 0.68), "g3": Vector2(0.77, 0.76), "g4": Vector2(0.85, 0.84),
-	"s1": Vector2(0.61, 0.50), "s2": Vector2(0.72, 0.54), "s3": Vector2(0.83, 0.57), "s4": Vector2(0.92, 0.62), "s5": Vector2(0.95, 0.49),
-	"m1": Vector2(0.60, 0.41), "m2": Vector2(0.70, 0.35), "m3": Vector2(0.80, 0.29), "m4": Vector2(0.89, 0.22),
-	"f1": Vector2(0.55, 0.36), "f2": Vector2(0.62, 0.27), "f3": Vector2(0.67, 0.18), "f4": Vector2(0.72, 0.10), "f5": Vector2(0.57, 0.09),
-	"x1": Vector2(0.46, 0.36), "x2": Vector2(0.42, 0.25), "x3": Vector2(0.36, 0.15), "x4": Vector2(0.30, 0.08),
-	"colosso": Vector2(0.44, 0.47), "predador": Vector2(0.73, 0.50), "alquim": Vector2(0.66, 0.30), "tita": Vector2(0.17, 0.56), "relamp": Vector2(0.70, 0.72), "canhao_g": Vector2(0.49, 0.63),
-}
-const _TECH_CONSTELLATION_POS: Dictionary = {
-	"raiz": Vector2(0.095, 0.500),
-	"m1": Vector2(0.225, 0.040), "m2": Vector2(0.410, 0.040), "m3": Vector2(0.615, 0.040), "m4": Vector2(0.820, 0.040),
-	"f1": Vector2(0.255, 0.140), "f2": Vector2(0.455, 0.140), "f3": Vector2(0.665, 0.140), "f4": Vector2(0.875, 0.140), "f5": Vector2(0.965, 0.140),
-	"p1": Vector2(0.215, 0.250), "p2": Vector2(0.390, 0.250), "p3": Vector2(0.580, 0.250), "p4": Vector2(0.780, 0.250), "p5": Vector2(0.955, 0.250),
-	"t1": Vector2(0.260, 0.360), "t2": Vector2(0.455, 0.360), "t3": Vector2(0.665, 0.360), "t4": Vector2(0.875, 0.360),
-	"e1": Vector2(0.220, 0.475), "e2": Vector2(0.415, 0.475), "e3": Vector2(0.625, 0.475), "e4": Vector2(0.835, 0.475), "e5": Vector2(0.965, 0.475),
-	"s1": Vector2(0.265, 0.585), "s2": Vector2(0.465, 0.585), "s3": Vector2(0.675, 0.585), "s4": Vector2(0.890, 0.585), "s5": Vector2(0.965, 0.585),
-	"x1": Vector2(0.225, 0.695), "x2": Vector2(0.425, 0.695), "x3": Vector2(0.640, 0.695), "x4": Vector2(0.860, 0.695),
-	"g1": Vector2(0.275, 0.800), "g2": Vector2(0.480, 0.800), "g3": Vector2(0.695, 0.800), "g4": Vector2(0.915, 0.800),
-	"r1": Vector2(0.225, 0.900), "r2": Vector2(0.405, 0.900), "r3": Vector2(0.595, 0.900), "r4": Vector2(0.790, 0.900), "token": Vector2(0.860, 0.940), "r5": Vector2(0.965, 0.900),
-	"b1": Vector2(0.295, 0.995), "b2": Vector2(0.500, 0.995), "b3": Vector2(0.710, 0.995), "b4": Vector2(0.930, 0.995),
-	"alquim": Vector2(0.925, 0.040), "canhao_g": Vector2(0.805, 0.800), "colosso": Vector2(0.870, 0.250), "predador": Vector2(0.735, 0.475), "relamp": Vector2(0.755, 0.585), "tita": Vector2(0.150, 0.995),
-}
-const _TALENT_MAP_SAFE_TOP: float = 0.155
-const _TALENT_MAP_SAFE_BOTTOM: float = 0.855
-const _TECH_CONSTELLATIONS: Array = [
-	{"name": "COMANDO", "sub": "MAESTRIA", "color": Color(0.24, 0.95, 0.78), "label": Vector2(0.790, 0.106), "points": ["m1", "m2", "m3", "m4"], "lines": [["m1", "m2"], ["m2", "m3"], ["m3", "m4"], ["m2", "f3"]]},
-	{"name": "FORTUNA", "sub": "RECOMPENSA", "color": Color(1.0, 0.82, 0.16), "label": Vector2(0.785, 0.186), "points": ["f1", "f2", "f3", "f4", "f5"], "lines": [["f1", "f2"], ["f2", "f3"], ["f3", "f4"], ["f4", "f5"], ["f2", "p3"]]},
-	{"name": "ARSENAL", "sub": "DANO", "color": Color(1.0, 0.52, 0.12), "label": Vector2(0.790, 0.266), "points": ["p1", "p2", "p3", "p4", "p5"], "lines": [["p1", "p2"], ["p2", "p3"], ["p3", "p4"], ["p4", "p5"], ["p2", "t2"], ["p3", "colosso"]]},
-	{"name": "TEMPORAL", "sub": "RITMO", "color": Color(0.66, 0.28, 1.0), "label": Vector2(0.790, 0.346), "points": ["t1", "t2", "t3", "t4"], "lines": [["t1", "t2"], ["t2", "t3"], ["t3", "t4"], ["t2", "e3"]]},
-	{"name": "ENERGIA", "sub": "NUCLEO", "color": Color(0.20, 0.86, 1.0), "label": Vector2(0.790, 0.431), "points": ["e1", "e2", "e3", "e4", "e5"], "lines": [["e1", "e2"], ["e2", "e3"], ["e3", "e4"], ["e4", "e5"], ["e3", "s3"], ["e2", "predador"]]},
-	{"name": "SOMBRA", "sub": "CORROSAO", "color": Color(0.70, 0.25, 1.0), "label": Vector2(0.790, 0.516), "points": ["s1", "s2", "s3", "s4", "s5"], "lines": [["s1", "s2"], ["s2", "s3"], ["s3", "s4"], ["s4", "s5"], ["s3", "x3"]]},
-	{"name": "CAOS", "sub": "VARIACAO", "color": Color(0.25, 0.95, 0.92), "label": Vector2(0.790, 0.601), "points": ["x1", "x2", "x3", "x4"], "lines": [["x1", "x2"], ["x2", "x3"], ["x3", "x4"], ["x2", "g2"]]},
-	{"name": "GLACIAL", "sub": "CONTROLE", "color": Color(0.40, 0.78, 1.0), "label": Vector2(0.790, 0.686), "points": ["g1", "g2", "g3", "g4"], "lines": [["g1", "g2"], ["g2", "g3"], ["g3", "g4"], ["g3", "canhao_g"]]},
-	{"name": "DEFESA", "sub": "CASCO", "color": Color(0.28, 0.72, 1.0), "label": Vector2(0.790, 0.771), "points": ["r1", "r2", "r3", "r4", "token", "r5"], "lines": [["r1", "r2"], ["r2", "r3"], ["r3", "r4"], ["r4", "token"], ["token", "r5"], ["r3", "b2"], ["r4", "tita"]]},
-	{"name": "BERSERKER", "sub": "RISCO", "color": Color(1.0, 0.18, 0.12), "label": Vector2(0.790, 0.856), "points": ["b1", "b2", "b3", "b4"], "lines": [["b1", "b2"], ["b2", "b3"], ["b3", "b4"], ["b2", "g2"]]},
-]
-const _TECH_CLUSTER_LABELS: Array = [
-	["ARSENAL", Vector2(0.350, 0.205), "p"],
-	["DEFESA", Vector2(0.360, 0.815), "r"],
-	["ENERGIA", Vector2(0.420, 0.455), "e"],
-	["SOMBRA", Vector2(0.650, 0.605), "s"],
-	["GLACIAL", Vector2(0.515, 0.900), "g"],
-	["COMANDO", Vector2(0.515, 0.110), "m"],
-	["FORTUNA", Vector2(0.655, 0.295), "f"],
-	["BERSERKER", Vector2(0.470, 0.965), "b"],
-	["TEMPORAL", Vector2(0.565, 0.315), "t"],
-	["CAOS", Vector2(0.590, 0.690), "x"],
-]
-const _TALENT_CALIBRATION_GROUPS: Array = [
-	"NUCLEO",
-	"DRACO",
-	"LEAO",
-	"CETUS",
-	"ESCORPIAO",
-	"PEGASO",
-	"FENIX",
-	"VIRGEM",
-	"ANDROMEDA",
-	"URSA MAIOR",
-	"TOURO",
-	"ORION",
-]
-
-
-func _col_center_x(col: int) -> float:
-	return _COL_OFF + float(col) * _COL_W
-
-
-func _tier_center_y(tier: int) -> float:
-	return _ROW_OFF + float(tier) * _ROW_H
-
-
-func _tech_tree_bounds() -> Rect2:
-	var vp: Vector2 = get_viewport().get_visible_rect().size
-	var left: float = maxf(212.0, vp.x * 0.145)
-	var right: float = vp.x - maxf(34.0, vp.x * 0.035)
-	var top: float = 54.0
-	var bottom: float = vp.y - 72.0
-	if bottom < top + 360.0:
-		bottom = top + 360.0
-	return Rect2(left, top, maxf(400.0, right - left), maxf(300.0, bottom - top))
-
-
-func _tech_tree_norm_pos(n: Vector2) -> Vector2:
-	var b: Rect2 = _tech_tree_bounds()
-	var nx: float = clampf(n.x, 0.0, 1.0)
-	var ny: float = clampf(n.y, 0.0, 1.0)
-	return Vector2(
-		lerpf(b.position.x, b.position.x + b.size.x, nx),
-		lerpf(b.position.y + b.size.y, b.position.y, ny)
-	)
-
-
-func _tech_tree_root_pos() -> Vector2:
-	if _TECH_CONSTELLATION_POS.has("raiz"):
-		return _talent_norm_to_screen(_TECH_CONSTELLATION_POS["raiz"] as Vector2)
-	return _tech_tree_norm_pos(Vector2(0.50, 0.50))
-
-
-func _fan_root_pos() -> Vector2:
-	return _tech_tree_root_pos()
-
-
-func _tech_tree_pos(id: String) -> Vector2:
-	if TALENT_USE_CALIBRATION_POSITIONS and _talent_calibration_positions.has(id):
-		return _talent_norm_to_screen(_talent_calibration_positions[id] as Vector2)
-	if _TECH_CONSTELLATION_POS.has(id):
-		return _talent_norm_to_screen(_TECH_CONSTELLATION_POS[id] as Vector2)
-	if _TECH_TREE_POS.has(id):
-		return _tech_tree_norm_pos(_TECH_TREE_POS[id] as Vector2)
-	return Vector2(get_viewport().get_visible_rect().size.x * 0.5, 340.0)
-
-
-func _talento_no_half(id: String) -> float:
-	if id == "raiz":
-		return clampf(_no_half * 1.04, 30.0, 36.0)
-	if _TECH_FUSION_IDS.has(id):
-		return clampf(_no_half * 1.16, 32.0, 40.0)
-	if _TECH_MAJOR_IDS.has(id):
-		return clampf(_no_half * 1.02, 29.0, 35.0)
-	if _tab_talentos == "ramos":
-		return clampf(_no_half * 0.76, 22.0, 27.0)
-	return _no_half
-
-
-func _talent_hitbox_size(id: String) -> Vector2:
-	if _tab_talentos == "ramos":
-		var scale: float = clampf(get_viewport().get_visible_rect().size.x / 1280.0, 0.76, 1.04)
-		if id == "raiz":
-			return Vector2(96.0, 48.0) * scale
-		if _TECH_MAJOR_IDS.has(id):
-			return Vector2(136.0, 42.0) * scale
-		return Vector2(118.0, 36.0) * scale
-	var half: float = maxf(_talento_no_half(id), 26.0)
-	return Vector2(half * 2.0, half * 2.0)
-
-
-func _tech_branch_color_for_id(id: String) -> Color:
-	for br in _BRANCH_ORDER:
-		var tiers: Array = _BRANCH_TIERS[br as String] as Array
-		if tiers.has(id):
-			return _BRANCH_COLORS[br as String] as Color
-	if _TECH_FUSION_IDS.has(id):
-		var info: Dictionary = Salvar.TALENTOS_INFO[id] as Dictionary
-		return info["cor"] as Color
-	var fallback: Dictionary = Salvar.TALENTOS_INFO.get(id, {}) as Dictionary
-	return fallback.get("cor", Color(0.55, 0.82, 1.0)) as Color
-
-
-func _tech_connection_points(from_pos: Vector2, to_pos: Vector2) -> Array:
-	var dx: float = to_pos.x - from_pos.x
-	var dy: float = to_pos.y - from_pos.y
-	if absf(dx) < 36.0 or absf(dy) < 36.0:
-		return [from_pos, to_pos]
-	var bend: Vector2 = Vector2(
-		from_pos.x + dx * 0.52,
-		from_pos.y + dy * 0.48 - clampf(absf(dx) * 0.045, 8.0, 24.0)
-	)
-	return [from_pos, bend, to_pos]
-
-
-func _tech_main_tree_ids() -> Array:
-	var ids: Array = []
-	for tid_any in _TECH_TREE_IDS:
-		var tid: String = tid_any as String
-		if _TECH_FUSION_IDS.has(tid):
-			continue
-		ids.append(tid)
-	return ids
-
-
-func _talent_map_fit_scale(vp: Vector2) -> float:
-	if vp.x <= 0.0 or vp.y <= 0.0:
-		return 1.0
-	return minf(vp.x / TALENT_MAP_SOURCE_SIZE.x, vp.y / TALENT_MAP_SOURCE_SIZE.y)
-
-
-func _talent_map_default_zoom(vp: Vector2) -> float:
-	var fit_scale: float = _talent_map_fit_scale(vp)
-	if fit_scale <= 0.0:
-		return 1.0
-	var cover_scale: float = maxf(vp.x / TALENT_MAP_SOURCE_SIZE.x, vp.y / TALENT_MAP_SOURCE_SIZE.y)
-	return clampf(cover_scale / fit_scale, 1.0, 2.0)
-
-
-func _ensure_talent_map_zoom(vp: Vector2) -> void:
-	if _talent_map_zoom <= 0.0:
-		_talent_map_zoom = _talent_map_default_zoom(vp)
-
-
-func _clamp_talent_map_pan(pan: Vector2, draw_size: Vector2, view_size: Vector2) -> Vector2:
-	var overflow_x: float = maxf(0.0, draw_size.x - view_size.x)
-	return Vector2(
-		clampf(pan.x, -overflow_x, 0.0) if overflow_x > 0.0 else 0.0,
-		0.0
-	)
-
-
-func _talent_map_rect() -> Rect2:
-	var vp: Vector2 = get_viewport().get_visible_rect().size
-	if vp.x <= 0.0 or vp.y <= 0.0:
-		return Rect2(Vector2.ZERO, TALENT_MAP_SOURCE_SIZE)
-	_talent_map_zoom = 1.0
-	var detail_rect: Rect2 = _talent_text_rect_screen()
-	var left: float = detail_rect.end.x + 28.0
-	var top: float = 112.0
-	var right: float = vp.x - 24.0
-	var bottom: float = vp.y - 34.0
-	if OS.has_feature("android") or OS.has_feature("ios"):
-		top = 126.0
-		bottom = vp.y - 44.0
-	var min_w: float = minf(620.0, maxf(280.0, vp.x - left - 24.0))
-	var min_h: float = minf(390.0, maxf(240.0, vp.y - top - 92.0))
-	if right - left < min_w:
-		left = maxf(detail_rect.end.x + 16.0, right - min_w)
-	if bottom - top < min_h:
-		top = maxf(126.0, bottom - min_h)
-	var view_size: Vector2 = Vector2(maxf(280.0, right - left), maxf(220.0, bottom - top))
-	var content_width: float = view_size.x
-	if _tab_talentos == "ramos":
-		content_width = view_size.x * (2.45 if OS.has_feature("android") or OS.has_feature("ios") else 2.30)
-	var content_size: Vector2 = Vector2(maxf(view_size.x, content_width), view_size.y)
-	_talent_map_pan = _clamp_talent_map_pan(_talent_map_pan, content_size, view_size)
-	return Rect2(Vector2(left, top) + _talent_map_pan, content_size)
-
-
-func _mapa_estelar_pos(x: float, y: float) -> Vector2:
-	var r: Rect2 = _talent_map_rect()
-	return r.position + Vector2(x * r.size.x / TALENT_MAP_SOURCE_SIZE.x, y * r.size.y / TALENT_MAP_SOURCE_SIZE.y)
-
-
-func _mapa_estelar_size(w: float, h: float) -> Vector2:
-	var r: Rect2 = _talent_map_rect()
-	return Vector2(w * r.size.x / TALENT_MAP_SOURCE_SIZE.x, h * r.size.y / TALENT_MAP_SOURCE_SIZE.y)
-
-
-func _talent_norm_to_screen(pos: Vector2) -> Vector2:
-	var r: Rect2 = _talent_map_rect()
-	var safe_y: float = lerpf(_TALENT_MAP_SAFE_TOP, _TALENT_MAP_SAFE_BOTTOM, clampf(pos.y, 0.0, 1.0))
-	return r.position + Vector2(pos.x * r.size.x, safe_y * r.size.y)
-
-
-func _talent_screen_to_norm(pos: Vector2) -> Vector2:
-	var r: Rect2 = _talent_map_rect()
-	if r.size.x <= 0.0 or r.size.y <= 0.0:
-		return Vector2.ZERO
-	var raw_y: float = clampf((pos.y - r.position.y) / r.size.y, 0.0, 1.0)
-	var norm_y: float = inverse_lerp(_TALENT_MAP_SAFE_TOP, _TALENT_MAP_SAFE_BOTTOM, raw_y)
-	return Vector2(clampf((pos.x - r.position.x) / r.size.x, 0.0, 1.0), clampf(norm_y, 0.0, 1.0))
-
-
-func _talent_text_rect_screen() -> Rect2:
-	var vp: Vector2 = get_viewport().get_visible_rect().size
-	var panel_w: float = clampf(vp.x * 0.18, 210.0, 270.0)
-	var panel_h: float = clampf(vp.y - 250.0, 300.0, 440.0)
-	var panel_y: float = clampf(vp.y * 0.34, 190.0, maxf(196.0, vp.y - panel_h - 96.0))
-	return Rect2(Vector2(22.0, panel_y), Vector2(panel_w, panel_h))
-
-
-func _talent_map_point_hits_node(pos: Vector2) -> bool:
-	for id_any in _talent_map_hitboxes.keys():
-		var id: String = id_any as String
-		var btn: Button = _talent_map_hitboxes[id] as Button
-		if btn != null and is_instance_valid(btn) and btn.get_global_rect().has_point(pos):
-			return true
-	return false
-
-
-func _talent_map_point_hits_fixed_ui(pos: Vector2) -> bool:
-	var vp: Vector2 = get_viewport().get_visible_rect().size
-	if _talent_text_rect_screen().has_point(pos):
-		return true
-	if pos.y < 165.0:
-		return true
-	if pos.y > vp.y - 92.0:
-		return true
-	return false
-
-
-func _talent_map_navigation_available() -> bool:
-	# Nexo (V2) aberto: o mapa antigo NAO pode capturar input — _input() roda
-	# antes do GUI e roubava os cliques/scroll do overlay novo
-	if _nexo_overlay != null and is_instance_valid(_nexo_overlay):
-		return false
-	return _talentos_panel != null and is_instance_valid(_talentos_panel) and _tab_talentos == "ramos"
-
-
-func _handle_talent_map_navigation_input(event: InputEvent) -> bool:
-	if not _talent_map_navigation_available():
-		_talent_map_dragging = false
-		return false
-	# Overlay de confirmacao de ascensao aberto — nao capturar nenhum input do mapa
-	var _confirm_open: bool = (
-		(_ui_ref != null and is_instance_valid(_ui_ref) and _ui_ref.has_node("AscensaoConfirm"))
-		or (_talentos_panel != null and is_instance_valid(_talentos_panel) and _talentos_panel.has_node("AscensaoConfirm"))
-	)
-	if _confirm_open:
-		_talent_map_dragging = false
-		return false
-	if event is InputEventKey:
-		var key:= event as InputEventKey
-		if key.pressed and not key.echo and key.keycode == KEY_HOME:
-			_talent_map_pan = Vector2.ZERO
-			_talent_map_zoom = 0.0
-			_refresh_talent_map_runtime_layout()
-			get_viewport().set_input_as_handled()
-			return true
-	if event is InputEventMouseButton:
-		var mb:= event as InputEventMouseButton
-		if mb.pressed and (
-			mb.button_index == MOUSE_BUTTON_WHEEL_UP
-			or mb.button_index == MOUSE_BUTTON_WHEEL_DOWN
-			or mb.button_index == MOUSE_BUTTON_WHEEL_LEFT
-			or mb.button_index == MOUSE_BUTTON_WHEEL_RIGHT
-		):
-			if _talent_map_point_hits_fixed_ui(mb.position):
-				return false
-			var scroll_step: float = 96.0
-			if mb.button_index == MOUSE_BUTTON_WHEEL_DOWN or mb.button_index == MOUSE_BUTTON_WHEEL_RIGHT:
-				_talent_map_pan.x -= scroll_step
-			else:
-				_talent_map_pan.x += scroll_step
-			_refresh_talent_map_runtime_layout()
-			get_viewport().set_input_as_handled()
-			return true
-		if mb.button_index == MOUSE_BUTTON_LEFT or mb.button_index == MOUSE_BUTTON_RIGHT or mb.button_index == MOUSE_BUTTON_MIDDLE:
-			if mb.pressed:
-				if _talent_map_point_hits_fixed_ui(mb.position) or _talent_map_point_hits_node(mb.position):
-					_talent_map_dragging = false
-					return false
-				_talent_map_dragging = true
-				_talent_map_drag_last = mb.position
-				get_viewport().set_input_as_handled()
-				return true
-			if _talent_map_dragging:
-				_talent_map_dragging = false
-				get_viewport().set_input_as_handled()
-				return true
-	if event is InputEventMouseMotion and _talent_map_dragging:
-		var mm:= event as InputEventMouseMotion
-		_talent_map_pan.x += mm.position.x - _talent_map_drag_last.x
-		_talent_map_drag_last = mm.position
-		_refresh_talent_map_runtime_layout()
-		get_viewport().set_input_as_handled()
-		return true
-	if event is InputEventScreenDrag:
-		var sd:= event as InputEventScreenDrag
-		_talent_map_pan.x += sd.relative.x
-		_refresh_talent_map_runtime_layout()
-		get_viewport().set_input_as_handled()
-		return true
-	return false
-
-
-func _refresh_talent_map_runtime_layout() -> void:
-	if not _talent_map_navigation_available():
-		return
-	var map_rect: Rect2 = _talent_map_rect()
-	if _talent_map_bg_rect != null and is_instance_valid(_talent_map_bg_rect):
-		_talent_map_bg_rect.position = map_rect.position
-		_talent_map_bg_rect.size = map_rect.size
-	if _talent_constellation_layer != null and is_instance_valid(_talent_constellation_layer):
-		_talent_constellation_layer.position = Vector2.ZERO
-		_talent_constellation_layer.size = get_viewport().get_visible_rect().size
-		if _talent_constellation_layer.has_method("setup"):
-			_talent_constellation_layer.call("setup", _tech_constellations_for_screen(), _tech_constellation_screen_positions(), _tech_constellation_states(), [], _tech_constellation_node_titles())
-	_apply_talent_detail_layout()
-	for id_any in _talent_map_hitboxes.keys():
-		var id: String = id_any as String
-		var btn: Button = _talent_map_hitboxes[id] as Button
-		if btn == null or not is_instance_valid(btn):
-			continue
-		var centro: Vector2 = _no_pos_talento(id)
-		var hit_size: Vector2 = _talent_hitbox_size(id)
-		var parent_is_panel: bool = btn.get_parent() == _talentos_panel
-		var offset: Vector2 = Vector2.ZERO if parent_is_panel else Vector2(0.0, _talentos_content_y_off)
-		btn.position = centro - hit_size * 0.5 - offset
-		btn.size = hit_size
-	if _talent_calibration_active:
-		_refresh_talent_calibration_overlay()
-
-
-func _talent_calibration_ids() -> Array:
-	var ids: Array = ["raiz"]
-	ids.append_array(_TECH_TREE_IDS)
-	return ids
-
-
-func _talent_calibration_current_id() -> String:
-	var ids: Array = _talent_calibration_ids()
-	if ids.is_empty():
-		return "raiz"
-	_talent_calibration_index = clampi(_talent_calibration_index, 0, ids.size() - 1)
-	return ids[_talent_calibration_index] as String
-
-
-func _talent_calibration_display_name(id: String) -> String:
-	if Salvar.TALENTOS_INFO.has(id):
-		var info: Dictionary = Salvar.TALENTOS_INFO[id] as Dictionary
-		return _texto_ui_limpo((info["nome"] as String).replace("\n", " "))
-	return id
-
-
-func _talent_calibration_note_for(id: String) -> String:
-	return str(_talent_calibration_notes_by_id.get(id, ""))
-
-
-func _save_current_talent_calibration_note() -> void:
-	if _talent_calibration_desc_edit == null or not is_instance_valid(_talent_calibration_desc_edit):
-		return
-	var id: String = _talent_calibration_current_id()
-	_talent_calibration_notes_by_id[id] = _talent_calibration_desc_edit.text.strip_edges()
-
-
-func _calibration_desc_contains(screen_pos: Vector2) -> bool:
-	if _talent_calibration_desc_edit == null or not is_instance_valid(_talent_calibration_desc_edit):
-		return false
-	return _talent_calibration_desc_edit.get_global_rect().has_point(screen_pos)
-
-
-func _talent_calibration_current_group() -> String:
-	if _TALENT_CALIBRATION_GROUPS.is_empty():
-		return "NUCLEO"
-	_talent_calibration_group_index = clampi(_talent_calibration_group_index, 0, _TALENT_CALIBRATION_GROUPS.size() - 1)
-	return _TALENT_CALIBRATION_GROUPS[_talent_calibration_group_index] as String
-
-
-func _talent_calibration_group_for_key(keycode: int) -> String:
-	var index: int = -1
-	match keycode:
-		KEY_1:
-			index = 0
-		KEY_2:
-			index = 1
-		KEY_3:
-			index = 2
-		KEY_4:
-			index = 3
-		KEY_5:
-			index = 4
-		KEY_6:
-			index = 5
-		KEY_7:
-			index = 6
-		KEY_8:
-			index = 7
-		KEY_9:
-			index = 8
-		KEY_0:
-			index = 9
-		_:
-			index = -1
-	if index < 0 or index >= _TALENT_CALIBRATION_GROUPS.size():
-		return ""
-	return _TALENT_CALIBRATION_GROUPS[index] as String
-
-
-func _set_talent_calibration_group(group_name: String) -> void:
-	var idx: int = _TALENT_CALIBRATION_GROUPS.find(group_name)
-	if idx < 0:
-		return
-	_talent_calibration_group_index = idx
-	var id: String = _talent_calibration_current_id()
-	_talent_calibration_groups_by_id[id] = group_name
-	_write_talent_calibration_file(false)
-	_refresh_talent_calibration_overlay()
-
-
-func _cycle_talent_calibration_group(delta: int) -> void:
-	if _TALENT_CALIBRATION_GROUPS.is_empty():
-		return
-	_talent_calibration_group_index = wrapi(_talent_calibration_group_index + delta, 0, _TALENT_CALIBRATION_GROUPS.size())
-	_set_talent_calibration_group(_talent_calibration_current_group())
-
-
-func _talent_calibration_available() -> bool:
-	return OS.is_debug_build() and _talentos_panel != null and is_instance_valid(_talentos_panel) and _tab_talentos == "ramos"
-
-
-func _handle_talent_calibration_input(event: InputEvent) -> bool:
-	if event is InputEventKey:
-		var key:= event as InputEventKey
-		if not key.pressed or key.echo or not key.ctrl_pressed:
-			return false
-		match key.keycode:
-			KEY_M:
-				_toggle_talent_calibration()
-				get_viewport().set_input_as_handled()
-				return true
-			KEY_N:
-				if _talent_calibration_active:
-					_talent_calibration_step(1)
-					get_viewport().set_input_as_handled()
-					return true
-			KEY_B:
-				if _talent_calibration_active:
-					_talent_calibration_step(-1)
-					get_viewport().set_input_as_handled()
-					return true
-			KEY_T:
-				if _talent_calibration_active:
-					_talent_calibration_area_mode = not _talent_calibration_area_mode
-					_talent_calibration_dragging = false
-					_refresh_talent_calibration_overlay()
-					get_viewport().set_input_as_handled()
-					return true
-			KEY_E:
-				if _talent_calibration_active:
-					_export_talent_calibration()
-					get_viewport().set_input_as_handled()
-					return true
-			KEY_R:
-				if _talent_calibration_active:
-					var cid: String = _talent_calibration_current_id()
-					_talent_calibration_positions.erase(cid)
-					_talent_calibration_notes_by_id.erase(cid)
-					_write_talent_calibration_file(false)
-					_refresh_talent_calibration_overlay()
-					get_viewport().set_input_as_handled()
-					return true
-		return false
-
-	if not _talent_calibration_active or not _talent_calibration_available():
-		return false
-
-	if event is InputEventMouseMotion and _talent_calibration_dragging:
-		_talent_calibration_drag_current = (event as InputEventMouseMotion).position
-		_refresh_talent_calibration_overlay()
-		get_viewport().set_input_as_handled()
-		return true
-
-	if event is InputEventMouseButton:
-		var mb:= event as InputEventMouseButton
-		if mb.button_index != MOUSE_BUTTON_LEFT:
-			return false
-		if _calibration_desc_contains(mb.position):
-			return false
-		if mb.pressed:
-			if _talent_calibration_area_mode:
-				_talent_calibration_dragging = true
-				_talent_calibration_drag_start = mb.position
-				_talent_calibration_drag_current = mb.position
-			else:
-				_record_talent_calibration_point(mb.position)
-			get_viewport().set_input_as_handled()
-			return true
-		if _talent_calibration_area_mode and _talent_calibration_dragging:
-			_talent_calibration_dragging = false
-			_talent_calibration_drag_current = mb.position
-			_record_talent_calibration_rect(_talent_calibration_drag_start, _talent_calibration_drag_current)
-			get_viewport().set_input_as_handled()
-			return true
-	return false
-
-
-func _toggle_talent_calibration() -> void:
-	if not _talent_calibration_available():
-		_talent_calibration_active = false
-		_refresh_talent_calibration_overlay()
-		return
-	_talent_calibration_active = not _talent_calibration_active
-	_talent_calibration_dragging = false
-	_refresh_talent_calibration_overlay()
-
-
-func _talent_calibration_step(delta: int) -> void:
-	_save_current_talent_calibration_note()
-	var ids: Array = _talent_calibration_ids()
-	if ids.is_empty():
-		return
-	_talent_calibration_index = clampi(_talent_calibration_index + delta, 0, ids.size() - 1)
-	_refresh_talent_calibration_overlay()
-
-
-func _record_talent_calibration_point(screen_pos: Vector2) -> void:
-	_save_current_talent_calibration_note()
-	var id: String = _talent_calibration_current_id()
-	_talent_calibration_positions[id] = _talent_screen_to_norm(screen_pos)
-	_write_talent_calibration_file(false)
-	_talent_calibration_step(1)
-
-
-func _record_talent_calibration_rect(start_pos: Vector2, end_pos: Vector2) -> void:
-	var a: Vector2 = _talent_screen_to_norm(start_pos)
-	var b: Vector2 = _talent_screen_to_norm(end_pos)
-	var left: float = minf(a.x, b.x)
-	var top: float = minf(a.y, b.y)
-	var right: float = maxf(a.x, b.x)
-	var bottom: float = maxf(a.y, b.y)
-	_talent_calibration_text_rect_norm = Rect2(Vector2(left, top), Vector2(maxf(0.01, right - left), maxf(0.01, bottom - top)))
-	_write_talent_calibration_file(false)
-	_refresh_talent_calibration_overlay()
-	_mostrar_detalhe_talento(_talent_calibration_current_id())
-
-
-func _calibration_round(value: float) -> float:
-	return roundf(value * 10000.0) / 10000.0
-
-
-func _talent_calibration_data() -> Dictionary:
-	_save_current_talent_calibration_note()
-	var positions_out: Dictionary = {}
-	var notes_out: Dictionary = {}
-	var entries_out: Dictionary = {}
-	for id_any in _talent_calibration_ids():
-		var id: String = id_any as String
-		var entry: Dictionary = {
-			"name": _talent_calibration_display_name(id),
-			"note": _talent_calibration_note_for(id)
-		}
-		if _talent_calibration_positions.has(id):
-			var p: Vector2 = _talent_calibration_positions[id] as Vector2
-			var pos_arr: Array = [_calibration_round(p.x), _calibration_round(p.y)]
-			positions_out[id] = pos_arr
-			entry["position"] = pos_arr
-		if _talent_calibration_note_for(id) != "":
-			notes_out[id] = _talent_calibration_note_for(id)
-		if entry.has("position") or entry["note"] != "":
-			entries_out[id] = entry
-	var r: Rect2 = _talent_calibration_text_rect_norm
-	return {
-		"version": 1,
-		"background": TALENT_MAP_TEXTURE_PATH,
-		"entries": entries_out,
-		"positions": positions_out,
-		"notes": notes_out,
-		"text_rect": [_calibration_round(r.position.x), _calibration_round(r.position.y), _calibration_round(r.size.x), _calibration_round(r.size.y)]
-	}
-
-
-func _write_talent_calibration_file(copy_to_clipboard: bool) -> void:
-	var data: Dictionary = _talent_calibration_data()
-	var json_txt: String = JSON.stringify(data, "\t")
-	var abs_path: String = ProjectSettings.globalize_path(TALENT_CALIBRATION_EXPORT_PATH)
-	DirAccess.make_dir_recursive_absolute(abs_path.get_base_dir())
-	var file:= FileAccess.open(abs_path, FileAccess.WRITE)
-	if file != null:
-		file.store_string(json_txt)
-		file.close()
-	if copy_to_clipboard:
-		DisplayServer.clipboard_set(json_txt)
-	print("[TalentosCalibracao] Exportado em: ", abs_path)
-
-
-func _export_talent_calibration() -> void:
-	_write_talent_calibration_file(true)
-	if _talento_detalhe_estado and is_instance_valid(_talento_detalhe_estado):
-		_talento_detalhe_estado.text = "CALIBRACAO EXPORTADA\nArquivo salvo e JSON copiado."
-		_talento_detalhe_estado.add_theme_color_override("font_color", Color(0.55, 1.0, 0.70))
-	_refresh_talent_calibration_overlay()
-
-
-func _load_talent_calibration() -> void:
-	var abs_path: String = ProjectSettings.globalize_path(TALENT_CALIBRATION_EXPORT_PATH)
-	if not FileAccess.file_exists(abs_path):
-		return
-	var txt: String = FileAccess.get_file_as_string(abs_path)
-	var parsed: Variant = JSON.parse_string(txt)
-	if not (parsed is Dictionary):
-		return
-	var data: Dictionary = parsed as Dictionary
-	var pos_data: Dictionary = data.get("positions", {}) as Dictionary
-	for key_any in pos_data.keys():
-		var key: String = key_any as String
-		var arr: Array = pos_data[key] as Array
-		if arr.size() >= 2:
-			_talent_calibration_positions[key] = Vector2(float(arr[0]), float(arr[1]))
-	var notes_data: Dictionary = data.get("notes", {}) as Dictionary
-	for note_key_any in notes_data.keys():
-		var note_key: String = note_key_any as String
-		_talent_calibration_notes_by_id[note_key] = str(notes_data[note_key])
-	var entries_data: Dictionary = data.get("entries", {}) as Dictionary
-	for entry_key_any in entries_data.keys():
-		var entry_key: String = entry_key_any as String
-		var entry: Dictionary = entries_data[entry_key] as Dictionary
-		if entry.has("note"):
-			_talent_calibration_notes_by_id[entry_key] = str(entry["note"])
-		if entry.has("position"):
-			var epos: Array = entry["position"] as Array
-			if epos.size() >= 2:
-				_talent_calibration_positions[entry_key] = Vector2(float(epos[0]), float(epos[1]))
-	var rect_arr: Array = data.get("text_rect", []) as Array
-	if rect_arr.size() >= 4:
-		_talent_calibration_text_rect_norm = Rect2(Vector2(float(rect_arr[0]), float(rect_arr[1])), Vector2(float(rect_arr[2]), float(rect_arr[3])))
-
-
-func _ensure_talent_calibration_layer() -> Control:
-	if _talent_calibration_layer != null and is_instance_valid(_talent_calibration_layer):
-		return _talent_calibration_layer
-	if not _talent_calibration_available():
-		return null
-	_talent_calibration_layer = Control.new()
-	_talent_calibration_layer.name = "TalentCalibrationLayer"
-	_talent_calibration_layer.position = Vector2.ZERO
-	_talent_calibration_layer.size = get_viewport().get_visible_rect().size
-	_talent_calibration_layer.z_index = 86
-	_talent_calibration_layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_talentos_panel.add_child(_talent_calibration_layer)
-	return _talent_calibration_layer
-
-
-func _add_calibration_rect(parent: Control, rect: Rect2, color: Color) -> void:
-	var panel:= Panel.new()
-	panel.position = rect.position
-	panel.size = rect.size
-	panel.z_index = 88
-	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var sty:= StyleBoxFlat.new()
-	sty.bg_color = Color(color.r, color.g, color.b, 0.06)
-	sty.border_color = color
-	for side in ["left", "right", "top", "bottom"]:
-		sty.set("border_width_" + side, 2)
-	panel.add_theme_stylebox_override("panel", sty)
-	parent.add_child(panel)
-
-
-func _add_calibration_dot(parent: Control, pos: Vector2, color: Color, text: String) -> void:
-	var dot:= ColorRect.new()
-	dot.color = color
-	dot.position = pos - Vector2(5.0, 5.0)
-	dot.size = Vector2(10.0, 10.0)
-	dot.z_index = 89
-	dot.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	parent.add_child(dot)
-	if text != "":
-		var lbl:= Label.new()
-		lbl.text = text
-		lbl.position = pos + Vector2(7.0, -9.0)
-		lbl.size = Vector2(92.0, 18.0)
-		lbl.z_index = 89
-		lbl.add_theme_font_size_override("font_size", 10)
-		lbl.add_theme_color_override("font_color", color)
-		lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		parent.add_child(lbl)
-
-
-func _refresh_talent_calibration_overlay() -> void:
-	if not _talent_calibration_active or not _talent_calibration_available():
-		if _talent_calibration_layer != null and is_instance_valid(_talent_calibration_layer):
-			_talent_calibration_layer.queue_free()
-		_talent_calibration_layer = null
-		return
-	var layer: Control = _ensure_talent_calibration_layer()
-	if layer == null:
-		return
-	for child in layer.get_children():
-		child.queue_free()
-
-	var id: String = _talent_calibration_current_id()
-	var ids: Array = _talent_calibration_ids()
-	var current_name: String = _talent_calibration_display_name(id)
-	var mode_txt: String = "AREA DE TEXTO" if _talent_calibration_area_mode else "ESTRELAS"
-
-	var hint_panel:= Panel.new()
-	hint_panel.position = Vector2(330.0, 10.0)
-	hint_panel.size = Vector2(500.0, 74.0)
-	hint_panel.z_index = 90
-	hint_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var hint_sty:= StyleBoxFlat.new()
-	hint_sty.bg_color = Color(0.015, 0.012, 0.030, 0.86)
-	hint_sty.border_color = Color(0.65, 0.42, 1.0, 0.88)
-	for side in ["left", "right", "top", "bottom"]:
-		hint_sty.set("border_width_" + side, 1)
-	for corner in ["top_left", "top_right", "bottom_left", "bottom_right"]:
-		hint_sty.set("corner_radius_" + corner, 8)
-	hint_panel.add_theme_stylebox_override("panel", hint_sty)
-	layer.add_child(hint_panel)
-
-	var hint:= Label.new()
-	hint.text = "CALIBRADOR: %s  |  %d/%d  |  %s\nCtrl+M liga/desliga  Ctrl+N/B proximo/anterior  Ctrl+T area  Ctrl+E exporta\n%s" % [
-		mode_txt, _talent_calibration_index + 1, ids.size(), id, current_name
-	]
-	hint.position = Vector2(12.0, 7.0)
-	hint.size = Vector2(476.0, 62.0)
-	hint.z_index = 91
-	hint.add_theme_font_size_override("font_size", 12)
-	hint.add_theme_color_override("font_color", Color(0.82, 0.92, 1.0))
-	hint_panel.add_child(hint)
-
-	var desc_panel:= Panel.new()
-	desc_panel.position = Vector2(330.0, 88.0)
-	desc_panel.size = Vector2(500.0, 44.0)
-	desc_panel.z_index = 90
-	var desc_sty:= StyleBoxFlat.new()
-	desc_sty.bg_color = Color(0.012, 0.016, 0.026, 0.92)
-	desc_sty.border_color = Color(0.28, 0.84, 1.0, 0.78)
-	for side in ["left", "right", "top", "bottom"]:
-		desc_sty.set("border_width_" + side, 1)
-	for corner in ["top_left", "top_right", "bottom_left", "bottom_right"]:
-		desc_sty.set("corner_radius_" + corner, 8)
-	desc_panel.add_theme_stylebox_override("panel", desc_sty)
-	layer.add_child(desc_panel)
-
-	_talent_calibration_desc_edit = LineEdit.new()
-	_talent_calibration_desc_edit.placeholder_text = "Descricao desse ponto: constelacao, funcao, requisito, observacao..."
-	_talent_calibration_desc_edit.text = _talent_calibration_note_for(id)
-	_talent_calibration_desc_edit.position = Vector2(10.0, 7.0)
-	_talent_calibration_desc_edit.size = Vector2(480.0, 30.0)
-	_talent_calibration_desc_edit.z_index = 91
-	_talent_calibration_desc_edit.add_theme_font_size_override("font_size", 13)
-	_talent_calibration_desc_edit.add_theme_color_override("font_color", Color(0.92, 0.96, 1.0))
-	_talent_calibration_desc_edit.add_theme_color_override("font_placeholder_color", Color(0.45, 0.57, 0.68))
-	_talent_calibration_desc_edit.text_changed.connect(func(new_text: String) -> void:
-		_talent_calibration_notes_by_id[id] = new_text.strip_edges()
-	)
-	_talent_calibration_desc_edit.text_submitted.connect(func(_txt: String) -> void:
-		_save_current_talent_calibration_note()
-		_write_talent_calibration_file(false)
-	)
-	desc_panel.add_child(_talent_calibration_desc_edit)
-
-	for key_any in _talent_calibration_positions.keys():
-		var key: String = key_any as String
-		var p: Vector2 = _talent_norm_to_screen(_talent_calibration_positions[key] as Vector2)
-		_add_calibration_dot(layer, p, Color(0.25, 1.0, 0.55), key)
-
-	var current_pos: Vector2 = _tech_tree_pos(id)
-	_add_calibration_dot(layer, current_pos, Color(1.0, 0.84, 0.16), "atual")
-
-	_add_calibration_rect(layer, _talent_text_rect_screen(), Color(0.30, 0.92, 1.0, 0.86))
-	if _talent_calibration_dragging:
-		var start: Vector2 = _talent_calibration_drag_start
-		var end: Vector2 = _talent_calibration_drag_current
-		var drag_rect:= Rect2(Vector2(minf(start.x, end.x), minf(start.y, end.y)), Vector2(absf(end.x - start.x), absf(end.y - start.y)))
-		_add_calibration_rect(layer, drag_rect, Color(1.0, 0.72, 0.18, 0.95))
-
-
-func _talentos_liberados_agora_count() -> int:
-	var total: int = 0
-	for tid_any in _TECH_TREE_IDS:
-		var tid: String = tid_any as String
-		if Salvar.pode_comprar_talento(tid):
-			total += 1
-	return total
-
-
-func _tech_constellation_screen_positions() -> Dictionary:
-	var out: Dictionary = {"raiz": _tech_tree_pos("raiz")}
-	for tid_any in _tech_main_tree_ids():
-		var tid: String = tid_any as String
-		if Salvar.TALENTOS_INFO.has(tid):
-			out[tid] = _tech_tree_pos(tid)
-	return out
-
-
-func _tech_constellations_for_screen() -> Array:
-	var out: Array = []
-	for group_any in _TECH_CONSTELLATIONS:
-		var group: Dictionary = (group_any as Dictionary).duplicate(true)
-		if group.has("label"):
-			group["label_screen"] = _talent_norm_to_screen(group["label"] as Vector2)
-		out.append(group)
-	return out
-
-
-func _tech_constellation_node_titles() -> Dictionary:
-	var out: Dictionary = {}
-	var ids: Array = ["raiz"]
-	ids.append_array(_tech_main_tree_ids())
-	for id_any in ids:
-		var id: String = id_any as String
-		if not Salvar.TALENTOS_INFO.has(id):
-			continue
-		var info: Dictionary = Salvar.TALENTOS_INFO[id] as Dictionary
-		var nome_linhas: PackedStringArray = (info.get("nome", id) as String).split("\n", false, 1)
-		var titulo: String = _texto_ui_limpo(nome_linhas[0] if nome_linhas.size() > 0 else id)
-		var subtitulo: String = _texto_ui_limpo(nome_linhas[1] if nome_linhas.size() > 1 else (info.get("ramo", "") as String))
-		out[id] = {
-			"title": titulo,
-			"sub": subtitulo,
-			"cost": 0 if id == "raiz" else Salvar.custo_efetivo_talento(id),
-		}
-	return out
-
-
-func _talent_req_names(reqs: Array, missing_only: bool = false) -> String:
-	var nomes: PackedStringArray = PackedStringArray()
-	for r_any in reqs:
-		var rid: String = r_any as String
-		if rid == "" or rid == "raiz":
-			continue
-		if missing_only and Salvar.talento_ativo(rid):
-			continue
-		var req_info: Dictionary = Salvar.TALENTOS_INFO.get(rid, {}) as Dictionary
-		var nome: String = _texto_ui_limpo((req_info.get("nome", rid) as String).replace("\n", " "))
-		if nome != "":
-			nomes.append(nome)
-	if nomes.is_empty() and missing_only:
-		return _talent_req_names(reqs, false)
-	return ", ".join(nomes)
-
-
-func _tech_constellation_states() -> Dictionary:
-	var out: Dictionary = {"raiz": {"active": true, "available": false}}
-	for tid_any in _tech_main_tree_ids():
-		var tid: String = tid_any as String
-		if not Salvar.TALENTOS_INFO.has(tid):
-			continue
-		out[tid] = {
-			"active": Salvar.talento_ativo(tid),
-			"available": Salvar.pode_comprar_talento(tid),
-			"color": _tech_branch_color_for_id(tid),
-		}
-	return out
-
-
-func _criar_constellation_layer(pai: Control) -> void:
-	var layer: Control = CONSTELLATION_FUNDO.new()
-	layer.position = Vector2.ZERO
-	layer.size = get_viewport().get_visible_rect().size
-	layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	layer.z_index = 4
-	pai.add_child(layer)
-	_talent_constellation_layer = layer
-	if layer.has_method("setup"):
-		layer.call("setup", _tech_constellations_for_screen(), _tech_constellation_screen_positions(), _tech_constellation_states(), [], _tech_constellation_node_titles())
-
-
-func _criar_painel_mapa_estelar(pai: Control) -> void:
-	var panel_rect: Rect2 = _talent_text_rect_screen()
-	var pad: float = maxf(8.0, panel_rect.size.x * 0.05)
-	var cover:= Panel.new()
-	cover.position = panel_rect.position
-	cover.size = panel_rect.size
-	cover.z_index = 23
-	cover.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var cover_sty:= StyleBoxFlat.new()
-	cover_sty.bg_color = Color(0.006, 0.010, 0.018, 0.72)
-	cover_sty.border_color = Color(0.24, 0.72, 1.0, 0.38)
-	cover_sty.shadow_color = Color(0.0, 0.60, 1.0, 0.18)
-	cover_sty.shadow_size = 8
-	for side in ["left", "right", "top", "bottom"]:
-		cover_sty.set("border_width_" + side, 2)
-	for corner in ["top_left", "top_right", "bottom_left", "bottom_right"]:
-		cover_sty.set("corner_radius_" + corner, 10)
-	cover.add_theme_stylebox_override("panel", cover_sty)
-	cover.draw.connect(func() -> void:
-		var rr: Rect2 = Rect2(Vector2.ZERO, cover.size)
-		var header: Rect2 = Rect2(8.0, 8.0, maxf(8.0, cover.size.x - 16.0), 34.0)
-		var desc_box: Rect2 = Rect2(10.0, 104.0, maxf(8.0, cover.size.x - 20.0), maxf(58.0, cover.size.y - 238.0))
-		var status_box: Rect2 = Rect2(10.0, maxf(168.0, cover.size.y - 124.0), maxf(8.0, cover.size.x - 20.0), 78.0)
-		cover.draw_rect(header, Color(0.02, 0.06, 0.10, 0.58), true)
-		cover.draw_rect(header, Color(0.22, 0.80, 1.0, 0.20), false, 1.0)
-		cover.draw_line(Vector2(14.0, 51.0), Vector2(cover.size.x - 14.0, 51.0), Color(1.0, 0.74, 0.16, 0.28), 1.0, true)
-		cover.draw_rect(desc_box, Color(0.004, 0.018, 0.030, 0.58), true)
-		cover.draw_rect(desc_box, Color(0.18, 0.72, 1.0, 0.24), false, 1.0)
-		cover.draw_rect(status_box, Color(0.035, 0.022, 0.006, 0.52), true)
-		cover.draw_rect(status_box, Color(1.0, 0.72, 0.14, 0.24), false, 1.0)
-		var mark: Color = Color(1.0, 0.76, 0.18, 0.52)
-		cover.draw_line(Vector2(0.0, 18.0), Vector2(16.0, 0.0), mark, 1.2, true)
-		cover.draw_line(Vector2(cover.size.x, 18.0), Vector2(cover.size.x - 16.0, 0.0), mark, 1.2, true)
-		cover.draw_line(Vector2(0.0, cover.size.y - 18.0), Vector2(16.0, cover.size.y), mark, 1.2, true)
-		cover.draw_line(Vector2(cover.size.x, cover.size.y - 18.0), Vector2(cover.size.x - 16.0, cover.size.y), mark, 1.2, true)
-	)
-	pai.add_child(cover)
-	_talento_detalhe_cover = cover
-
-	_talento_detalhe_nome = Label.new()
-	_talento_detalhe_nome.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_talento_detalhe_nome.position = panel_rect.position + Vector2(pad, pad + 46.0)
-	_talento_detalhe_nome.size = Vector2(panel_rect.size.x - pad * 2.0, 32.0)
-	_talento_detalhe_nome.z_index = 32
-	_talento_detalhe_nome.add_theme_font_size_override("font_size", 18)
-	_talento_detalhe_nome.add_theme_color_override("font_color", Color(0.92, 0.96, 1.0))
-	pai.add_child(_talento_detalhe_nome)
-
-	_talento_detalhe_sub = Label.new()
-	_talento_detalhe_sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_talento_detalhe_sub.position = panel_rect.position + Vector2(pad, pad + 78.0)
-	_talento_detalhe_sub.size = Vector2(panel_rect.size.x - pad * 2.0, 24.0)
-	_talento_detalhe_sub.z_index = 32
-	_talento_detalhe_sub.add_theme_font_size_override("font_size", 12)
-	_talento_detalhe_sub.add_theme_color_override("font_color", Color(0.56, 0.82, 1.0))
-	pai.add_child(_talento_detalhe_sub)
-
-	_talento_detalhe_desc = Label.new()
-	_talento_detalhe_desc.position = panel_rect.position + Vector2(pad + 4.0, pad + 118.0)
-	_talento_detalhe_desc.size = Vector2(panel_rect.size.x - pad * 2.0 - 8.0, maxf(80.0, panel_rect.size.y - 252.0))
-	_talento_detalhe_desc.z_index = 32
-	_talento_detalhe_desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_talento_detalhe_desc.vertical_alignment = VERTICAL_ALIGNMENT_TOP
-	_talento_detalhe_desc.add_theme_font_size_override("font_size", 12)
-	_talento_detalhe_desc.add_theme_color_override("font_color", Color(0.80, 0.86, 0.94))
-	pai.add_child(_talento_detalhe_desc)
-
-	_talento_detalhe_estado = Label.new()
-	_talento_detalhe_estado.position = panel_rect.position + Vector2(pad + 4.0, panel_rect.size.y - 116.0)
-	_talento_detalhe_estado.size = Vector2(panel_rect.size.x - pad * 2.0 - 8.0, 74.0)
-	_talento_detalhe_estado.z_index = 32
-	_talento_detalhe_estado.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_talento_detalhe_estado.add_theme_font_size_override("font_size", 11)
-	_talento_detalhe_estado.add_theme_color_override("font_color", Color(1.0, 0.82, 0.38))
-	pai.add_child(_talento_detalhe_estado)
-
-	_apply_talent_detail_layout()
-	# Card oculto por padrao — aparece ao selecionar um no
-	_ocultar_card_talento()
-
-
-func _apply_talent_detail_layout() -> void:
-	if _talento_detalhe_nome == null or not is_instance_valid(_talento_detalhe_nome):
-		return
-	var panel_rect: Rect2 = _talent_text_rect_screen()
-	var pad: float = maxf(8.0, panel_rect.size.x * 0.05)
-	var inner_w: float = maxf(24.0, panel_rect.size.x - pad * 2.0)
-	if _talento_detalhe_cover != null and is_instance_valid(_talento_detalhe_cover):
-		_talento_detalhe_cover.position = panel_rect.position
-		_talento_detalhe_cover.size = panel_rect.size
-	_talento_detalhe_nome.position = panel_rect.position + Vector2(pad, pad + 12.0)
-	_talento_detalhe_nome.size = Vector2(inner_w, 32.0)
-	if _talento_detalhe_sub != null and is_instance_valid(_talento_detalhe_sub):
-		_talento_detalhe_sub.position = panel_rect.position + Vector2(pad, pad + 78.0)
-		_talento_detalhe_sub.size = Vector2(inner_w, 24.0)
-	if _talento_detalhe_desc != null and is_instance_valid(_talento_detalhe_desc):
-		_talento_detalhe_desc.position = panel_rect.position + Vector2(pad + 4.0, pad + 118.0)
-		_talento_detalhe_desc.size = Vector2(maxf(24.0, inner_w - 8.0), maxf(54.0, panel_rect.size.y - 252.0))
-	if _talento_detalhe_estado != null and is_instance_valid(_talento_detalhe_estado):
-		_talento_detalhe_estado.position = panel_rect.position + Vector2(pad + 4.0, maxf(pad + 170.0, panel_rect.size.y - 116.0))
-		_talento_detalhe_estado.size = Vector2(maxf(24.0, inner_w - 8.0), 74.0)
-
-
-func _ocultar_card_talento() -> void:
-	if _talento_detalhe_cover and is_instance_valid(_talento_detalhe_cover):
-		_talento_detalhe_cover.visible = false
-	for lbl in [_talento_detalhe_nome, _talento_detalhe_sub, _talento_detalhe_desc, _talento_detalhe_estado]:
-		if lbl and is_instance_valid(lbl):
-			lbl.visible = false
-
-
-func _mostrar_detalhe_talento(id: String) -> void:
-	if _talento_detalhe_nome == null or not is_instance_valid(_talento_detalhe_nome):
-		return
-	# Revelar card na primeira selecao
-	if _talento_detalhe_cover and is_instance_valid(_talento_detalhe_cover):
-		_talento_detalhe_cover.visible = true
-	for lbl in [_talento_detalhe_nome, _talento_detalhe_sub, _talento_detalhe_desc, _talento_detalhe_estado]:
-		if lbl and is_instance_valid(lbl):
-			lbl.visible = true
-	var info: Dictionary = Salvar.TALENTOS_INFO[id] as Dictionary
-	var parts: PackedStringArray = (info["nome"] as String).split("\n", false, 1)
-	var cor: Color = info["cor"] as Color
-	var ativo: bool = Salvar.talento_ativo(id)
-	var pode: bool = Salvar.pode_comprar_talento(id)
-	var custo: int = Salvar.custo_efetivo_talento(id)
-	_talento_detalhe_nome.text = _texto_ui_limpo(parts[0])
-	_talento_detalhe_nome.add_theme_color_override("font_color", Color(cor.r + 0.15, cor.g + 0.10, cor.b + 0.06, 1.0))
-	_talento_detalhe_sub.text = _texto_ui_limpo(parts[1] if parts.size() > 1 else "O INICIO")
-	_talento_detalhe_sub.add_theme_color_override("font_color", Color(cor.r, cor.g, cor.b, 0.96))
-	_talento_detalhe_desc.text = _texto_ui_limpo(info.get("efeito", info.get("desc", "")) as String)
-	if id == "raiz" or ativo:
-		_talento_detalhe_estado.text = "COMPRADO\nTecnologia ativa na conta."
-		_talento_detalhe_estado.add_theme_color_override("font_color", Color(0.55, 1.0, 0.70))
-	elif pode:
-		_talento_detalhe_estado.text = "LIBERADO PARA COMPRAR\nCusto: %d cristais.\nToque 3x na estrela." % custo
-		_talento_detalhe_estado.add_theme_color_override("font_color", Color(0.52, 0.92, 1.0))
-	else:
-		var reqs: Array = Salvar.requisitos_talento(id)
-		var req_str: String = _talent_req_names(reqs, true)
-		_talento_detalhe_estado.text = "BLOQUEADO\nFalta: %s\nCusto: %d cristais." % [req_str, custo]
-		_talento_detalhe_estado.add_theme_color_override("font_color", Color(0.78, 0.78, 0.82))
-
-
-func _criar_hitbox_talento(id: String, pai: Control, tooltip: Panel) -> void:
-	var centro: Vector2 = _no_pos_talento(id)
-	var hit_size: Vector2 = _talent_hitbox_size(id)
-	var parent_is_panel: bool = pai == _talentos_panel
-	var offset: Vector2 = Vector2.ZERO if parent_is_panel else Vector2(0.0, _talentos_content_y_off)
-	var btn:= Button.new()
-	btn.text = ""
-	btn.position = centro - hit_size * 0.5 - offset
-	btn.size = hit_size
-	btn.z_index = 18
-	btn.focus_mode = Control.FOCUS_NONE
-	for state in ["normal", "hover", "pressed", "disabled"]:
-		var st:= StyleBoxFlat.new()
-		st.bg_color = Color(0, 0, 0, 0)
-		st.border_color = Color(0, 0, 0, 0)
-		btn.add_theme_stylebox_override(state, st)
-	btn.mouse_entered.connect(func() -> void:
-		_mostrar_detalhe_talento(id)
-	)
-	btn.pressed.connect(func() -> void:
-		_acionar_talento_mapa(id, tooltip)
-	)
-	pai.add_child(btn)
-	_talent_map_hitboxes[id] = btn
-
-
-func _acionar_talento_mapa(id: String, tooltip: Panel) -> void:
-	_mostrar_detalhe_talento(id)
-	if id == "raiz":
-		return
-	var info_t: Dictionary = Salvar.TALENTOS_INFO[id] as Dictionary
-	var nome_t: String = _texto_ui_limpo((info_t["nome"] as String).replace("\n", " "))
-	var efeito_t: String = _texto_ui_limpo(info_t.get("efeito", info_t.get("desc", "")) as String)
-	var custo_t: int = Salvar.custo_efetivo_talento(id)
-	var ja_ativo: bool = Salvar.talento_ativo(id)
-	var pode_c: bool = Salvar.pode_comprar_talento(id)
-	var estado: String = "Já ativo." if ja_ativo else ("Custo: %d cristais." % custo_t if pode_c else "Bloqueado. Custo: %d cristais." % custo_t)
-	var desc_fala: String = _texto_ui_limpo("%s. %s %s" % [nome_t, efeito_t, estado])
-	if Acessibilidade.ativo:
-		Acessibilidade.processar("talento_" + id, desc_fala, func():
-			if pode_c:
-				_comprar_talento_no(id)
-		)
-		return
-	if _talento_pendente != id:
-		_talento_pendente = id
-		_talento_pendente_toques = 1
-	else:
-		_talento_pendente_toques += 1
-	if ja_ativo or not pode_c:
-		_talento_pendente_toques = 1
-		return
-	if _talento_detalhe_estado and is_instance_valid(_talento_detalhe_estado):
-		if _talento_pendente_toques < 3:
-			_talento_detalhe_estado.text = "LIBERADO PARA COMPRAR\nToque mais %d vez(es) para comprar.\nCusto: %d cristais." % [3 - _talento_pendente_toques, custo_t]
-		else:
-			_talento_pendente = ""
-			_talento_pendente_toques = 0
-			tooltip.visible = false
-			_comprar_talento_no(id)
-
-
-func _build_tab_ramos(fundo: Control, tooltip: Panel, content: Control) -> void :
-	fundo.linhas.clear()
-	fundo.visible = true
-	_criar_constellation_layer(_talentos_panel)
-	_criar_painel_mapa_estelar(_talentos_panel)
-	_criar_hitbox_talento("raiz", _talentos_panel, tooltip)
-
-	for nid_any in _TECH_TREE_IDS:
-		var nid: String = nid_any as String
-		if _TECH_FUSION_IDS.has(nid):
-			continue
-		if Salvar.TALENTOS_INFO.has(nid):
-			_criar_hitbox_talento(nid, _talentos_panel, tooltip)
-
-
-func _build_tab_fusoes(fundo: Control, tooltip: Panel, content: Control) -> void :
-	var _vp_w_fus: float = get_viewport().get_visible_rect().size.x
-	var _vp_h_fus: float = get_viewport().get_visible_rect().size.y
-	var cols: int = 2 if _vp_w_fus >= 940.0 else 1
-	var card_gap: float = 18.0
-	var card_w: float = minf(510.0, (_vp_w_fus - 72.0 - float(cols - 1) * card_gap) / float(cols))
-	var card_h: float = 154.0
-	var total_w: float = float(cols) * card_w + float(cols - 1) * card_gap
-	var start_x: float = (_vp_w_fus - total_w) * 0.5
-	var start_y: float = 64.0
-	var recipes: Array = _fusion_recipes()
-	var rows: int = int(ceil(float(recipes.size()) / float(cols)))
-	content.custom_minimum_size = Vector2(_vp_w_fus, maxf(content.custom_minimum_size.y, start_y + float(rows) * (card_h + card_gap) + 72.0))
-
-	var sec:= Label.new()
-	sec.text = "MODULOS DE FUSAO  -  junte emblemas de ramos para liberar tecnologias hibridas"
-	sec.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	sec.position = Vector2(0, 18.0)
-	sec.size = Vector2(_vp_w_fus, 22)
-	sec.z_index = 5
-	sec.add_theme_font_size_override("font_size", 20)
-	sec.add_theme_color_override("font_color", Color(0.55, 0.82, 0.55))
-	content.add_child(sec)
-
-	for fi in range(recipes.size()):
-		var rec: Dictionary = recipes[fi] as Dictionary
-		var col: int = fi % cols
-		var row: int = fi / cols
-		var pos := Vector2(start_x + float(col) * (card_w + card_gap), start_y + float(row) * (card_h + card_gap))
-		_criar_card_fusao(content, tooltip, rec.get("id", "") as String, rec.get("reqs", []) as Array, pos, Vector2(card_w, card_h))
-
-
-func _fusion_recipes() -> Array:
-	return [
-		{"id": "colosso", "reqs": ["p1", "r1", "f1"]},
-		{"id": "predador", "reqs": ["s2", "g1"]},
-		{"id": "alquim", "reqs": ["m2", "f2"]},
-		{"id": "tita", "reqs": ["p4", "r4"]},
-		{"id": "relamp", "reqs": ["e3", "s3"]},
-		{"id": "canhao_g", "reqs": ["p3", "g3"]},
-	]
-
-
-func _criar_card_fusao(pai: Control, tooltip: Panel, id: String, reqs: Array, pos: Vector2, tam: Vector2) -> void:
-	if id == "" or not Salvar.TALENTOS_INFO.has(id):
-		return
-	var info: Dictionary = Salvar.TALENTOS_INFO[id] as Dictionary
-	var cor: Color = info.get("cor", Color(1.0, 0.55, 0.12)) as Color
-	var ativo: bool = Salvar.talento_ativo(id)
-	var pode: bool = Salvar.pode_comprar_talento(id)
-
-	var card:= Panel.new()
-	card.position = pos
-	card.size = tam
-	card.z_index = 5
-	card.mouse_filter = Control.MOUSE_FILTER_PASS
-	var sty:= StyleBoxFlat.new()
-	sty.bg_color = Color(0.018, 0.014, 0.010, 0.78)
-	sty.border_color = Color(cor.r, cor.g, cor.b, 0.75 if ativo or pode else 0.30)
-	for side in ["left", "right", "top", "bottom"]:
-		sty.set("border_width_" + side, 2)
-	for corner in ["top_left", "top_right", "bottom_left", "bottom_right"]:
-		sty.set("corner_radius_" + corner, 10)
-	card.add_theme_stylebox_override("panel", sty)
-	pai.add_child(card)
-
-	var nome:= Label.new()
-	nome.text = _texto_ui_limpo((info.get("nome", id) as String).replace("\n", " "))
-	nome.position = Vector2(14.0, 10.0)
-	nome.size = Vector2(tam.x - 28.0, 36.0)
-	nome.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	nome.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	nome.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	nome.clip_text = true
-	nome.add_theme_font_size_override("font_size", 15)
-	nome.add_theme_color_override("font_color", Color(cor.r + 0.10, cor.g + 0.08, cor.b + 0.04, 1.0))
-	card.add_child(nome)
-
-	var input_y: float = 72.0
-	var req_count: int = max(1, reqs.size())
-	var input_start_x: float = 28.0
-	var input_gap: float = minf(54.0, maxf(40.0, (tam.x * 0.42) / float(req_count)))
-	for i in range(reqs.size()):
-		var req_id: String = reqs[i] as String
-		var center := Vector2(input_start_x + float(i) * input_gap, input_y)
-		_criar_glyph_fusao(card, tooltip, req_id, center, 20.0, false)
-		if i < reqs.size() - 1:
-			var plus:= Label.new()
-			plus.text = "+"
-			plus.position = center + Vector2(input_gap * 0.5 - 9.0, -12.0)
-			plus.size = Vector2(18.0, 22.0)
-			plus.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-			plus.add_theme_font_size_override("font_size", 18)
-			plus.add_theme_color_override("font_color", Color(0.95, 0.82, 0.36, 0.90))
-			card.add_child(plus)
-
-	var arrow:= Label.new()
-	arrow.text = ">"
-	arrow.position = Vector2(tam.x * 0.49 - 12.0, input_y - 17.0)
-	arrow.size = Vector2(32.0, 32.0)
-	arrow.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	arrow.add_theme_font_size_override("font_size", 26)
-	arrow.add_theme_color_override("font_color", Color(1.0, 0.72, 0.22, 0.78))
-	card.add_child(arrow)
-
-	var out_center := Vector2(tam.x * 0.67, input_y)
-	_criar_glyph_fusao(card, tooltip, id, out_center, 32.0, true)
-
-	var deco:= ColorRect.new()
-	deco.position = Vector2(tam.x * 0.76, 103.0)
-	deco.size = Vector2(tam.x * 0.18, 1.5)
-	deco.color = Color(cor.r, cor.g, cor.b, 0.34)
-	deco.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	card.add_child(deco)
-
-	var status:= Label.new()
-	status.text = _fusion_status_card_text(id, reqs)
-	status.position = Vector2(14.0, tam.y - 39.0)
-	status.size = Vector2(tam.x - 28.0, 32.0)
-	status.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	status.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	status.clip_text = true
-	status.add_theme_font_size_override("font_size", 11)
-	status.add_theme_color_override("font_color", Color(0.48, 1.0, 0.66) if ativo else (Color(0.54, 0.92, 1.0) if pode else Color(0.86, 0.68, 0.42)))
-	card.add_child(status)
-
-
-func _criar_glyph_fusao(pai: Control, tooltip: Panel, id: String, centro: Vector2, half: float, interativo: bool) -> void:
-	if not Salvar.TALENTOS_INFO.has(id):
-		return
-	var no:= TALENTO_NO.new()
-	no.id = id
-	no.cor = _tech_branch_color_for_id(id)
-	no.ativo = Salvar.talento_ativo(id)
-	no.pode = Salvar.pode_comprar_talento(id)
-	no.position = centro - Vector2(half, half)
-	no.size = Vector2(half * 2.0, half * 2.0)
-	no.pivot_offset = Vector2(half, half)
-	no.z_index = 8
-	no.hover_in.connect(func(hid: String) -> void:
-		var screen_pos: Vector2 = pai.get_global_rect().position + centro
-		_mostrar_tooltip(tooltip, hid, screen_pos)
-	)
-	no.hover_out.connect(func() -> void:
-		tooltip.visible = false
-	)
-	if interativo:
-		no.pressionado.connect(func(hid: String) -> void:
-			var screen_pos: Vector2 = pai.get_global_rect().position + centro
-			_acionar_fusao_card(hid, tooltip, screen_pos)
-		)
-	pai.add_child(no)
-
-
-func _acionar_fusao_card(id: String, tooltip: Panel, screen_pos: Vector2) -> void:
-	_mostrar_tooltip(tooltip, id, screen_pos)
-	if Salvar.talento_ativo(id):
-		return
-	if not Salvar.pode_comprar_talento(id):
-		return
-	if _talento_pendente != id:
-		_talento_pendente = id
-		_talento_pendente_toques = 1
-	else:
-		_talento_pendente_toques += 1
-	var le_confirm: Label = tooltip.get_node("LEf") as Label
-	if _talento_pendente_toques < 3:
-		le_confirm.text = "Toque mais %d vez(es) para fundir este modulo." % (3 - _talento_pendente_toques)
-		le_confirm.add_theme_color_override("font_color", Color(1.0, 0.78, 0.18))
-		return
-	_talento_pendente = ""
-	_talento_pendente_toques = 0
-	tooltip.visible = false
-	_comprar_talento_no(id)
-
-
-func _fusion_status_text(id: String, reqs: Array) -> String:
-	if Salvar.talento_ativo(id):
-		return "FUSAO ATIVA"
-	if Salvar.pode_comprar_talento(id):
-		return "PRONTO PARA FUNDIR  |  toque 3x no modulo maior"
-	var faltando:= PackedStringArray()
-	for req_any in reqs:
-		var req_id: String = req_any as String
-		if not Salvar.talento_ativo(req_id):
-			var req_info: Dictionary = Salvar.TALENTOS_INFO.get(req_id, {}) as Dictionary
-			faltando.append(_texto_ui_limpo((req_info.get("nome", req_id) as String).replace("\n", " ")))
-	return "REQUER:\n%s" % ", ".join(faltando)
-
-
-func _fusion_status_card_text(id: String, reqs: Array) -> String:
-	if Salvar.talento_ativo(id):
-		return "FUSAO ATIVA"
-	if Salvar.pode_comprar_talento(id):
-		return "PRONTO PARA FUNDIR"
-	var faltando: int = 0
-	for req_any in reqs:
-		if not Salvar.talento_ativo(req_any as String):
-			faltando += 1
-	if faltando == 1:
-		return "FALTA 1 REQUISITO"
-	return "FALTAM %d REQUISITOS" % faltando
-
-
-func _build_tab_especiais(fundo: Control, tooltip: Panel, content: Control) -> void :
-	var yoff: float = _talentos_content_y_off
-
-	var _vp_w_esp: float = get_viewport().get_visible_rect().size.x
-	var header_y := 24.0
-	var sit_lbl:= Label.new()
-	sit_lbl.text = "PROTOCOLOS  -  tecnologias situacionais de combate"
-	sit_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	sit_lbl.position = Vector2(0, header_y)
-	sit_lbl.size = Vector2(_vp_w_esp, 22)
-	sit_lbl.z_index = 5
-	sit_lbl.add_theme_font_size_override("font_size", 20)
-	sit_lbl.add_theme_color_override("font_color", Color(0.88, 0.72, 0.28))
-	content.add_child(sit_lbl)
-
-	var sit_nodes: Array = ["cazador", "exter", "anti_t", "purif"]
-	for si in range(sit_nodes.size()):
-		var nid: String = sit_nodes[si] as String
-		_criar_no_talento(nid, content, tooltip)
-
-
-	var leg_sep:= ColorRect.new()
-	leg_sep.position = Vector2(40, 362.0 - yoff)
-	leg_sep.size = Vector2(_vp_w_esp - 80.0, 1)
-	leg_sep.color = Color(0.6, 0.5, 0.28, 0.35)
-	leg_sep.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	content.add_child(leg_sep)
-
-	var leg_lbl:= Label.new()
-	leg_lbl.text = "LEGADO  -  tecnologias liberadas por feitos da conta"
-	leg_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	leg_lbl.position = Vector2(0, 368.0 - yoff)
-	leg_lbl.size = Vector2(_vp_w_esp, 22)
-	leg_lbl.z_index = 5
-	leg_lbl.add_theme_font_size_override("font_size", 20)
-	leg_lbl.add_theme_color_override("font_color", Color(0.6, 0.5, 0.28))
-	content.add_child(leg_lbl)
-
-
-	var prog_texts: Array = [
-		"100 partidas jogadas  (%d / 100)" % Salvar.total_partidas, 
-		"10.000 kills totais  (%d / 10000)" % Salvar.total_mobs_mortos, 
-		"Atingir a wave 30  (melhor: %d)" % Salvar.melhor_wave, 
-	]
-	if Salvar.legado_debug_liberado():
-		prog_texts = [
-			"DEBUG liberado  (%d / 100)" % Salvar.total_partidas,
-			"DEBUG liberado  (%d / 10000)" % Salvar.total_mobs_mortos,
-			"DEBUG liberado  (melhor: %d)" % Salvar.melhor_wave,
-		]
-	var leg_nodes: Array = ["veteran", "genoci", "sobrev"]
-	for li in range(leg_nodes.size()):
-		var nid: String = leg_nodes[li] as String
-		_criar_no_talento(nid, content, tooltip)
-		var pl:= Label.new()
-		pl.text = prog_texts[li] as String
-		pl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		var px: Vector2 = _no_pos_talento(nid)
-		var pl_mobile := OS.has_feature("android") or OS.has_feature("ios")
-		var pl_w : float = 230.0 if pl_mobile else 190.0
-		pl.position = Vector2(px.x - pl_w * 0.5, px.y - yoff + _no_half + 12.0)
-		pl.size = Vector2(pl_w, 42)
-		pl.z_index = 5
-		pl.autowrap_mode = TextServer.AUTOWRAP_WORD
-		pl.add_theme_font_size_override("font_size", 16 if pl_mobile else 18)
-		var desbloq_leg: bool = Salvar.pode_comprar_talento(nid) or Salvar.talento_ativo(nid)
-		pl.add_theme_color_override("font_color", 
-			Color(0.4, 0.9, 0.45) if desbloq_leg else Color(0.65, 0.55, 0.38))
-		content.add_child(pl)
-
-
-func _no_pos_talento(id: String) -> Vector2:
-
-	match _tab_talentos:
-		"ramos":
-			if id == "raiz" or (not _TECH_FUSION_IDS.has(id) and _TECH_TREE_IDS.has(id)):
-				return _tech_tree_pos(id)
-		"fusoes":
-			var fusoes_order: Array = ["colosso", "predador", "alquim", "tita", "relamp", "canhao_g"]
-			var fi: int = fusoes_order.find(id)
-			if fi >= 0:
-				var xs: Array = _fus_xs
-				var ys: Array = _fus_ys
-				return Vector2(xs[fi % 3] as float, ys[fi / 3] as float)
-		"especiais":
-			var sit_order: Array = ["cazador", "exter", "anti_t", "purif"]
-			var si: int = sit_order.find(id)
-			if si >= 0:
-				return Vector2(_sit_xs[si] as float, _sit_y)
-			var leg_order: Array = ["veteran", "genoci", "sobrev"]
-			var li: int = leg_order.find(id)
-			if li >= 0:
-				return Vector2(_leg_xs[li] as float, _leg_y)
-	var vp_cx: float = get_viewport().get_visible_rect().size.x * 0.5
-	return Vector2(vp_cx, 340.0)
-
-
-func _mk_tooltip() -> Panel:
-	var tp:= Panel.new()
-	tp.visible = false
-	tp.size = Vector2(480, 330)
-	tp.z_index = 20
-	var sty:= StyleBoxFlat.new()
-	sty.bg_color = Color(0.04, 0.04, 0.07, 0.97)
-	sty.border_color = Color(0.55, 0.35, 1.0, 0.8)
-	for side in ["left", "right", "top", "bottom"]:
-		sty.set("border_width_" + side, 2)
-	for corner in ["top_left", "top_right", "bottom_left", "bottom_right"]:
-		sty.set("corner_radius_" + corner, 10)
-	tp.add_theme_stylebox_override("panel", sty)
-
-	var ln:= Label.new();ln.name = "LNome"
-	ln.position = Vector2(14, 12)
-	ln.size = Vector2(452, 32)
-	ln.add_theme_font_size_override("font_size", 22)
-	ln.add_theme_color_override("font_color", Color(0.9, 0.85, 1.0))
-	tp.add_child(ln)
-
-	var ls:= Label.new();ls.name = "LSub"
-	ls.position = Vector2(14, 42)
-	ls.size = Vector2(452, 22)
-	ls.add_theme_font_size_override("font_size", 14)
-	ls.add_theme_color_override("font_color", Color(0.72, 0.68, 0.85))
-	tp.add_child(ls)
-
-	var sep:= ColorRect.new()
-	sep.color = Color(0.55, 0.35, 1.0, 0.35)
-	sep.position = Vector2(14, 72)
-	sep.size = Vector2(452, 2)
-	tp.add_child(sep)
-
-	var ld:= Label.new();ld.name = "LDesc"
-	ld.position = Vector2(14, 82)
-	ld.size = Vector2(452, 170)
-	ld.autowrap_mode = TextServer.AUTOWRAP_WORD
-	ld.add_theme_font_size_override("font_size", 16)
-	ld.add_theme_color_override("font_color", Color(0.7, 0.74, 0.8))
-	tp.add_child(ld)
-
-	var le:= Label.new();le.name = "LEf"
-	le.position = Vector2(14, 258)
-	le.size = Vector2(452, 62)
-	le.autowrap_mode = TextServer.AUTOWRAP_WORD
-	le.add_theme_font_size_override("font_size", 15)
-	le.add_theme_color_override("font_color", Color(0.35, 1.0, 0.5))
-	tp.add_child(le)
-	return tp
-
-
-func _criar_no_raiz_talento(pai: Control, tooltip: Panel) -> void:
-	var info: Dictionary = Salvar.TALENTOS_INFO["raiz"] as Dictionary
-	var cor: Color = info["cor"] as Color
-	var centro: Vector2 = _tech_tree_root_pos()
-	var half: float = _talento_no_half("raiz")
-
-	var no:= TALENTO_NO.new()
-	no.id = "raiz"
-	no.cor = cor
-	no.ativo = true
-	no.pode = false
-	no.position = centro - Vector2(half, half) - Vector2(0.0, _talentos_content_y_off)
-	no.size = Vector2(half * 2.0, half * 2.0)
-	no.pivot_offset = Vector2(half, half)
-	no.scale = Vector2(0.72, 0.72)
-	no.z_index = 8
-	no.hover_in.connect(func(hid: String): _mostrar_tooltip(tooltip, hid, _tech_tree_root_pos()))
-	no.hover_out.connect(func(): tooltip.visible = false)
-	no.gui_input.connect(func(ev: InputEvent) -> void:
-		if _is_primary_press(ev):
-			_mostrar_tooltip(tooltip, "raiz", _tech_tree_root_pos())
-	)
-	pai.add_child(no)
-	var tw_root:= create_tween()
-	_tree_tweens.append(tw_root)
-	tw_root.tween_property(no, "scale", Vector2(1.0, 1.0), 0.22).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-
-	var lbl:= Label.new()
-	lbl.text = "NUCLEO"
-	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	lbl.position = Vector2(centro.x - 82.0, centro.y - _talentos_content_y_off - half - 30.0)
-	lbl.size = Vector2(164.0, 24.0)
-	lbl.z_index = 9
-	lbl.add_theme_font_size_override("font_size", 15)
-	lbl.add_theme_color_override("font_color", Color(0.55, 0.9, 1.0))
-	pai.add_child(lbl)
-
-
-func _criar_no_talento(id: String, pai: Control, tooltip: Panel) -> void :
-	if id == "raiz":
-		return
-	var info: Dictionary = Salvar.TALENTOS_INFO[id] as Dictionary
-	var cor: Color = info["cor"] as Color
-	var ativo: bool = Salvar.talento_ativo(id)
-	var pode: bool = Salvar.pode_comprar_talento(id)
-	var centro: Vector2 = _no_pos_talento(id)
-
-	var no:= TALENTO_NO.new()
-	no.id = id
-	no.cor = cor
-	no.ativo = ativo
-	no.pode = pode
-	var half: float = _talento_no_half(id)
-	no.position = centro - Vector2(half, half) - Vector2(0.0, _talentos_content_y_off)
-	no.size = Vector2(half * 2.0, half * 2.0)
-	no.pivot_offset = Vector2(half, half)
-	no.scale = Vector2(0.55, 0.55)
-	no.hover_in.connect( func(hid: String): _mostrar_tooltip(tooltip, hid, _no_pos_talento(hid)))
-	no.hover_out.connect( func(): tooltip.visible = false)
-
-	var id_cap:= id
-	no.gui_input.connect( func(ev: InputEvent) -> void :
-		if not _is_primary_press(ev): return
-		var info_t: Dictionary = Salvar.TALENTOS_INFO[id_cap] as Dictionary
-		var nome_t: String = (info_t["nome"] as String).replace("\n", " ")
-		var efeito_t: String = info_t.get("efeito", info_t.get("desc", "")) as String
-		var custo_t: int = Salvar.custo_efetivo_talento(id_cap)
-		var ja_ativo: bool = Salvar.talento_ativo(id_cap)
-		var pode_c: bool = Salvar.pode_comprar_talento(id_cap)
-		var estado: String
-		if ja_ativo:
-			estado = "Já ativo."
-		elif pode_c:
-			estado = "Custo: %d cristais. Clique 3 vezes para comprar." % custo_t
-		else:
-			estado = "Bloqueado. Custo: %d cristais." % custo_t
-		nome_t = _texto_ui_limpo(nome_t)
-		efeito_t = _texto_ui_limpo(efeito_t)
-		estado = _texto_ui_limpo(estado)
-		var desc_fala: String = _texto_ui_limpo("%s. %s %s" % [nome_t, efeito_t, estado])
-		if Acessibilidade.ativo:
-
-			if ja_ativo:
-				Acessibilidade.processar("talento_" + id_cap, desc_fala, 
-					func(): pass)
-			elif pode_c:
-				Acessibilidade.processar("talento_" + id_cap, desc_fala, 
-					func(): _comprar_talento_no(id_cap))
-			else:
-				Acessibilidade.processar("talento_" + id_cap, desc_fala, 
-					func(): pass)
-		else:
-
-			if _talento_pendente != id_cap:
-				_talento_pendente = id_cap
-				_talento_pendente_toques = 1
-				_mostrar_tooltip(tooltip, id_cap, _no_pos_talento(id_cap))
-			else:
-				_talento_pendente_toques += 1
-				_mostrar_tooltip(tooltip, id_cap, _no_pos_talento(id_cap))
-				if ja_ativo or not pode_c:
-					_talento_pendente_toques = 1
-					return
-				var le_confirm: Label = tooltip.get_node("LEf") as Label
-				if _talento_pendente_toques < 3:
-					le_confirm.text = "Toque mais 1 vez para comprar (%d/3)" % _talento_pendente_toques
-					le_confirm.add_theme_color_override("font_color", Color(1.0, 0.78, 0.18))
-				else:
-					_talento_pendente = ""
-					_talento_pendente_toques = 0
-					tooltip.visible = false
-					_comprar_talento_no(id_cap)
-	)
-	pai.add_child(no)
-	var tw:= create_tween()
-	_tree_tweens.append(tw)
-	var delay: float = clampf((centro.y - 130.0) / 2200.0, 0.0, 0.22)
-	tw.tween_property(no, "scale", Vector2(1.0, 1.0), 0.20).set_delay(delay).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-
-
-func _mostrar_tooltip(tooltip: Panel, id: String, node_pos: Vector2) -> void :
-	var info: Dictionary = Salvar.TALENTOS_INFO[id] as Dictionary
-	var cor: Color = info["cor"] as Color
-	var ativo: bool = Salvar.talento_ativo(id)
-	var pode: bool = Salvar.pode_comprar_talento(id)
-	var custo: int = Salvar.custo_efetivo_talento(id)
-
-	var sty:= StyleBoxFlat.new()
-	sty.bg_color = Color(0.04, 0.04, 0.07, 0.97)
-	sty.border_color = Color(cor.r, cor.g, cor.b, 0.9)
-	for side in ["left", "right", "top", "bottom"]:
-		sty.set("border_width_" + side, 2)
-	for corner in ["top_left", "top_right", "bottom_left", "bottom_right"]:
-		sty.set("corner_radius_" + corner, 10)
-	tooltip.add_theme_stylebox_override("panel", sty)
-
-	var parts: PackedStringArray = (info["nome"] as String).split("\n", false, 1)
-	var ln: Label = tooltip.get_node("LNome") as Label
-	ln.text = _texto_ui_limpo(parts[0])
-	ln.add_theme_color_override("font_color", Color(cor.r + 0.1, cor.g + 0.05, cor.b, 1.0))
-	var ls: Label = tooltip.get_node("LSub") as Label
-	ls.text = _texto_ui_limpo(parts[1] if parts.size() > 1 else "")
-	ls.visible = parts.size() > 1
-
-	var ld: Label = tooltip.get_node("LDesc") as Label
-	ld.text = _texto_ui_limpo(info["efeito"] as String)
-
-	var le: Label = tooltip.get_node("LEf") as Label
-	if id == "raiz" or ativo:
-		le.text = "OK  Tecnologia ativa"
-		le.add_theme_color_override("font_color", Color(0.3, 1.0, 0.45))
-	elif pode:
-		le.text = "Custo: %d cristais  |  Toque 3x para desbloquear" % custo
-		le.add_theme_color_override("font_color", Color(0.55, 0.9, 1.0))
-	else:
-		var reqs: Array = Salvar.requisitos_talento(id)
-		var req_str: String = _talent_req_names(reqs, true)
-		le.text = "Falta: %s  |  Custo: ◆%d" % [req_str, custo]
-		le.add_theme_color_override("font_color", Color(0.65, 0.35, 0.35))
-
-
-	var sv: float = _talentos_scroll.get_v_scroll() if (_talentos_scroll and is_instance_valid(_talentos_scroll)) else 0.0
-	var tp_w: float = tooltip.size.x
-	var tp_h: float = tooltip.size.y
-	var vp_w_t: float = get_viewport().get_visible_rect().size.x
-	var vp_h_t: float = get_viewport().get_visible_rect().size.y
-	var off: float = _talento_no_half(id) + 8.0
-	var tp_x: float = node_pos.x + off
-	var tp_y: float = node_pos.y - sv - 60.0
-
-	if tp_x + tp_w > vp_w_t - 4.0:
-		tp_x = node_pos.x - off - tp_w
-	tp_x = clamp(tp_x, 4.0, vp_w_t - tp_w - 4.0)
-	tp_y = clamp(tp_y, 70.0, vp_h_t - tp_h - 10.0)
-	tooltip.position = Vector2(tp_x, tp_y)
-	tooltip.visible = true
-
-
-func _comprar_talento_no(id: String) -> void :
-	if Salvar.comprar_talento(id):
-		Som.upgrade()
-		_rebuild_talentos()
-
-
-func _fechar_talentos() -> void :
-	Acessibilidade.cancelar_foco()
-	_talento_pendente = ""
-	_talento_pendente_toques = 0
-	for tw in _tree_tweens:
-		if is_instance_valid(tw):
-			(tw as Tween).kill()
-	_tree_tweens.clear()
-	_talentos_scroll = null
-	if _talentos_overlay:
-		_talentos_overlay.queue_free()
-	if _talentos_panel:
-		_talentos_panel.queue_free()
-	if _nexo_overlay and is_instance_valid(_nexo_overlay):
-		_nexo_overlay.queue_free()
-	_nexo_overlay = null
-	_nexo_btn = null  # morre junto com o _talentos_panel
-	_talentos_overlay = null
-	_talentos_panel = null
-	_ui_ref = null
-	if _menu_contents:
-		_menu_contents.show()
 
 
 func _cores(n: int, c: Color) -> PackedColorArray:
