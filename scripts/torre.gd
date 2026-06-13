@@ -117,6 +117,30 @@ var mobs_group : String = "mobs"
 var _alvos_cache : Array = []
 var _alvos_cache_frame : int = -1
 
+# ── Arma ativa (formato do tiro) ─────────────────────────────────────────────
+# cad/dano/alcance = multiplicadores; modo = padrão de disparo
+const ARMAS : Dictionary = {
+	"padrao":       {"nome": "Padrão",      "cad": 1.0,  "dano": 1.0,  "alcance": 1.0, "modo": "single"},
+	"saltitante":   {"nome": "Saltitante",  "cad": 1.0,  "dano": 0.9,  "alcance": 1.0, "modo": "ricochete"},
+	"escopeta":     {"nome": "Escopeta",    "cad": 0.85, "dano": 0.55, "alcance": 0.6, "modo": "escopeta"},
+	"sniper":       {"nome": "Sniper",      "cad": 0.35, "dano": 4.5,  "alcance": 1.6, "modo": "sniper"},
+	"metralhadora": {"nome": "Metralhadora","cad": 2.2,  "dano": 0.45, "alcance": 0.9, "modo": "single"},
+}
+var arma_ativa : String = "padrao"
+
+func definir_arma(id: String) -> void:
+	if ARMAS.has(id):
+		arma_ativa = id
+		# Saltitante = arma com ricochete embutido; re-checa fusão de fogo
+		ricochete_count = 2 if id == "saltitante" else ricochete_count
+		_checar_fusao_fogo()
+
+func _arma_mult(campo: String) -> float:
+	return float((ARMAS.get(arma_ativa, ARMAS["padrao"]) as Dictionary).get(campo, 1.0))
+
+func _arma_modo() -> String:
+	return str((ARMAS.get(arma_ativa, ARMAS["padrao"]) as Dictionary).get("modo", "single"))
+
 # ── Focus de Ataque ──────────────────────────────────────────────────────────
 var focus_dir   : Vector2 = Vector2.ZERO   # direção clicada pelo jogador
 var focus_ativo : bool    = false
@@ -292,7 +316,7 @@ func _process(delta: float) -> void:
 		if target and is_instance_valid(target):
 			var dir: Vector2 = (_target_pos(target) - global_position).normalized()
 			angle    = lerp_angle(angle, atan2(dir.y, dir.x), delta * 10.0)
-			var fr_efetiva : float = fire_rate
+			var fr_efetiva : float = fire_rate * _arma_mult("cad")
 			if ia_boost_ativo:
 				fr_efetiva *= IA_BOOST_MULT
 			if ancora_suprimida:
@@ -354,7 +378,13 @@ func _achar_alvo() -> Node:
 func _atirar() -> void:
 	if not is_instance_valid(target):
 		return
+	# Escopeta: leque de pelotas em direções espalhadas (alcance curto)
+	if _arma_modo() == "escopeta":
+		_atirar_escopeta()
+		return
 	# Canhão principal sempre atira no alvo primário
+	# (sniper/metralhadora/padrão/saltitante usam o disparo único; a diferença
+	#  vem dos multiplicadores de cad/dano/alcance e da perfuração da sniper)
 	_disparar_em(target)
 	# Rajada: 2 tiros adicionais em ±15°
 	if rajada_ativa:
@@ -414,7 +444,7 @@ func _disparar_de(alvo: Node, spawn_gp: Vector2, dmg_mult: float = 1.0) -> void:
 	get_parent().add_child(proj)
 	proj.global_position = spawn_gp + Vector2(cos(ang_alvo), sin(ang_alvo)) * 20.0
 
-	var dano_final : float = damage * dmg_mult * x1_mult
+	var dano_final : float = damage * _arma_mult("dano") * dmg_mult * x1_mult
 	if is_instance_valid(alvo) and alvo.is_in_group("boss_dante"):
 		dano_final *= boss_damage_mult
 	if ia_dano_boost_ativo:
@@ -450,6 +480,9 @@ func _disparar_de(alvo: Node, spawn_gp: Vector2, dmg_mult: float = 1.0) -> void:
 
 	# Punição da Perfuração: anula pierce enquanto debuff ativo
 	var pierce_efetivo : int  = 0 if punicao_pierce_timer > 0.0 else pierce_count
+	# Sniper: o tiro perfura naturalmente (atravessa a fileira)
+	if arma_ativa == "sniper" and punicao_pierce_timer <= 0.0:
+		pierce_efetivo += 3
 	var splash_r       : float = pierce_splash_radius if pierce_efetivo > 0 else 0.0
 	var splash_d       : float = dano_final * pierce_splash_dmg_mult
 
@@ -527,7 +560,24 @@ func _achar_alvo_em_direcao(dir: Vector2) -> Node:
 
 
 func _range_para_alvo(alvo: Node) -> float:
-	return range_r
+	return range_r * _arma_mult("alcance")
+
+
+func _atirar_escopeta() -> void:
+	# Leque de 6 pelotas em ±40° em torno da direção do alvo. Alcance curto
+	# (já refletido em _range_para_alvo), dano por pelota baixo (mult da arma).
+	var dir_base : Vector2 = (_target_pos(target) - global_position).normalized()
+	var ang_base : float = atan2(dir_base.y, dir_base.x)
+	const N : int = 6
+	for i in range(N):
+		var frac : float = (float(i) / float(N - 1)) - 0.5   # -0.5..0.5
+		var ang  : float = ang_base + frac * deg_to_rad(80.0)
+		var alvo_p : Node = _achar_alvo_em_direcao(Vector2(cos(ang), sin(ang)))
+		if alvo_p and is_instance_valid(alvo_p):
+			_disparar_de(alvo_p, global_position)
+		else:
+			# Sem mob naquele ângulo: dispara direcional reto (free_dir)
+			_disparar_direcao(Vector2(cos(ang), sin(ang)))
 
 
 func receber_dano(dano: float) -> void:
