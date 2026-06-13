@@ -61,12 +61,15 @@ func abrir(ui: CanvasLayer) -> void:
 	var cx: float = (vp.x - cw) * 0.5
 	var y: float = vp.y * 0.16 + 110.0
 
+	# Botão principal: Google (branco, como na referência)
+	_botao_google(Rect2(cx, y, cw, 54))
+	y += 78.0
+
 	var contas := Salvar.contas_conhecidas()
-	for i in range(mini(4, contas.size())):
+	for i in range(mini(3, contas.size())):
 		var c: Dictionary = contas[i] as Dictionary
 		var nome: String = str(c.get("nome", "?"))
-		var destaque: bool = (i == 0)
-		_card_conta(nome, str(c.get("senha", "")), int(c.get("avatar_idx", 0)), Rect2(cx, y, cw, 58), destaque)
+		_card_conta(nome, str(c.get("senha", "")), int(c.get("avatar_idx", 0)), Rect2(cx, y, cw, 58), false)
 		y += 70.0
 
 	y += 14.0
@@ -76,6 +79,25 @@ func abrir(ui: CanvasLayer) -> void:
 	y += 56.0
 	_botao_menor("Jogar sem conta", Rect2(cx, y, cw, 46), func():
 		_fechar())
+
+
+func _botao_google(r: Rect2) -> void:
+	var btn := Button.new()
+	btn.position = r.position
+	btn.size = r.size
+	btn.focus_mode = Control.FOCUS_NONE
+	var sty := StyleBoxFlat.new()
+	sty.bg_color = Color(0.94, 0.95, 0.97, 1.0)
+	sty.set_corner_radius_all(int(r.size.y * 0.5))
+	btn.add_theme_stylebox_override("normal", sty)
+	var sty_h: StyleBoxFlat = sty.duplicate()
+	sty_h.bg_color = Color(1, 1, 1, 1)
+	btn.add_theme_stylebox_override("hover", sty_h)
+	btn.text = "G   Entrar com Google"
+	btn.add_theme_font_size_override("font_size", 19)
+	btn.add_theme_color_override("font_color", Color(0.10, 0.11, 0.13))
+	btn.pressed.connect(_login_google)
+	_overlay.add_child(btn)
 
 
 func _card_conta(nome: String, senha_hash: String, av_idx: int, r: Rect2, destaque: bool) -> void:
@@ -215,3 +237,181 @@ func _fechar_sem_menu() -> void:
 	_overlay = null
 	_status = null
 	_entrando = false
+
+
+# ── Entrar com Google ────────────────────────────────────────────────────────
+
+const GOOGLE_AUTH = preload("res://scripts/google_auth.gd")
+
+func _login_google() -> void:
+	if _entrando:
+		return
+	_entrando = true
+	_set_status("Abrindo o Google no navegador…", false)
+	var ga := GOOGLE_AUTH.new()
+	m.add_child(ga)
+	ga.concluido.connect(func(ok: bool, email: String, _nome_g: String, erro: String):
+		if not _overlay or not is_instance_valid(_overlay):
+			return
+		if not ok:
+			_entrando = false
+			_set_status(erro, true)
+			return
+		_set_status("Conectando à conta do jogo…", false)
+		_resolver_conta_google(email))
+	ga.iniciar()
+
+
+func _resolver_conta_google(email: String) -> void:
+	var res := await _rest("GET",
+		RankingOnline._URL_USUARIOS + "?email=eq.%s&select=nome" % email.uri_encode(), "")
+	if int(res[0]) != 200:
+		_entrando = false
+		_set_status("Servidor indisponível (%d). Tente de novo." % int(res[0]), true)
+		return
+	var lista = res[1]
+	if lista is Array and not (lista as Array).is_empty():
+		# Conta existe: renova a credencial e entra (sem digitar nada)
+		var nome_conta := str(((lista as Array)[0] as Dictionary).get("nome", ""))
+		var novo_hash := RankingOnline._hash(GOOGLE_AUTH._b64url(Crypto.new().generate_random_bytes(32)))
+		var up := await _rest("PATCH",
+			RankingOnline._URL_USUARIOS + "?email=eq.%s" % email.uri_encode(),
+			JSON.stringify({"senha": novo_hash}))
+		if int(up[0]) != 200 and int(up[0]) != 204:
+			_entrando = false
+			_set_status("Não consegui renovar a credencial (%d)." % int(up[0]), true)
+			return
+		_finalizar_login(nome_conta, email, novo_hash)
+	else:
+		_entrando = false
+		_tela_escolher_nome(email)
+
+
+func _tela_escolher_nome(email: String) -> void:
+	# Conta Google nova: só falta o nome de jogador
+	for ch in _overlay.get_children():
+		ch.queue_free()
+	var vp: Vector2 = _overlay.size
+	var tit := Label.new()
+	tit.text = "Escolha seu nome de jogador"
+	tit.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	tit.position = Vector2(0, vp.y * 0.22)
+	tit.size = Vector2(vp.x, 50)
+	tit.add_theme_font_size_override("font_size", 32)
+	tit.add_theme_color_override("font_color", Color(0.96, 0.97, 1.0))
+	_overlay.add_child(tit)
+
+	var sub := Label.new()
+	sub.text = email + "  ·  esse será seu nome no ranking"
+	sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	sub.position = Vector2(0, vp.y * 0.22 + 52)
+	sub.size = Vector2(vp.x, 24)
+	sub.add_theme_font_size_override("font_size", 14)
+	sub.add_theme_color_override("font_color", Color(0.55, 0.62, 0.75))
+	_overlay.add_child(sub)
+
+	_status = Label.new()
+	_status.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_status.position = Vector2(0, vp.y * 0.22 + 80)
+	_status.size = Vector2(vp.x, 24)
+	_status.add_theme_font_size_override("font_size", 14)
+	_overlay.add_child(_status)
+
+	var cw: float = minf(430.0, vp.x - 60.0)
+	var cx: float = (vp.x - cw) * 0.5
+	var campo := LineEdit.new()
+	campo.position = Vector2(cx, vp.y * 0.22 + 120)
+	campo.size = Vector2(cw, 52)
+	campo.max_length = 18
+	campo.placeholder_text = "Nome de jogador"
+	campo.alignment = HORIZONTAL_ALIGNMENT_CENTER
+	campo.add_theme_font_size_override("font_size", 20)
+	_overlay.add_child(campo)
+	campo.grab_focus()
+
+	var confirmar := func():
+		var nome := campo.text.strip_edges()
+		if nome.length() < 3:
+			_set_status("Nome precisa de pelo menos 3 letras.", true)
+			return
+		if _entrando:
+			return
+		_entrando = true
+		_set_status("Verificando nome…", false)
+		var chk := await _rest("GET",
+			RankingOnline._URL_USUARIOS + "?nome=ilike.%s&select=nome" % nome.uri_encode(), "")
+		if int(chk[0]) == 200 and chk[1] is Array and not (chk[1] as Array).is_empty():
+			_entrando = false
+			_set_status("Esse nome já existe — tente outro.", true)
+			return
+		var novo_hash := RankingOnline._hash(GOOGLE_AUTH._b64url(Crypto.new().generate_random_bytes(32)))
+		var ins := await _rest("POST", RankingOnline._URL_USUARIOS,
+			JSON.stringify({"nome": nome, "email": email, "senha": novo_hash}))
+		if int(ins[0]) != 201:
+			_entrando = false
+			_set_status("Não consegui criar a conta (%d)." % int(ins[0]), true)
+			return
+		_finalizar_login(nome, email, novo_hash)
+
+	var btn := Button.new()
+	btn.text = "COMEÇAR"
+	btn.position = Vector2(cx, vp.y * 0.22 + 188)
+	btn.size = Vector2(cw, 50)
+	btn.focus_mode = Control.FOCUS_NONE
+	var sty := StyleBoxFlat.new()
+	sty.bg_color = Color(0.94, 0.95, 0.97, 1.0)
+	sty.set_corner_radius_all(25)
+	btn.add_theme_stylebox_override("normal", sty)
+	btn.add_theme_font_size_override("font_size", 19)
+	btn.add_theme_color_override("font_color", Color(0.10, 0.11, 0.13))
+	btn.pressed.connect(confirmar)
+	campo.text_submitted.connect(func(_t): confirmar.call())
+	_overlay.add_child(btn)
+
+
+func _finalizar_login(nome: String, email: String, senha_hash: String) -> void:
+	Salvar.nome_jogador = nome
+	Salvar.email_jogador = email
+	Salvar.senha_jogador = senha_hash
+	Salvar.credenciais_versao = 1
+	Salvar.salvar()
+	Salvar.lembrar_conta(nome, email, senha_hash)
+	if _status and is_instance_valid(_status):
+		_set_status("Bem-vindo, %s!" % nome, false)
+	RankingOnline.download_save(nome, func(s_ok: bool, dados: Dictionary, force: bool = false) -> void:
+		if s_ok:
+			Salvar.importar_cloud_forcado(dados)
+			if force: RankingOnline._limpar_force_sync(nome)
+			RankingOnline.buscar_premios_pendentes()
+		else:
+			RankingOnline.envio_inicial()
+		m.get_tree().change_scene_to_file("res://scenes/Menu.tscn"))
+
+
+func _set_status(txt: String, erro: bool) -> void:
+	if _status and is_instance_valid(_status):
+		_status.text = txt
+		_status.add_theme_color_override("font_color",
+			Color(1.0, 0.5, 0.45) if erro else Color(0.55, 0.75, 0.95))
+
+
+func _rest(metodo: String, url: String, body: String) -> Array:
+	# Request REST simples com await: retorna [status, dados_json]
+	var http := HTTPRequest.new()
+	m.add_child(http)
+	var headers := PackedStringArray([
+		"apikey: " + RankingOnline._ANON,
+		"Authorization: Bearer " + RankingOnline._ANON,
+		"Content-Type: application/json",
+		"Prefer: return=minimal",
+	])
+	var met := HTTPClient.METHOD_GET
+	match metodo:
+		"POST":  met = HTTPClient.METHOD_POST
+		"PATCH": met = HTTPClient.METHOD_PATCH
+	http.request(url, headers, met, body)
+	var res = await http.request_completed
+	http.queue_free()
+	var status := int(res[1])
+	var dados = JSON.parse_string((res[3] as PackedByteArray).get_string_from_utf8())
+	return [status, dados]
