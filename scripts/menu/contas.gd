@@ -21,7 +21,8 @@ func limpar_refs() -> void:
 
 
 func deve_abrir_no_boot() -> bool:
-	return Salvar.nome_jogador.strip_edges() == "" and not Salvar.contas_conhecidas().is_empty()
+	# Deslogado: a tela é a porta de entrada (Google / contas do aparelho / offline)
+	return Salvar.nome_jogador.strip_edges() == ""
 
 
 func abrir(ui: CanvasLayer) -> void:
@@ -351,7 +352,7 @@ func _tela_escolher_nome(email: String) -> void:
 			_entrando = false
 			_set_status("Não consegui criar a conta (%d)." % int(ins[0]), true)
 			return
-		_finalizar_login(nome, email, novo_hash)
+		_finalizar_login(nome, email, novo_hash, true)
 
 	var btn := Button.new()
 	btn.text = "COMEÇAR"
@@ -369,7 +370,10 @@ func _tela_escolher_nome(email: String) -> void:
 	_overlay.add_child(btn)
 
 
-func _finalizar_login(nome: String, email: String, senha_hash: String) -> void:
+func _finalizar_login(nome: String, email: String, senha_hash: String, eh_nova: bool = false) -> void:
+	if eh_nova:
+		# Conta nova começa zerada — não herda recursos do estado em memória
+		Salvar.limpar_dados()
 	Salvar.nome_jogador = nome
 	Salvar.email_jogador = email
 	Salvar.senha_jogador = senha_hash

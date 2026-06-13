@@ -12,10 +12,17 @@ extends Node
 
 signal concluido(ok: bool, email: String, nome: String, erro: String)
 
-const CLIENT_ID     := "551167063541-2pmptkmr3v0ll3a54mc89k5lvrrvnveu.apps.googleusercontent.com"
-# Para apps tipo "Desktop" o Google exige o client_secret na troca do código,
-# mas NAO o trata como segredo (doc oficial: "not treated as a secret").
-const CLIENT_SECRET := "COLE_AQUI_O_GOCSPX"
+# Credenciais vêm de scripts/google_oauth.gd (gitignored). Sem o arquivo,
+# o login Google fica desativado com aviso amigável.
+const _CRED_PATH := "res://scripts/google_oauth.gd"
+static func _cred(campo: String) -> String:
+	if not ResourceLoader.exists(_CRED_PATH):
+		return ""
+	var s = load(_CRED_PATH) as GDScript
+	if s == null:
+		return ""
+	var mapa : Dictionary = s.get_script_constant_map()
+	return str(mapa.get(campo, ""))
 
 const _AUTH_URL  := "https://accounts.google.com/o/oauth2/v2/auth"
 const _TOKEN_URL := "https://oauth2.googleapis.com/token"
@@ -27,11 +34,19 @@ var _porta: int = 0
 var _verifier: String = ""
 var _restante: float = _TIMEOUT_S
 var _ativo: bool = false
+var _client_id: String = ""
+var _client_secret: String = ""
+
+
+static func disponivel() -> bool:
+	return _cred("CLIENT_ID") != "" and _cred("CLIENT_SECRET") != ""
 
 
 func iniciar() -> void:
-	if CLIENT_SECRET.begins_with("COLE_AQUI"):
-		_terminar(false, "", "", "Login Google ainda não configurado (client secret).")
+	_client_id = _cred("CLIENT_ID")
+	_client_secret = _cred("CLIENT_SECRET")
+	if _client_id == "" or _client_secret == "":
+		_terminar(false, "", "", "Login Google não configurado neste build.")
 		return
 	_verifier = _b64url(Crypto.new().generate_random_bytes(48))
 	var ctx := HashingContext.new()
@@ -50,7 +65,7 @@ func iniciar() -> void:
 
 	var redirect := "http://127.0.0.1:%d" % _porta
 	var url := _AUTH_URL + "?" + "&".join(PackedStringArray([
-		"client_id=" + CLIENT_ID.uri_encode(),
+		"client_id=" + _client_id.uri_encode(),
 		"redirect_uri=" + redirect.uri_encode(),
 		"response_type=code",
 		"scope=" + "openid email profile".uri_encode(),
@@ -99,8 +114,8 @@ func _trocar_codigo(code: String) -> void:
 	var http := HTTPRequest.new()
 	add_child(http)
 	var body := "&".join(PackedStringArray([
-		"client_id=" + CLIENT_ID.uri_encode(),
-		"client_secret=" + CLIENT_SECRET.uri_encode(),
+		"client_id=" + _client_id.uri_encode(),
+		"client_secret=" + _client_secret.uri_encode(),
 		"code=" + code.uri_encode(),
 		"code_verifier=" + _verifier,
 		"grant_type=authorization_code",

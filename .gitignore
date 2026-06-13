@@ -44,3 +44,8 @@ tmp_*
 
 # UIDs gerados pelo Godot
 *.uid
+
+# Credenciais OAuth (nunca versionar)
+scripts/google_oauth.gd
+scripts/google_oauth.gd.uid
+
