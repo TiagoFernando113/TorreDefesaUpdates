@@ -5689,9 +5689,6 @@ func _abrir_nexo() -> void:
 		_talentos_panel.visible = false
 	_nexo_overlay = TALENTOS_V2.new()
 	_ui_ref.add_child(_nexo_overlay)
-	_nexo_overlay.connect("abrir_classico", func():
-		if _ui_ref != null:
-			_abrir_talentos_classico(_ui_ref))
 	_nexo_overlay.connect("fechado", func():
 		_nexo_overlay = null
 		if _talentos_overlay != null:

@@ -13,7 +13,6 @@ extends Control
 ## Remover = deletar este arquivo + hook no menu.gd. Zero migração de save.
 
 signal fechado
-signal abrir_classico  # abre a tela classica (ascensao vive la)
 
 # ── Layout (espaço-mundo, raiz em (0,0)) ─────────────────────────────────────
 const BRANCH_ORDER : Array = ["p", "b", "t", "e", "g", "r", "s", "m", "x", "f"]
@@ -60,6 +59,7 @@ var _pulse        : float = 0.0
 var _flux         : float = 0.0   # fase das partículas de energia nos links
 var _abertura_t   : float = 0.0   # 0→1 animação de entrada
 var _reset_arm_t  : float = 0.0   # >0 = botão reset armado ("CONFIRMA?")
+var _asc_confirm  : bool  = false # painel de confirmação de ascensão aberto
 var _toast_txt    : String = ""
 var _toast_t      : float = 0.0
 var _fx           : Array = []    # partículas de compra
@@ -132,11 +132,9 @@ func _montar_layout() -> void:
 		var info0 : Dictionary = Salvar.TALENTOS_INFO.get(cadeia[0], {}) as Dictionary
 		_cor_ramo[br] = info0.get("cor", Color(0.5, 0.8, 1.0)) as Color
 
-	# Anel interno: situacionais + legado intercalados
+	# Anel interno: só situacionais (legado é conquista — vive em arco próprio)
 	var anel : Array = []
 	for id in SITUACIONAIS:
-		if Salvar.TALENTOS_INFO.has(id): anel.append(id)
-	for id in LEGADO:
 		if Salvar.TALENTOS_INFO.has(id): anel.append(id)
 	for k in range(anel.size()):
 		var id_a : String = anel[k]
@@ -144,6 +142,18 @@ func _montar_layout() -> void:
 		_pos[id_a] = Vector2(cos(ang_a), sin(ang_a)) * RAIO_ANEL
 		_ramo_de[id_a] = ""
 		usados[id_a] = true
+
+	# LEGADO — santuário de conquistas: arco no topo, FORA da galáxia
+	var lr : float = RAIO_T1 + RAIO_STEP * 6.4
+	var presentes_leg : Array = []
+	for id in LEGADO:
+		if Salvar.TALENTOS_INFO.has(id): presentes_leg.append(id)
+	for k in range(presentes_leg.size()):
+		var id_l : String = presentes_leg[k]
+		var ang_l : float = -PI / 2.0 + (float(k) - float(presentes_leg.size() - 1) * 0.5) * 0.26
+		_pos[id_l] = Vector2(cos(ang_l), sin(ang_l)) * lr
+		_ramo_de[id_l] = ""
+		usados[id_l] = true
 
 	# Fusões: tudo que sobrou — posição = média dos pais, empurrada p/ fora
 	for tid in Salvar.TALENTOS_INFO.keys():
@@ -276,7 +286,7 @@ func _process(delta: float) -> void:
 
 
 func _clamp_cam() -> void:
-	var lim : float = RAIO_T1 + RAIO_STEP * 6.0
+	var lim : float = RAIO_T1 + RAIO_STEP * 7.0  # alcança o arco do Legado
 	_cam.x = clampf(_cam.x, -lim, lim)
 	_cam.y = clampf(_cam.y, -lim, lim)
 
@@ -289,7 +299,11 @@ func _input(event: InputEvent) -> void:
 	var k := event as InputEventKey
 	if k != null and k.pressed and k.keycode == KEY_ESCAPE:
 		get_viewport().set_input_as_handled()
-		_fechar()
+		if _asc_confirm:
+			_asc_confirm = false
+			queue_redraw()
+		else:
+			_fechar()
 
 
 func _gui_input(event: InputEvent) -> void:
@@ -398,10 +412,22 @@ func _acao_ui(nome: String) -> void:
 		"comprar":
 			if _sel_id != "" and Salvar.pode_comprar_talento(_sel_id):
 				_comprar(_sel_id)
-		"classico":
-			abrir_classico.emit()
-			_fechar()
-			return
+		"ascender":
+			_asc_confirm = true
+		"asc_cancel":
+			_asc_confirm = false
+		"asc_ok":
+			if Salvar.pode_ascender():
+				var nivel_novo : int = Salvar.ascensoes + 1
+				if Salvar.ascender():
+					_asc_confirm = false
+					_sel_id = ""
+					_recalc_dominio()
+					_fx.append({ "tipo": "shock", "pos": Vector2.ZERO, "t": 0.0, "dur": 0.9, "cor": Color(1.0, 0.84, 0.25) })
+					_toast("ASCENSÃO %d! Árvore zerada — bônus permanente ativo." % nivel_novo)
+					Som.talento_fusao()
+		"asc_bloq":
+			pass
 	queue_redraw()
 
 
@@ -525,7 +551,56 @@ func _draw() -> void:
 	_draw_header()
 	_draw_painel()
 	_draw_hover_tooltip()
+	_draw_asc_confirm()
 	_draw_toast()
+
+
+func _draw_asc_confirm() -> void:
+	if not _asc_confirm:
+		return
+	# Overlay modal: domina todos os cliques enquanto aberto
+	_ui_hit.clear()
+	draw_rect(Rect2(Vector2.ZERO, size), Color(0.0, 0.0, 0.02, 0.82), true)
+	var pw : float = minf(560.0, size.x - 40.0)
+	var ph : float = 320.0
+	var r := Rect2((size.x - pw) * 0.5, (size.y - ph) * 0.5, pw, ph)
+	draw_rect(r, Color(0.035, 0.028, 0.008, 0.98), true)
+	draw_rect(r, Color(1.0, 0.80, 0.15, 0.95), false, 2.0)
+
+	var nivel : int = Salvar.ascensoes + 1
+	var tit : String = "ASCENSÃO %d" % nivel
+	var tw : float = _fonte.get_string_size(tit, HORIZONTAL_ALIGNMENT_LEFT, -1, 26).x
+	draw_string(_fonte, r.position + Vector2((pw - tw) * 0.5, 42), tit, HORIZONTAL_ALIGNMENT_LEFT, -1, 26, Color(1.0, 0.86, 0.2))
+
+	var prog : String = "Árvore: %d/%d talentos" % [Salvar.talentos_liberados_para_ascensao(), Salvar.talentos_necessarios_ascensao()]
+	var custo : int = Salvar.ascensao_custo_cristais()
+	var linhas : Array = [
+		["Bônus permanente do nível %d:" % nivel, Color(0.75, 0.85, 1.0)],
+		[Salvar.ascensao_bonus_texto(nivel), Color(0.35, 1.0, 0.60)],
+		["Custo: ◆ %d cristais  ·  %s" % [custo, prog], Color(1.0, 0.88, 0.40)],
+		["ZERA: ouro do banco, árvore de talentos e melhorias da loja.", Color(1.0, 0.55, 0.45)],
+		["MANTÉM: cristais, skins, baús, conta e bônus de ascensão.", Color(0.65, 0.75, 0.88)],
+	]
+	var ly : float = r.position.y + 82.0
+	for l_any in linhas:
+		var txt : String = (l_any as Array)[0]
+		var cor_l : Color = (l_any as Array)[1]
+		var lw2 : float = _fonte.get_string_size(txt, HORIZONTAL_ALIGNMENT_LEFT, -1, 14).x
+		draw_string(_fonte, Vector2(r.position.x + (pw - lw2) * 0.5, ly), txt, HORIZONTAL_ALIGNMENT_LEFT, -1, 14, cor_l)
+		ly += 32.0
+
+	var by : float = r.position.y + ph - 58.0
+	if Salvar.pode_ascender():
+		_botao("asc_ok", Rect2(r.position.x + 24, by, pw * 0.5 - 36, 42), "ASCENDER", Color(0.30, 1.0, 0.55), 1.0)
+	else:
+		_ui_hit["asc_bloq"] = Rect2(r.position.x + 24, by, pw * 0.5 - 36, 42)
+		draw_rect(_ui_hit["asc_bloq"] as Rect2, Color(0.4, 0.18, 0.15, 0.35), true)
+		var bt : String = "ÁRVORE INCOMPLETA" if not Salvar.todos_talentos_liberados() else "FALTAM CRISTAIS"
+		var btw : float = _fonte.get_string_size(bt, HORIZONTAL_ALIGNMENT_LEFT, -1, 13).x
+		draw_string(_fonte, Vector2(r.position.x + 24 + (pw * 0.5 - 36 - btw) * 0.5, by + 26), bt, HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color(1.0, 0.55, 0.45))
+	_botao("asc_cancel", Rect2(r.position.x + pw * 0.5 + 12, by, pw * 0.5 - 36, 42), "CANCELAR", Color(0.7, 0.75, 0.85), 1.0)
+	# Fundo modal engole o resto dos cliques
+	_ui_hit["asc_bg"] = Rect2(Vector2.ZERO, size)
 
 
 func _draw_floats() -> void:
@@ -607,6 +682,15 @@ func _draw_fundo() -> void:
 	var c : Vector2 = _w2s(Vector2.ZERO)
 	draw_circle(c, 240.0 * _zoom, Color(0.25, 0.55, 1.0, 0.04))
 	draw_circle(c, 120.0 * _zoom, Color(0.45, 0.75, 1.0, 0.05))
+	# Santuário do Legado: arco dourado + título acima da galáxia
+	var lr : float = RAIO_T1 + RAIO_STEP * 6.4
+	var lc : Vector2 = _w2s(Vector2.ZERO)
+	draw_arc(lc, lr * _zoom, -PI / 2.0 - 0.46, -PI / 2.0 + 0.46, 26, Color(1.0, 0.84, 0.30, 0.16), 1.6)
+	var ltit : String = "LEGADO · CONQUISTAS"
+	var lw : float = _fonte.get_string_size(ltit, HORIZONTAL_ALIGNMENT_LEFT, -1, 14).x
+	var lp : Vector2 = _w2s(Vector2(0, -lr - 56.0))
+	draw_string(_fonte, lp - Vector2(lw * 0.5, 0), ltit, HORIZONTAL_ALIGNMENT_LEFT, -1, 14,
+			Color(1.0, 0.86, 0.32, 0.65 * _abertura_t))
 
 
 func _draw_grid_polar() -> void:
@@ -648,6 +732,8 @@ func _draw_links() -> void:
 		var id : String = tid as String
 		if id == "raiz" or not _pos.has(id):
 			continue
+		if LEGADO.has(id):
+			continue  # conquistas não têm caminho — flutuam no santuário
 		var alpha_ab : float = _no_visivel_abertura(id)
 		if alpha_ab <= 0.01:
 			continue
@@ -982,12 +1068,10 @@ func _draw_header() -> void:
 	# Botões à direita
 	var bx : float = size.x - 110.0
 	_botao("fechar", Rect2(bx, 9, 96, 34), "X FECHAR", Color(1.0, 0.45, 0.40), a)
-	bx -= 116.0
-	var rtxt : String = "CONFIRMA?" if _reset_arm_t > 0.0 else "REDEFINIR"
-	var rcor : Color = Color(1.0, 0.25, 0.2) if _reset_arm_t > 0.0 else Color(0.75, 0.65, 0.40)
-	_botao("reset", Rect2(bx, 9, 106, 34), rtxt, rcor, a)
-	bx -= 116.0
-	_botao("classico", Rect2(bx, 9, 106, 34), "ASCENSÃO", Color(1.0, 0.82, 0.25), a)
+	bx -= 130.0
+	var acor : Color = Color(1.0, 0.84, 0.22) if Salvar.pode_ascender() else Color(0.62, 0.55, 0.34)
+	var atxt : String = ("ASCENDER +%d" % (Salvar.ascensoes + 1)) if Salvar.pode_ascender() else "ASCENSÃO"
+	_botao("ascender", Rect2(bx, 9, 120, 34), atxt, acor, a)
 	bx -= 88.0
 	_botao("centro", Rect2(bx, 9, 78, 34), "CENTRO", Color(0.55, 0.80, 1.0), a)
 	bx -= 50.0
@@ -1049,7 +1133,10 @@ func _draw_painel() -> void:
 	if ativo:
 		draw_string(_fonte, Vector2(px + 14, by + 30), "✓ ATIVO", HORIZONTAL_ALIGNMENT_LEFT, -1, 17, Color(0.30, 1.0, 0.55))
 	elif _sel_id == "raiz":
-		draw_string(_fonte, Vector2(px + 14, by + 30), "SEMPRE ATIVO", HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color(1.0, 0.85, 0.35))
+		# Núcleo: o respec da árvore vive aqui (refund total)
+		var rtxt2 : String = "CONFIRMA REDEFINIR?" if _reset_arm_t > 0.0 else "REDEFINIR ÁRVORE (refund total)"
+		var rcor2 : Color = Color(1.0, 0.30, 0.22) if _reset_arm_t > 0.0 else Color(0.85, 0.70, 0.40)
+		_botao("reset", Rect2(px + 14, by, pw - 28.0, 40), rtxt2, rcor2, 1.0)
 	else:
 		var custo : int = Salvar.custo_efetivo_talento(_sel_id)
 		var pode : bool = Salvar.pode_comprar_talento(_sel_id)
