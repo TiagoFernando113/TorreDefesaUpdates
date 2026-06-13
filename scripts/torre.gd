@@ -121,18 +121,21 @@ var _alvos_cache_frame : int = -1
 # cad/dano/alcance = multiplicadores; modo = padrão de disparo
 const ARMAS : Dictionary = {
 	"padrao":       {"nome": "Padrão",      "cad": 1.0,  "dano": 1.0,  "alcance": 1.0, "modo": "single"},
-	"saltitante":   {"nome": "Saltitante",  "cad": 1.0,  "dano": 0.9,  "alcance": 1.0, "modo": "ricochete"},
+	"ricochete":    {"nome": "Ricochete",   "cad": 1.0,  "dano": 0.9,  "alcance": 1.0, "modo": "ricochete"},
 	"escopeta":     {"nome": "Escopeta",    "cad": 0.85, "dano": 0.55, "alcance": 0.6, "modo": "escopeta"},
 	"sniper":       {"nome": "Sniper",      "cad": 0.35, "dano": 4.5,  "alcance": 1.6, "modo": "sniper"},
 	"metralhadora": {"nome": "Metralhadora","cad": 2.2,  "dano": 0.45, "alcance": 0.9, "modo": "single"},
+	"orbital":      {"nome": "Orbital",     "cad": 1.1,  "dano": 0.85, "alcance": 1.0, "modo": "orbital"},
+	"missil":       {"nome": "Lança-Mísseis","cad": 0.55,"dano": 2.0,  "alcance": 1.2, "modo": "missil"},
+	"gemea":        {"nome": "Canhão Gêmeo","cad": 0.9,  "dano": 0.85, "alcance": 1.0, "modo": "gemea"},
 }
 var arma_ativa : String = "padrao"
 
 func definir_arma(id: String) -> void:
 	if ARMAS.has(id):
 		arma_ativa = id
-		# Saltitante = arma com ricochete embutido; re-checa fusão de fogo
-		ricochete_count = 2 if id == "saltitante" else ricochete_count
+		# Ricochete = arma que quica; embute ricochete_count (re-checa fusão fogo)
+		ricochete_count = 2 if id == "ricochete" else ricochete_count
 		_checar_fusao_fogo()
 
 func _arma_mult(campo: String) -> float:
@@ -378,13 +381,20 @@ func _achar_alvo() -> Node:
 func _atirar() -> void:
 	if not is_instance_valid(target):
 		return
-	# Escopeta: leque de pelotas em direções espalhadas (alcance curto)
-	if _arma_modo() == "escopeta":
-		_atirar_escopeta()
-		return
-	# Canhão principal sempre atira no alvo primário
-	# (sniper/metralhadora/padrão/saltitante usam o disparo único; a diferença
-	#  vem dos multiplicadores de cad/dano/alcance e da perfuração da sniper)
+	match _arma_modo():
+		"escopeta":
+			_atirar_escopeta()
+			return
+		"orbital":
+			_atirar_orbital()
+			return
+		"gemea":
+			_atirar_gemea()
+			return
+		_:
+			pass
+	# single / ricochete / sniper / metralhadora / missil usam o disparo único;
+	# a diferença vem dos multiplicadores e dos extras (ricochete, splash, perfura)
 	_disparar_em(target)
 	# Rajada: 2 tiros adicionais em ±15°
 	if rajada_ativa:
@@ -485,6 +495,10 @@ func _disparar_de(alvo: Node, spawn_gp: Vector2, dmg_mult: float = 1.0) -> void:
 		pierce_efetivo += 3
 	var splash_r       : float = pierce_splash_radius if pierce_efetivo > 0 else 0.0
 	var splash_d       : float = dano_final * pierce_splash_dmg_mult
+	# Lança-Mísseis: explosão grande em área a cada acerto
+	if arma_ativa == "missil":
+		splash_r = maxf(splash_r, 90.0)
+		splash_d = maxf(splash_d, dano_final * 0.6)
 
 	var extras : Dictionary = {}
 	extras["mobs_group"] = mobs_group
@@ -578,6 +592,27 @@ func _atirar_escopeta() -> void:
 		else:
 			# Sem mob naquele ângulo: dispara direcional reto (free_dir)
 			_disparar_direcao(Vector2(cos(ang), sin(ang)))
+
+
+func _atirar_orbital() -> void:
+	# Dispara de 3 pontos girando ao redor da torre, cada um no melhor alvo
+	var alvos := _achar_alvos_multiplos(3)
+	for i in range(3):
+		var orbit_a : float = float(i) * TAU / 3.0 + _orbit_rot
+		var spawn_gp : Vector2 = global_position + Vector2(cos(orbit_a), sin(orbit_a)) * 50.0
+		var alvo_o : Node = target
+		if i < alvos.size() and is_instance_valid(alvos[i]):
+			alvo_o = alvos[i]
+		if is_instance_valid(alvo_o):
+			_disparar_de(alvo_o, spawn_gp, 0.6)
+
+
+func _atirar_gemea() -> void:
+	# Dois canhões miram 2 alvos distintos simultaneamente
+	var alvos := _achar_alvos_multiplos(2)
+	_disparar_em(target)
+	if alvos.size() >= 2 and is_instance_valid(alvos[1]) and alvos[1] != target:
+		_disparar_de(alvos[1], global_position)
 
 
 func receber_dano(dano: float) -> void:

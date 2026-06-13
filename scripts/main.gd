@@ -118,6 +118,7 @@ var _focus_touch_idx  : int  = -1     # índice do dedo fazendo mira
 # Contagem de cartas para o sistema de fusão (futuro)
 # Quando pierce_cartas >= 5 e dano_cartas >= 5 → fusão "Raio"
 var _cartas_colhidas : Dictionary = {}   # {"pierce": 2, "dano": 3, ...}
+var _arma_run : String = "padrao"        # arma ativa da partida (escolha wave 1/20)
 
 # raridade: "comum"(8) | "incomum"(4) | "raro"(2) | "epico"(1)
 # peso: probabilidade relativa no pool
@@ -142,8 +143,7 @@ const CARTAS := [
 	# ── Novas cartas ────────────────────────────────────────────────────────────
 	{"id":"raio",       "nome":"Raio Arcano",         "desc":"Golpeia inimigo aleatório\na cada ~4s (+45 dano/nv)",    "cor":Color(0.40, 0.72, 1.0), "efeito":"raio",       "val":1.0,  "raridade":"epico",   "peso":1, "min_wave":15, "max_picks":5},
 	{"id":"corrente",   "nome":"Corrente Elétrica",   "desc":"Projéteis saltam para\n2 inimigos extras (sem redução)","cor":Color(0.25, 0.95, 1.0), "efeito":"corrente",   "val":1.0,  "raridade":"epico",   "peso":1, "min_wave":15, "max_picks":1},
-	{"id":"ricochete",  "nome":"Bala Saltitante",     "desc":"Projétil quica para +1\ninimigo após acertar\n(dano -30% por quique)","cor":Color(0.35, 1.0, 0.75), "efeito":"ricochete",  "val":1.0,  "raridade":"raro",    "peso":3, "min_wave":8,  "max_picks":3},
-	{"id":"brasa",      "nome":"Brasa",               "desc":"Tiros queimam o alvo.\n5× Brasa + Saltitante =\nBolas de Fogo!","cor":Color(1.0, 0.45, 0.08), "efeito":"brasa",      "val":1.0,  "raridade":"incomum", "peso":5, "min_wave":3,  "max_picks":5},
+	{"id":"brasa",      "nome":"Brasa",               "desc":"Tiros queimam o alvo.\n5× Brasa + arma Ricochete\n= Bolas de Fogo!","cor":Color(1.0, 0.45, 0.08), "efeito":"brasa",      "val":1.0,  "raridade":"incomum", "peso":5, "min_wave":3,  "max_picks":5},
 	{"id":"veneno",     "nome":"Veneno Arcano",        "desc":"+8 dano/s por 4s\nem inimigos acertados",             "cor":Color(0.25, 1.0,  0.2),  "efeito":"veneno",     "val":8.0,  "raridade":"incomum", "peso":5, "min_wave":4,  "max_picks":4},
 	{"id":"critico",    "nome":"Golpe Crítico",        "desc":"+12% chance de\n3× dano por tiro",                    "cor":Color(1.0,  0.50, 0.05), "efeito":"critico",    "val":0.12, "raridade":"raro",    "peso":2, "min_wave":6,  "max_picks":3},
 	{"id":"explosao",   "nome":"Explosão Mortal",      "desc":"Ao matar: explode\n40% dano em 80px",                 "cor":Color(1.0,  0.38, 0.05), "efeito":"explosao",   "val":1.0,  "raridade":"epico",   "peso":2, "min_wave":10, "max_picks":2},
@@ -1498,9 +1498,14 @@ func _fim_wave() -> void:
 
 
 func _prosseguir_pos_resumo_mapa() -> void:
-	# Cartas aparecem na wave 1 (tutorial) e a cada 5 waves depois (5, 10, 15...).
+	# ARMA: wave 1 = escolha inicial; a cada 20 waves = revisão (mantém/troca).
+	if wave == 1 or wave % 20 == 0:
+		estado = "cartas"
+		_mostrar_escolha_arma()
+		return
+	# Cartas aparecem a cada 5 waves (5, 10, 15...).
 	# Waves intermediárias vão direto para a próxima wave.
-	var wave_com_carta : bool = (wave == 1) or (wave % 5 == 0)
+	var wave_com_carta : bool = (wave % 5 == 0)
 	if not wave_com_carta:
 		if Salvar.pausa_auto_wave and ui_node:
 			ui_node.mostrar_btn_iniciar_wave()
@@ -1509,6 +1514,50 @@ func _prosseguir_pos_resumo_mapa() -> void:
 		return
 	estado = "cartas"
 	_sortear_e_mostrar_cartas()
+
+
+func _mostrar_escolha_arma() -> void:
+	if not ui_node:
+		_iniciar_wave()
+		return
+	# Lista: a arma atual primeiro (manter) + outras sorteadas (trocar).
+	var todas : Array = ["padrao", "ricochete", "escopeta", "sniper", "metralhadora", "orbital", "missil", "gemea"]
+	var ordem : Array = []
+	# Escolha inicial (wave 1) e revisão (cada 20) mostram 5 opções:
+	# a arma atual primeiro (manter) + 4 aleatórias (trocar).
+	ordem.append(_arma_run)
+	var resto : Array = todas.filter(func(a): return a != _arma_run)
+	resto.shuffle()
+	for i in range(mini(4, resto.size())):
+		ordem.append(resto[i])
+	var infos : Array = []
+	for aid in ordem:
+		infos.append(_carta_de_arma(aid as String))
+	ui_node.mostrar_cartas(infos, false)
+
+
+func _carta_de_arma(aid: String) -> Dictionary:
+	# Monta um dicionário no formato de carta para a tela de escolha.
+	var arma : Dictionary = ({} if torre == null else (torre.ARMAS.get(aid, {}) as Dictionary))
+	var meta : Dictionary = {
+		"padrao":       {"nome": "Padrão",        "desc": "Tiro único teleguiado.\nEquilibrado.",                     "cor": Color(0.70, 0.85, 1.0)},
+		"ricochete":    {"nome": "Ricochete",     "desc": "Projétil quica entre\ninimigos próximos.",                 "cor": Color(0.35, 1.0, 0.75)},
+		"escopeta":     {"nome": "Escopeta",      "desc": "Leque de 6 pelotas.\nDevastador de perto,\nfraco de longe.","cor": Color(1.0, 0.55, 0.15)},
+		"sniper":       {"nome": "Sniper",        "desc": "Tiro lento e forte.\nAlcance máximo, perfura.",            "cor": Color(0.55, 0.80, 1.0)},
+		"metralhadora": {"nome": "Metralhadora",  "desc": "Cadência altíssima,\ndano baixo por tiro.",                "cor": Color(1.0, 0.85, 0.25)},
+		"orbital":      {"nome": "Orbital",       "desc": "3 canhões giram ao\nredor da torre, miram\nvários alvos.", "cor": Color(0.65, 0.55, 1.0)},
+		"missil":       {"nome": "Lança-Mísseis", "desc": "Mísseis lentos que\nexplodem em área\ngrande.",            "cor": Color(1.0, 0.40, 0.20)},
+		"gemea":        {"nome": "Canhão Gêmeo",  "desc": "Dois canhões miram\n2 alvos diferentes\nao mesmo tempo.",  "cor": Color(0.45, 0.95, 0.85)},
+	}
+	var m : Dictionary = meta.get(aid, meta["padrao"]) as Dictionary
+	var nome_final : String = str(m["nome"])
+	if aid == _arma_run and wave != 1:
+		nome_final += "  (atual)"
+	return {
+		"id": aid, "nome": nome_final, "desc": str(m["desc"]),
+		"cor": m["cor"], "efeito": "arma", "val": 1.0, "raridade": "epico",
+		"peso": 1, "min_wave": 1, "max_picks": 99,
+	}
 
 
 # ── Mini-eventos ─────────────────────────────────────────────────────────────
@@ -1692,6 +1741,17 @@ func spawnar_mob_proximo(pos: Vector2, tipo_mob: String) -> void:
 
 
 func aplicar_carta(efeito: String, val: float, id: String = "") -> void:
+	# Escolha de ARMA (wave 1 e a cada 20): troca o formato do tiro da torre
+	if efeito == "arma":
+		_arma_run = id
+		if torre and is_instance_valid(torre):
+			torre.definir_arma(id)
+		if Salvar.pausa_auto_wave and ui_node:
+			ui_node.mostrar_btn_iniciar_wave()
+		else:
+			_iniciar_wave()
+		return
+
 	var chave : String = id if id != "" else efeito
 	_cartas_colhidas[chave] = (_cartas_colhidas.get(chave, 0) as int) + 1
 

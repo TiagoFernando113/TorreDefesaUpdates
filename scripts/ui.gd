@@ -1964,8 +1964,9 @@ func _escolheu_carta(efeito: String, val: float, id: String = "") -> void:
 	_overlay = null
 	_panel   = null
 	if jogo:
-		# M4 — Dupla Escolha: 1× por partida permite pegar 2 cartas
-		if Salvar.talento_ativo("m4") and not _m4_usado:
+		# M4 — Dupla Escolha: 1× por partida permite pegar 2 cartas.
+		# NUNCA aplica à escolha de ARMA (é seleção especial, não carta dupla).
+		if efeito != "arma" and Salvar.talento_ativo("m4") and not _m4_usado:
 			_m4_usado = true
 			jogo.aplicar_carta_m4(efeito, val, id)
 		else:

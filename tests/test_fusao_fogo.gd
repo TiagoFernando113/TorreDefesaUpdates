@@ -25,10 +25,10 @@ func _ready() -> void:
 		get_tree().quit(1)
 		return
 
-	# Adiciona Ricochete: agora fundem
-	t.aplicar_carta("ricochete", 1.0)
+	# Define arma Ricochete: agora fundem
+	t.definir_arma("ricochete")
 	if not t.fogo_fusao:
-		push_error("FALHA: 5 brasa + ricochete NAO ativou fogo_fusao")
+		push_error("FALHA: 5 brasa + arma ricochete NAO ativou fogo_fusao")
 		get_tree().quit(1)
 		return
 
@@ -57,20 +57,26 @@ func _ready() -> void:
 		push_error("FALHA: multiplicadores da sniper errados")
 		get_tree().quit(1)
 		return
-	# Saltitante define ricochete embutido → checa fusão com brasa
-	t2.definir_arma("saltitante")
+	# Ricochete embute ricochete_count → checa fusão com brasa
+	t2.definir_arma("ricochete")
 	for i in 5:
 		t2.aplicar_carta("brasa", 1.0)
 	if not t2.fogo_fusao:
-		push_error("FALHA: 5 brasa + arma saltitante NAO fundiu")
+		push_error("FALHA: 5 brasa + arma ricochete NAO fundiu")
 		get_tree().quit(1)
 		return
+	# Todas as 8 armas existem e têm modo
+	for aid in ["padrao","ricochete","escopeta","sniper","metralhadora","orbital","missil","gemea"]:
+		if not t2.ARMAS.has(aid):
+			push_error("FALHA: arma %s ausente" % aid)
+			get_tree().quit(1)
+			return
 	# Arma inválida não muda nada
 	t2.definir_arma("inexistente")
-	if t2.arma_ativa != "saltitante":
+	if t2.arma_ativa != "ricochete":
 		push_error("FALHA: arma invalida nao deveria trocar")
 		get_tree().quit(1)
 		return
 
-	print("TESTE fusao-fogo: OK (fusão + armas)")
+	print("TESTE fusao-fogo: OK (fusão + 8 armas)")
 	get_tree().quit(0)
