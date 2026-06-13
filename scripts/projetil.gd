@@ -24,7 +24,8 @@ var armadura_inv := false  # Armadura Invertida: +60% dano em alvo abaixo de 30%
 var is_bencao    := false  # Bênção de Energia: visual especial
 var fissura_ativa:= false  # Fissura Venenosa: envenena mobs em 70px ao acertar
 var is_critico   := false  # Golpe Crítico: trilha laranja
-var queimadura   := false  # P5 Lenda do Canhão: aplica queimadura 10/s por 2s
+var queimadura   := false  # P5 Lenda do Canhão / Brasa: aplica queimadura no alvo
+var fogo_fusao   := false  # FUSÃO Bolas de Fogo: explode em área flamejante
 var canhao_g_gelo := false  # Canhão Glacial: congela o alvo ao acertar
 var mobs_group   := "mobs"
 var low_fx       := false
@@ -67,6 +68,7 @@ func setup(alvo: Node, dano: float, pierce: int = 0, speed_bonus: float = 0.0,
 	fissura_ativa = extras.get("fissura",        false) as bool
 	is_critico    = extras.get("is_critico",     false) as bool
 	queimadura    = extras.get("queimadura",     false) as bool
+	fogo_fusao    = extras.get("fogo_fusao",     false) as bool
 	canhao_g_gelo = extras.get("canhao_g_gelo", false) as bool
 	mobs_group    = extras.get("mobs_group",    "mobs") as String
 	low_fx        = extras.get("low_fx",        false) as bool
@@ -197,6 +199,9 @@ func _process(delta: float) -> void:
 			# Fissura Venenosa: envenena mobs em 70px ao redor do impacto
 			if fissura_ativa:
 				_fissura_at(alvo_pos)
+			# FUSÃO Bolas de Fogo: explode em área flamejante
+			if fogo_fusao:
+				_explosao_fogo_at(alvo_pos)
 
 		if pierce_left > 0:
 			pierce_left -= 1
@@ -264,6 +269,20 @@ func _fissura_at(pos: Vector2) -> void:
 			mob.set("veneno_timer", maxf(mob.get("veneno_timer")  as float, 3.0))
 
 
+func _explosao_fogo_at(pos: Vector2) -> void:
+	# Bolas de Fogo: dano de área + queimadura forte em todos no raio
+	const RAIO_FOGO : float = 72.0
+	var dano_area : float = damage * 0.55
+	for mob in get_tree().get_nodes_in_group(mobs_group):
+		if not is_instance_valid(mob): continue
+		if (mob.get("imune_aoe") as bool): continue   # Fantasma imune
+		if pos.distance_to((mob as Node2D).global_position) <= RAIO_FOGO:
+			if mob not in hit_targets:
+				mob.receber_dano(dano_area, true)
+			mob.set("queima_dps",   maxf(_get_float_prop(mob, "queima_dps"),   15.0))
+			mob.set("queima_timer", maxf(_get_float_prop(mob, "queima_timer"), 3.0))
+
+
 func _achar_proximo_alvo() -> Node:
 	var mobs    = get_tree().get_nodes_in_group(mobs_group)
 	var melhor  = null
@@ -284,7 +303,11 @@ func _draw() -> void:
 	for i in range(trail.size()):
 		var tp : Vector2 = to_local(trail[i])
 		var t  : float   = float(i) / float(trail.size())
-		if is_bencao:
+		if fogo_fusao:
+			# Bola de fogo: rastro flamejante laranja/vermelho
+			draw_circle(tp, 7.0 * t, Color(1.0, 0.30, 0.02, t * 0.45))
+			draw_circle(tp, 4.5 * t, Color(1.0, 0.62, 0.10, t * 0.60))
+		elif is_bencao:
 			draw_circle(tp, 5.0 * t, Color(1.0, 0.92, 0.2,  t * 0.55))
 		elif veneno_dps > 0.0:
 			draw_circle(tp, 3.5 * t, Color(0.12, 0.95, 0.22, t * 0.50))
@@ -293,8 +316,13 @@ func _draw() -> void:
 		else:
 			draw_circle(tp, 3.5 * t, Color(1.0, 0.88, 0.25,  t * 0.45))
 
-	# Núcleo — bênção fica maior e mais brilhante
-	if is_bencao:
+	# Núcleo
+	if fogo_fusao:
+		var fp : float = sin(pulse * 1.4) * 0.25 + 0.85
+		draw_circle(Vector2.ZERO, 12.0, Color(1.0, 0.30, 0.0, 0.30 * fp))
+		draw_circle(Vector2.ZERO,  8.0, Color(1.0, 0.55, 0.05, 0.85 * fp))
+		draw_circle(Vector2.ZERO,  4.5, Color(1.0, 0.92, 0.55, 1.0))
+	elif is_bencao:
 		draw_circle(Vector2.ZERO, 11.0, Color(1.0, 0.90, 0.1, 0.35 * p))
 		draw_circle(Vector2.ZERO,  7.0, Color(1.0, 1.0,  0.5, 0.85 * p))
 		draw_circle(Vector2.ZERO,  3.5, Color(1.0, 1.0,  1.0, 1.0))

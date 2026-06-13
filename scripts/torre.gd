@@ -73,6 +73,8 @@ var tempestade_ativa     := false   # Tempestade Arcana: raio acerta TODOS no al
 var fissura_ativa        := false   # Fissura Venenosa: projéteis envenenam em 70px
 var corrente_ativa       := false   # Corrente Elétrica: projéteis saltam +2 alvos
 var ricochete_count      := 0      # Ricochete: projétil quica para N inimigos após acertar
+var brasa_count          := 0      # Brasa: cartas de fogo empilhadas (fusão em 5)
+var fogo_fusao           := false   # FUSÃO: 5 Brasa + Ricochete = Bolas de Fogo
 var veneno_dps           := 0.0    # Veneno Arcano: DoT nos acertados
 var crit_chance          := 0.0    # Golpe Crítico: chance de 3× dano
 var explosao_ativa       := false   # Explosão Mortal: explode ao matar
@@ -456,6 +458,8 @@ func _disparar_de(alvo: Node, spawn_gp: Vector2, dmg_mult: float = 1.0) -> void:
 	extras["low_fx"] = _efeitos_leves_ativos()
 	if corrente_ativa:                  extras["chain"]        = 2
 	if ricochete_count > 0:             extras["ricochete"]    = ricochete_count
+	if brasa_count > 0:                 extras["queimadura"]   = true   # Brasa: tiros queimam
+	if fogo_fusao:                      extras["fogo_fusao"]   = true   # Bolas de Fogo
 	if veneno_dps > 0.0:               extras["veneno_dps"]   = veneno_dps;  extras["veneno_dur"] = 4.0
 	if armadura_inv:                    extras["armadura_inv"]  = true
 	if eh_bencao:                       extras["is_bencao"]     = true
@@ -615,7 +619,8 @@ func aplicar_carta(efeito: String, val: float) -> void:
 		"tempestade": tempestade_ativa = true
 		"fissura":    fissura_ativa   = true
 		"corrente":   corrente_ativa  = true
-		"ricochete":  ricochete_count = mini(ricochete_count + int(val), 4)
+		"ricochete":  ricochete_count = mini(ricochete_count + int(val), 4); _checar_fusao_fogo()
+		"brasa":      brasa_count     = mini(brasa_count + int(val), 5);     _checar_fusao_fogo()
 		"veneno":     veneno_dps     = max(0.0, veneno_dps + val)
 		"critico":    crit_chance    = clampf(crit_chance + val, 0.0, 0.75)
 		"explosao":   explosao_ativa = true
@@ -630,6 +635,11 @@ func aplicar_carta(efeito: String, val: float) -> void:
 		"speed":    proj_speed_bonus = max(0.0, proj_speed_bonus + val)
 		"regen":    regen_rate  = max(0.0, regen_rate + val)
 		"reducao":  damage_reduction = clampf(damage_reduction + val, 0.0, 0.75)
+
+
+func _checar_fusao_fogo() -> void:
+	# FUSÃO Bolas de Fogo: 5 cartas de Brasa + arma Ricochete
+	fogo_fusao = brasa_count >= 5 and ricochete_count > 0
 
 
 func aplicar_upgrade(tipo: String) -> void:
