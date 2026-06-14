@@ -65,12 +65,22 @@ func _ready() -> void:
 		push_error("FALHA: 5 brasa + arma ricochete NAO fundiu")
 		get_tree().quit(1)
 		return
-	# Todas as 8 armas existem e têm modo
-	for aid in ["padrao","ricochete","escopeta","sniper","metralhadora","orbital","missil","gemea"]:
+	# Todas as 10 armas existem (5 comuns + 5 lendárias)
+	var comuns := 0
+	var lendarias := 0
+	for aid in ["padrao","ricochete","escopeta","sniper","metralhadora","orbital","missil","gemea","vortice","aniquilador"]:
 		if not t2.ARMAS.has(aid):
 			push_error("FALHA: arma %s ausente" % aid)
 			get_tree().quit(1)
 			return
+		if str((t2.ARMAS[aid] as Dictionary).get("tier")) == "comum":
+			comuns += 1
+		else:
+			lendarias += 1
+	if comuns != 5 or lendarias != 5:
+		push_error("FALHA: esperado 5 comuns + 5 lendarias, veio %d/%d" % [comuns, lendarias])
+		get_tree().quit(1)
+		return
 	# Arma inválida não muda nada
 	t2.definir_arma("inexistente")
 	if t2.arma_ativa != "ricochete":

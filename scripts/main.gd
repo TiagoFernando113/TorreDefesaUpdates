@@ -1521,15 +1521,28 @@ func _mostrar_escolha_arma() -> void:
 		_iniciar_wave()
 		return
 	# Lista: a arma atual primeiro (manter) + outras sorteadas (trocar).
-	var todas : Array = ["padrao", "ricochete", "escopeta", "sniper", "metralhadora", "orbital", "missil", "gemea"]
+	# Comuns sempre; lendárias só a partir da wave LENDARIA_WAVE.
+	var pool_armas : Array = []
+	var lend_wave : int = 100
+	if torre and is_instance_valid(torre):
+		lend_wave = int(torre.LENDARIA_WAVE)
+		for aid in torre.ARMAS.keys():
+			var tier : String = str((torre.ARMAS[aid] as Dictionary).get("tier", "comum"))
+			if tier == "comum" or wave >= lend_wave:
+				pool_armas.append(aid)
+	else:
+		pool_armas = ["padrao", "ricochete", "escopeta", "sniper", "metralhadora"]
+
 	var ordem : Array = []
-	# Escolha inicial (wave 1) e revisão (cada 20) mostram 5 opções:
-	# a arma atual primeiro (manter) + 4 aleatórias (trocar).
-	ordem.append(_arma_run)
-	var resto : Array = todas.filter(func(a): return a != _arma_run)
+	# A arma atual primeiro (manter) + outras aleatórias (trocar).
+	if pool_armas.has(_arma_run):
+		ordem.append(_arma_run)
+	var resto : Array = pool_armas.filter(func(a): return a != _arma_run)
 	resto.shuffle()
 	for i in range(mini(4, resto.size())):
 		ordem.append(resto[i])
+	if ordem.is_empty():
+		ordem = ["padrao"]
 	var infos : Array = []
 	for aid in ordem:
 		infos.append(_carta_de_arma(aid as String))
@@ -1548,14 +1561,21 @@ func _carta_de_arma(aid: String) -> Dictionary:
 		"orbital":      {"nome": "Orbital",       "desc": "3 canhões giram ao\nredor da torre, miram\nvários alvos.", "cor": Color(0.65, 0.55, 1.0)},
 		"missil":       {"nome": "Lança-Mísseis", "desc": "Mísseis lentos que\nexplodem em área\ngrande.",            "cor": Color(1.0, 0.40, 0.20)},
 		"gemea":        {"nome": "Canhão Gêmeo",  "desc": "Dois canhões miram\n2 alvos diferentes\nao mesmo tempo.",  "cor": Color(0.45, 0.95, 0.85)},
+		"vortice":      {"nome": "Vórtice",       "desc": "Dispara em TODAS as\ndireções (360°).\nCobre todos os flancos.","cor": Color(0.80, 0.45, 1.0)},
+		"aniquilador":  {"nome": "Aniquilador",   "desc": "Feixe que atravessa\na tela inteira.\nDano massivo.",      "cor": Color(1.0, 0.30, 0.55)},
 	}
 	var m : Dictionary = meta.get(aid, meta["padrao"]) as Dictionary
 	var nome_final : String = str(m["nome"])
 	if aid == _arma_run and wave != 1:
 		nome_final += "  (atual)"
+	# Lendárias usam raridade lendaria (card dourado especial)
+	var rar : String = "epico"
+	if torre and is_instance_valid(torre):
+		if str((torre.ARMAS.get(aid, {}) as Dictionary).get("tier", "comum")) == "lendaria":
+			rar = "lendario"
 	return {
 		"id": aid, "nome": nome_final, "desc": str(m["desc"]),
-		"cor": m["cor"], "efeito": "arma", "val": 1.0, "raridade": "epico",
+		"cor": m["cor"], "efeito": "arma", "val": 1.0, "raridade": rar,
 		"peso": 1, "min_wave": 1, "max_picks": 99,
 	}
 

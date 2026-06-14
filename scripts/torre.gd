@@ -120,15 +120,20 @@ var _alvos_cache_frame : int = -1
 # ── Arma ativa (formato do tiro) ─────────────────────────────────────────────
 # cad/dano/alcance = multiplicadores; modo = padrão de disparo
 const ARMAS : Dictionary = {
-	"padrao":       {"nome": "Padrão",      "cad": 1.0,  "dano": 1.0,  "alcance": 1.0, "modo": "single"},
-	"ricochete":    {"nome": "Ricochete",   "cad": 1.0,  "dano": 0.9,  "alcance": 1.0, "modo": "ricochete"},
-	"escopeta":     {"nome": "Escopeta",    "cad": 0.85, "dano": 0.55, "alcance": 0.6, "modo": "escopeta"},
-	"sniper":       {"nome": "Sniper",      "cad": 0.35, "dano": 4.5,  "alcance": 1.6, "modo": "sniper"},
-	"metralhadora": {"nome": "Metralhadora","cad": 2.2,  "dano": 0.45, "alcance": 0.9, "modo": "single"},
-	"orbital":      {"nome": "Orbital",     "cad": 1.1,  "dano": 0.85, "alcance": 1.0, "modo": "orbital"},
-	"missil":       {"nome": "Lança-Mísseis","cad": 0.55,"dano": 2.0,  "alcance": 1.2, "modo": "missil"},
-	"gemea":        {"nome": "Canhão Gêmeo","cad": 0.9,  "dano": 0.85, "alcance": 1.0, "modo": "gemea"},
+	# Comuns — desde a wave 1
+	"padrao":       {"nome": "Padrão",      "cad": 1.0,  "dano": 1.0,  "alcance": 1.0, "modo": "single",   "tier": "comum"},
+	"ricochete":    {"nome": "Ricochete",   "cad": 1.0,  "dano": 0.9,  "alcance": 1.0, "modo": "ricochete","tier": "comum"},
+	"escopeta":     {"nome": "Escopeta",    "cad": 0.85, "dano": 0.55, "alcance": 0.6, "modo": "escopeta", "tier": "comum"},
+	"sniper":       {"nome": "Sniper",      "cad": 0.35, "dano": 4.5,  "alcance": 1.6, "modo": "sniper",   "tier": "comum"},
+	"metralhadora": {"nome": "Metralhadora","cad": 2.2,  "dano": 0.45, "alcance": 0.9, "modo": "single",   "tier": "comum"},
+	# Lendárias — a partir da wave LENDARIA_WAVE
+	"orbital":      {"nome": "Orbital",      "cad": 1.1, "dano": 0.85, "alcance": 1.0, "modo": "orbital",  "tier": "lendaria"},
+	"missil":       {"nome": "Lança-Mísseis","cad": 0.55,"dano": 2.0,  "alcance": 1.2, "modo": "missil",   "tier": "lendaria"},
+	"gemea":        {"nome": "Canhão Gêmeo", "cad": 0.9, "dano": 0.85, "alcance": 1.0, "modo": "gemea",    "tier": "lendaria"},
+	"vortice":      {"nome": "Vórtice",      "cad": 0.75,"dano": 0.7,  "alcance": 0.85,"modo": "vortice",  "tier": "lendaria"},
+	"aniquilador":  {"nome": "Aniquilador",  "cad": 0.30,"dano": 7.0,  "alcance": 1.8, "modo": "aniquilador","tier": "lendaria"},
 }
+const LENDARIA_WAVE : int = 100   # lendárias só aparecem na escolha a partir daqui
 var arma_ativa : String = "padrao"
 
 func definir_arma(id: String) -> void:
@@ -391,11 +396,27 @@ func _atirar() -> void:
 		"gemea":
 			_atirar_gemea()
 			return
+		"vortice":
+			_atirar_vortice()
+			return
 		_:
 			pass
-	# single / ricochete / sniper / metralhadora / missil usam o disparo único;
-	# a diferença vem dos multiplicadores e dos extras (ricochete, splash, perfura)
+	# single / ricochete / sniper / metralhadora / missil / aniquilador usam o
+	# disparo único; a diferença vem dos multiplicadores e dos extras
 	_disparar_em(target)
+
+
+func _atirar_vortice() -> void:
+	# Dispara em 10 direções ao redor (360°), cobrindo todos os flancos
+	const N : int = 10
+	for i in range(N):
+		var ang : float = _orbit_rot + float(i) * TAU / float(N)
+		var dir : Vector2 = Vector2(cos(ang), sin(ang))
+		var alvo_v : Node = _achar_alvo_em_direcao(dir)
+		if alvo_v and is_instance_valid(alvo_v):
+			_disparar_de(alvo_v, global_position, 0.7)
+		else:
+			_disparar_direcao(dir)
 	# Rajada: 2 tiros adicionais em ±15°
 	if rajada_ativa:
 		for ang_off in [-0.26, 0.26]:
@@ -493,6 +514,9 @@ func _disparar_de(alvo: Node, spawn_gp: Vector2, dmg_mult: float = 1.0) -> void:
 	# Sniper: o tiro perfura naturalmente (atravessa a fileira)
 	if arma_ativa == "sniper" and punicao_pierce_timer <= 0.0:
 		pierce_efetivo += 3
+	# Aniquilador: feixe que atravessa a tela inteira (perfura quase tudo)
+	if arma_ativa == "aniquilador" and punicao_pierce_timer <= 0.0:
+		pierce_efetivo = maxi(pierce_efetivo, 12)
 	var splash_r       : float = pierce_splash_radius if pierce_efetivo > 0 else 0.0
 	var splash_d       : float = dano_final * pierce_splash_dmg_mult
 	# Lança-Mísseis: explosão grande em área a cada acerto

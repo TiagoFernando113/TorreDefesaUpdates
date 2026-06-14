@@ -1762,17 +1762,19 @@ func mostrar_cartas(cartas: Array, is_x4: bool = false) -> void:
 
 func _raridade_cor(r: String) -> Color:
 	match r:
-		"incomum": return Color(0.22, 0.88, 0.42)
-		"raro":    return Color(0.28, 0.55, 1.0)
-		"epico":   return Color(1.0,  0.80, 0.08)
+		"incomum":  return Color(0.22, 0.88, 0.42)
+		"raro":     return Color(0.28, 0.55, 1.0)
+		"epico":    return Color(1.0,  0.80, 0.08)
+		"lendario": return Color(1.0,  0.35, 0.85)
 	return Color(0.55, 0.55, 0.58)   # comum
 
 
 func _raridade_texto(r: String) -> String:
 	match r:
-		"incomum": return "◆◆  INCOMUM"
-		"raro":    return "◆◆◆  RARO"
-		"epico":   return "◆◆◆◆  ÉPICO"
+		"incomum":  return "◆◆  INCOMUM"
+		"raro":     return "◆◆◆  RARO"
+		"epico":    return "◆◆◆◆  ÉPICO"
+		"lendario": return "★★★★★  LENDÁRIA"
 	return "◆  COMUM"
 
 
