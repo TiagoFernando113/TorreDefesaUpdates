@@ -1826,7 +1826,11 @@ func _criar_carta(carta: Dictionary, x: float, y: float, w: float, h: float) -> 
 		"ouro": "ouro",
 	}
 	var icone       := ICONE_SCENE.new()
-	icone.tipo       = _mapa_icone.get(efeito, "dano") as String
+	# Cartas de arma usam ícone específico por arma (arma_<id>)
+	if efeito == "arma":
+		icone.tipo = "arma_" + (carta.get("id", "padrao") as String)
+	else:
+		icone.tipo = _mapa_icone.get(efeito, "dano") as String
 	icone.cor        = cor
 	icone.position   = Vector2((w - 100.0) * 0.5, 20.0)
 	icone.size       = Vector2(100.0, 150)
