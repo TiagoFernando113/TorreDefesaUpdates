@@ -555,7 +555,7 @@ func _disparar_direcao(dir: Vector2) -> void:
 	var proj = PROJETIL_SCENE.instantiate()
 	get_parent().add_child(proj)
 	proj.global_position = global_position + Vector2(cos(ang), sin(ang)) * 20.0
-	var dano_final : float = damage * x1_mult
+	var dano_final : float = damage * _arma_mult("dano") * x1_mult
 	if ia_dano_boost_ativo: dano_final *= IA_DANO_BOOST_MULT
 	if Salvar.talento_ativo("b1") and max_hp > 0.0:
 		var hp_f : float = clampf(1.0 - (hp / max_hp), 0.0, 1.0)
@@ -574,7 +574,9 @@ func _disparar_direcao(dir: Vector2) -> void:
 	if eh_crit:           extras["is_critico"]   = true
 	if Salvar.talento_ativo("p5"):      extras["queimadura"]   = true
 	if Salvar.talento_ativo("canhao_g") and randf() < 0.20: extras["canhao_g_gelo"] = true
-	extras["max_travel"] = range_r + 26.0
+	extras["max_travel"] = range_r * _arma_mult("alcance") + 26.0
+	if brasa_count > 0:  extras["queimadura"] = true
+	if fogo_fusao:       extras["fogo_fusao"] = true
 	proj.setup_dir(dir, dano_final, pierce_ef, proj_speed_bonus, splash_r, splash_d, extras)
 	Som.tiro()
 
@@ -602,20 +604,15 @@ func _range_para_alvo(alvo: Node) -> float:
 
 
 func _atirar_escopeta() -> void:
-	# Leque de 6 pelotas em ±40° em torno da direção do alvo. Alcance curto
-	# (já refletido em _range_para_alvo), dano por pelota baixo (mult da arma).
+	# Leque FIXO de 6 pelotas em ±40° na direção do alvo. Cada pelota vai reta
+	# (direcional) e fura quem cruzar — espalha de verdade, nunca converge.
 	var dir_base : Vector2 = (_target_pos(target) - global_position).normalized()
 	var ang_base : float = atan2(dir_base.y, dir_base.x)
 	const N : int = 6
 	for i in range(N):
 		var frac : float = (float(i) / float(N - 1)) - 0.5   # -0.5..0.5
 		var ang  : float = ang_base + frac * deg_to_rad(80.0)
-		var alvo_p : Node = _achar_alvo_em_direcao(Vector2(cos(ang), sin(ang)))
-		if alvo_p and is_instance_valid(alvo_p):
-			_disparar_de(alvo_p, global_position)
-		else:
-			# Sem mob naquele ângulo: dispara direcional reto (free_dir)
-			_disparar_direcao(Vector2(cos(ang), sin(ang)))
+		_disparar_direcao(Vector2(cos(ang), sin(ang)))
 
 
 func _atirar_orbital() -> void:

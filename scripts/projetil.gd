@@ -284,14 +284,17 @@ func _explosao_fogo_at(pos: Vector2) -> void:
 
 
 func _achar_proximo_alvo() -> Node:
+	# Ricochete só quica para mob PRÓXIMO (raio limitado). Se o mais próximo
+	# está além de RICOCHETE_RAIO, retorna null — a bola não atravessa o mapa.
+	const RICOCHETE_RAIO : float = 190.0
 	var mobs    = get_tree().get_nodes_in_group(mobs_group)
 	var melhor  = null
-	var min_d   = 9999.0
+	var min_d   = RICOCHETE_RAIO
 	for mob in mobs:
 		if not is_instance_valid(mob) or mob in hit_targets:
 			continue
 		var d = global_position.distance_to(mob.global_position)
-		if melhor == null or d < min_d:
+		if d < min_d:
 			melhor = mob
 			min_d  = d
 	return melhor
