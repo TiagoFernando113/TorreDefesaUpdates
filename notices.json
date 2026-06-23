@@ -2,20 +2,12 @@
   "version": 1,
   "notices": [
     {
-      "id": "update_v11",
-      "title": "Atualizacao disponivel",
-      "body": "A v11 esta pronta com sistema de conteudo via GitHub.",
-      "type": "update",
-      "button": "ATUALIZAR",
-      "url": "https://github.com/TiagoFernando113/TorreDefesaUpdates/releases/latest"
-    },
-    {
       "id": "discord_bonus",
       "title": "Bonus do Discord",
       "body": "Entre no Discord e resgate seus bonus de comunidade.",
       "type": "discord",
       "button": "RESGATAR",
-      "url": "https://discord.gg/SEU_LINK"
+      "url": "https://discord.gg/qDvVaTvDeb"
     }
   ]
 }
