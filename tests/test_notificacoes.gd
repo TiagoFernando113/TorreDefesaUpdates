@@ -1,6 +1,9 @@
 extends Node
 
 var _falhas: Array[String] = []
+## O que nao pode ser conferido AQUI, e por que. Pular calado seria pior que
+## falhar: quem le "OK" acharia que tudo foi verificado.
+var _pulados: Array[String] = []
 
 
 func _ready() -> void:
@@ -43,13 +46,39 @@ func _testar_estado_sem_plugin_android(notificacoes: Node) -> void:
 	_esperar(str(notificacoes.call("status_texto")) != "", "Status textual deve existir mesmo sem plugin.")
 
 
+## O export_presets.cfg NAO esta no repositorio -- ele guarda a senha da
+## keystore de assinatura em texto puro, entao versiona-lo vazaria a chave que
+## assina o APK. Consequencia: num clone novo, ou no CI, este arquivo nao
+## existe.
+##
+## Antes, `_ler_arquivo` devolvia "" e os dois `contains` davam falso, entao o
+## teste FALHAVA por causa de um arquivo que nunca poderia estar ali. Um teste
+## que nao tem como passar num clone limpo ensina a ignorar a bateria inteira.
+##
+## Agora ele PULA e diz que pulou. Na maquina de quem exporta -- que e' a unica
+## onde a conferencia significa alguma coisa -- ele continua conferindo igual.
 func _testar_export_android_pede_permissao() -> void:
+	if not FileAccess.file_exists("res://export_presets.cfg"):
+		_pulados.append("export_presets.cfg nao existe neste clone (nao e' versionado: guarda a senha da keystore)")
+		return
 	var txt := _ler_arquivo("res://export_presets.cfg")
 	_esperar(txt.contains("permissions/post_notifications=true"), "Export Android deve pedir POST_NOTIFICATIONS.")
 	_esperar(txt.contains("gradle_build/use_gradle_build=true"), "Export Android deve usar Gradle custom build para FCM.")
 
 
+## Mesma historia do export_presets, e vale um aviso: a pasta `android/build/`
+## NAO esta no repositorio -- so' o `.build_version`. Ela nasce do "Instalar
+## modelo de build Android" do editor, mas o que este teste confere ali dentro
+## nao e' gerado: o google-services.json, as linhas de Firebase no gradle e o
+## CyronPushPlugin.kt foram escritos a mao. Hoje eles existem apenas na maquina
+## de quem exporta, e um clone limpo nao tem como reconstrui-los.
+##
+## Enquanto isso nao for versionado, o teste pula em vez de falhar -- mas o
+## risco continua de pe, e e' de perder trabalho, nao de teste vermelho.
 func _testar_android_build_fcm() -> void:
+	if not DirAccess.dir_exists_absolute("res://android/build"):
+		_pulados.append("android/build/ nao existe neste clone (nao e' versionado -- ver o comentario acima)")
+		return
 	_esperar(FileAccess.file_exists("res://android/build/google-services.json"), "google-services.json deve estar no Android build.")
 	var gradle := _ler_arquivo("res://android/build/build.gradle")
 	_esperar(gradle.contains("com.google.gms.google-services"), "Gradle deve aplicar Google Services.")
@@ -79,8 +108,13 @@ func _esperar(condicao: bool, msg: String) -> void:
 
 
 func _finalizar() -> void:
+	for pulado in _pulados:
+		print("PULADO: ", pulado)
 	if _falhas.is_empty():
-		print("OK notificacoes")
+		if _pulados.is_empty():
+			print("OK notificacoes")
+		else:
+			print("OK notificacoes (%d conferencia(s) pulada(s))" % _pulados.size())
 		get_tree().quit(0)
 	else:
 		for falha in _falhas:

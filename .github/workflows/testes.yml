@@ -1,0 +1,51 @@
+# Roda a bateria de testes do jogo a cada push.
+#
+# Existe porque os testes so' valem se alguem os rodar, e ninguem ia abrir 19
+# cenas na mao. Aqui eles rodam sozinhos, e um push que quebra alguma coisa
+# fica vermelho na hora -- em vez de o defeito aparecer semanas depois, dentro
+# de um APK de 423 MB ja' distribuido.
+#
+# O jogo e' Godot 4.6 (config/features do project.godot). A versao esta presa
+# de proposito: rodar os testes numa versao diferente da que exporta o APK
+# testaria um jogo que ninguem joga.
+
+name: Testes do Cyron Defense
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  testes:
+    name: rodar os testes
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # O binario vem direto do release oficial, sem action de terceiro: e' uma
+      # dependencia a menos com acesso ao repositorio.
+      - name: Baixar o Godot 4.6
+        run: |
+          set -euo pipefail
+          url="https://github.com/godotengine/godot-builds/releases/download/4.6-stable/Godot_v4.6-stable_linux.x86_64.zip"
+          curl -sSL --retry 3 -o godot.zip "$url"
+          unzip -q godot.zip
+          chmod +x Godot_v4.6-stable_linux.x86_64
+          ./Godot_v4.6-stable_linux.x86_64 --version
+
+      # Sem isto, o primeiro teste esbarra em recurso nao importado. O import e'
+      # demorado (centenas de assets) e por isso e' um passo separado: quando ele
+      # falha, o log diz "o projeto nao importa", e nao "todos os testes
+      # falharam", que mandaria procurar no lugar errado.
+      - name: Importar o projeto
+        run: |
+          timeout 900 ./Godot_v4.6-stable_linux.x86_64 --headless --path . --import \
+            > /tmp/import.log 2>&1 || true
+          tail -5 /tmp/import.log
+
+      - name: Rodar os testes
+        run: tools/rodar_testes.sh "$PWD/Godot_v4.6-stable_linux.x86_64"
