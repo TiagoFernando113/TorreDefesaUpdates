@@ -20,6 +20,10 @@ func limpar_refs() -> void:
 	_entrando = false
 
 
+func esta_aberta() -> bool:
+	return _overlay != null and is_instance_valid(_overlay)
+
+
 func deve_abrir_no_boot() -> bool:
 	# Deslogado: a tela é a porta de entrada (Google / contas do aparelho / offline)
 	return Salvar.nome_jogador.strip_edges() == ""
@@ -35,8 +39,7 @@ func abrir(ui: CanvasLayer) -> void:
 
 	_overlay = ColorRect.new()
 	_overlay.color = Color(0.01, 0.01, 0.015, 1.0)
-	_overlay.position = Vector2.ZERO
-	_overlay.size = vp
+	_overlay.set_anchors_preset(Control.PRESET_FULL_RECT)   # cobre a tela mesmo após F11/resize
 	_overlay.mouse_filter = Control.MOUSE_FILTER_STOP
 	_overlay.z_index = 220
 	ui.add_child(_overlay)
@@ -62,24 +65,81 @@ func abrir(ui: CanvasLayer) -> void:
 	var cx: float = (vp.x - cw) * 0.5
 	var y: float = vp.y * 0.16 + 110.0
 
-	# Botão principal: Google (branco, como na referência)
-	_botao_google(Rect2(cx, y, cw, 54))
+	# Login só por Google (Supabase Auth). O cadastro antigo (nome/email/senha)
+	# e os cards de conta do aparelho foram removidos na convergência.
+	_botao_google_sb(Rect2(cx, y, cw, 54))
 	y += 78.0
+	_botao_menor("Jogar sem conta", Rect2(cx, y, cw, 46), func():
+		_fechar()
+		m._checar_tutorial_boot())
 
-	var contas := Salvar.contas_conhecidas()
-	for i in range(mini(3, contas.size())):
-		var c: Dictionary = contas[i] as Dictionary
-		var nome: String = str(c.get("nome", "?"))
-		_card_conta(nome, str(c.get("senha", "")), int(c.get("avatar_idx", 0)), Rect2(cx, y, cw, 58), false)
-		y += 70.0
 
-	y += 14.0
-	_botao_menor("Entrar com outra conta", Rect2(cx, y, cw, 46), func():
+const LOGIN_GOOGLE_ATIVO : bool = false   # lançamento: só nome+senha (Google off)
+
+
+func _botao_entrar_conta(r: Rect2) -> void:
+	# CTA principal quando o Google está desligado: vai pra tela de nome+senha.
+	var btn := Button.new()
+	btn.position = r.position
+	btn.size = r.size
+	btn.focus_mode = Control.FOCUS_NONE
+	var sty := StyleBoxFlat.new()
+	sty.bg_color = Color(0.30, 0.55, 1.0, 1.0)
+	sty.set_corner_radius_all(int(r.size.y * 0.5))
+	btn.add_theme_stylebox_override("normal", sty)
+	var sty_h: StyleBoxFlat = sty.duplicate()
+	sty_h.bg_color = Color(0.40, 0.63, 1.0, 1.0)
+	btn.add_theme_stylebox_override("hover", sty_h)
+	btn.text = "Entrar  /  Criar conta"
+	btn.add_theme_font_size_override("font_size", 19)
+	btn.add_theme_color_override("font_color", Color(1, 1, 1))
+	btn.pressed.connect(func():
 		_fechar()
 		m._abrir_perfil(m._ui_main))
-	y += 56.0
-	_botao_menor("Jogar sem conta", Rect2(cx, y, cw, 46), func():
-		_fechar())
+	_overlay.add_child(btn)
+
+
+func _botao_google_sb(r: Rect2) -> void:
+	# Botão "Entrar com Google" do fluxo novo (Supabase Auth).
+	var btn := Button.new()
+	btn.position = r.position
+	btn.size = r.size
+	btn.focus_mode = Control.FOCUS_NONE
+	var sty := StyleBoxFlat.new()
+	sty.bg_color = Color(0.94, 0.95, 0.97, 1.0)
+	sty.set_corner_radius_all(int(r.size.y * 0.5))
+	btn.add_theme_stylebox_override("normal", sty)
+	var sty_h: StyleBoxFlat = sty.duplicate()
+	sty_h.bg_color = Color(1, 1, 1, 1)
+	btn.add_theme_stylebox_override("hover", sty_h)
+	btn.text = "G   Entrar com Google"
+	btn.add_theme_font_size_override("font_size", 19)
+	btn.add_theme_color_override("font_color", Color(0.10, 0.11, 0.13))
+	btn.pressed.connect(_login_google_sb)
+	_overlay.add_child(btn)
+
+
+func _login_google_sb() -> void:
+	if not Auth.login_ok.is_connected(_on_google_sb_ok):
+		Auth.login_ok.connect(_on_google_sb_ok)
+		Auth.login_falhou.connect(_on_google_sb_falhou)
+	_def_status("Abrindo o Google no navegador…", false)
+	Auth.entrar_google()
+
+
+func _on_google_sb_ok(uid: String) -> void:
+	_def_status("Entrando…", false)
+
+
+func _on_google_sb_falhou(erro: String) -> void:
+	_def_status(erro, true)
+
+
+func _def_status(txt: String, erro: bool) -> void:
+	if _status and is_instance_valid(_status):
+		_status.text = txt
+		_status.add_theme_color_override("font_color",
+			Color(1.0, 0.45, 0.45) if erro else Color(0.55, 0.62, 0.75))
 
 
 func _botao_google(r: Rect2) -> void:

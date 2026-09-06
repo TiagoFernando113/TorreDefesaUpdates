@@ -368,18 +368,16 @@ func _clique(sp: Vector2) -> void:
 		return
 	var nid := _hit_no(sp)
 	if nid != "":
-		# CLIQUE ÚNICO COMPRA. Zero fricção.
-		if Salvar.pode_comprar_talento(nid):
-			_comprar(nid)
-		elif _sel_id == nid:
-			_sel_id = ""
+		# Clique NÃO compra mais: só seleciona e abre o painel pra LER. A compra
+		# é pelo botão DESBLOQUEAR do painel (evita comprar sem querer).
+		if _sel_id == nid:
+			_sel_id = ""          # clicar de novo fecha o painel
 			Som.upgrade()
 		else:
-			# Não-comprável: abre painel de info (lado travado na seleção)
 			_sel_id = nid
 			_painel_esq = _w2s(_pos[nid] as Vector2).x > size.x * 0.5
 			Som.upgrade()
-			if not Salvar.talento_ativo(nid):
+			if not Salvar.pode_comprar_talento(nid) and not Salvar.talento_ativo(nid):
 				_toast(_motivo_bloqueio(nid, Salvar.custo_efetivo_talento(nid)))
 		queue_redraw()
 		return
@@ -627,7 +625,7 @@ func _draw_hover_tooltip() -> void:
 	if Salvar.talento_ativo(_hover_id):
 		sub = "ATIVO"
 	elif Salvar.pode_comprar_talento(_hover_id):
-		sub = "◆ %d — CLIQUE PARA COMPRAR" % Salvar.custo_efetivo_talento(_hover_id)
+		sub = "◆ %d — CLIQUE PARA VER" % Salvar.custo_efetivo_talento(_hover_id)
 	else:
 		sub = "Bloqueado"
 	var fs_n : int = 14
@@ -1096,22 +1094,24 @@ func _draw_painel() -> void:
 		return
 	var info : Dictionary = Salvar.TALENTOS_INFO[_sel_id] as Dictionary
 	var cor : Color = _cor_no(_sel_id)
-	var pw : float = minf(330.0, size.x * 0.42)
+	var mob : bool = BuildConfig.is_mobile()
+	var pw : float = (minf(470.0, size.x * 0.62)) if mob else minf(330.0, size.x * 0.42)
 	# Lado fixado na seleção (_painel_esq) — zoom/pan não movem o painel
 	var px : float = (14.0) if _painel_esq else (size.x - pw - 14.0)
 	var py : float = 66.0
-	var ph : float = 268.0
+	var ph : float = 348.0 if mob else 268.0
+	var head_h : float = 56.0 if mob else 46.0
 	var r := Rect2(px, py, pw, ph)
 	# SEM hitbox de fundo: cliques atravessam o painel até o mapa — o painel
 	# nunca rouba o clique de um nó (só o botão DESBLOQUEAR captura)
 
 	draw_rect(r, Color(0.012, 0.02, 0.05, 0.94), true)
 	draw_rect(r, Color(cor.r, cor.g, cor.b, 0.55), false, 1.5)
-	draw_line(r.position + Vector2(0, 46), r.position + Vector2(pw, 46), Color(cor.r, cor.g, cor.b, 0.30), 1.0)
+	draw_line(r.position + Vector2(0, head_h), r.position + Vector2(pw, head_h), Color(cor.r, cor.g, cor.b, 0.30), 1.0)
 
 	# Título + categoria
 	var nome : String = str(info.get("nome", _sel_id)).replace("\n", " ")
-	draw_string(_fonte, r.position + Vector2(14, 30), nome, HORIZONTAL_ALIGNMENT_LEFT, -1, 19, cor)
+	draw_string(_fonte, r.position + Vector2(14, 38 if mob else 30), nome, HORIZONTAL_ALIGNMENT_LEFT, -1, 27 if mob else 19, cor)
 	var cat : String
 	if _sel_id == "raiz":               cat = "NÚCLEO"
 	elif _fusoes.has(_sel_id):          cat = "FUSÃO CROSS-RAMO"
@@ -1120,18 +1120,18 @@ func _draw_painel() -> void:
 	else:
 		var br : String = _ramo_de.get(_sel_id, "") as String
 		cat = "RAMO %s" % BRANCH_NOMES.get(br, br.to_upper())
-	draw_string(_fonte, r.position + Vector2(14, 42), cat, HORIZONTAL_ALIGNMENT_LEFT, -1, 10, Color(0.6, 0.68, 0.82, 0.85))
+	draw_string(_fonte, r.position + Vector2(14, 50 if mob else 42), cat, HORIZONTAL_ALIGNMENT_LEFT, -1, 13 if mob else 10, Color(0.6, 0.68, 0.82, 0.85))
 
 	# Efeito (texto completo)
 	var efeito : String = str(info.get("efeito", info.get("desc", "")))
-	draw_multiline_string(_fonte, r.position + Vector2(14, 68), efeito,
-			HORIZONTAL_ALIGNMENT_LEFT, pw - 28.0, 13, 6, Color(0.82, 0.87, 0.97, 0.95))
+	draw_multiline_string(_fonte, r.position + Vector2(14, head_h + 24.0), efeito,
+			HORIZONTAL_ALIGNMENT_LEFT, pw - 28.0, 19 if mob else 13, 6, Color(0.82, 0.87, 0.97, 0.95))
 
 	# Rodapé: custo + botão / estado
 	var ativo : bool = Salvar.talento_ativo(_sel_id)
 	var by : float = py + ph - 52.0
 	if ativo:
-		draw_string(_fonte, Vector2(px + 14, by + 30), "✓ ATIVO", HORIZONTAL_ALIGNMENT_LEFT, -1, 17, Color(0.30, 1.0, 0.55))
+		draw_string(_fonte, Vector2(px + 14, by + 30), "✓ ATIVO", HORIZONTAL_ALIGNMENT_LEFT, -1, 22 if mob else 17, Color(0.30, 1.0, 0.55))
 	elif _sel_id == "raiz":
 		# Núcleo: o respec da árvore vive aqui (refund total)
 		var rtxt2 : String = "CONFIRMA REDEFINIR?" if _reset_arm_t > 0.0 else "REDEFINIR ÁRVORE (refund total)"
@@ -1147,7 +1147,7 @@ func _draw_painel() -> void:
 			draw_rect(Rect2(px + 14, by, pw - 28.0, 40), Color(0.5, 0.2, 0.2, 0.20), true)
 			draw_rect(Rect2(px + 14, by, pw - 28.0, 40), Color(1.0, 0.4, 0.35, 0.40), false, 1.2)
 			draw_multiline_string(_fonte, Vector2(px + 24, by + 17), motivo,
-					HORIZONTAL_ALIGNMENT_LEFT, pw - 48.0, 11, 2, Color(1.0, 0.62, 0.55, 0.95))
+					HORIZONTAL_ALIGNMENT_LEFT, pw - 48.0, 15 if mob else 11, 2, Color(1.0, 0.62, 0.55, 0.95))
 
 
 func _motivo_bloqueio(id: String, custo: int) -> String:

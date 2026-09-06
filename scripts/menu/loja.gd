@@ -54,7 +54,7 @@ func _rebuild_loja() -> void :
 
 
 	var vp_w: float = m.get_viewport().get_visible_rect().size.x
-	var is_mobile_loja : bool = OS.has_feature("android") or OS.has_feature("ios")
+	var is_mobile_loja : bool = BuildConfig.is_mobile()
 	var outer:= Panel.new()
 	outer.position = Vector2.ZERO
 	outer.size = Vector2(vp_w, 720)
@@ -288,46 +288,8 @@ func _rebuild_loja() -> void :
 
 		_criar_grid_premium(2410.0)
 
-	# ── COMANDANTES ────────────────────────────────────────────────────────────
-	var sep_ass:= ColorRect.new()
-	sep_ass.color = Color(0.25, 0.65, 1.0, 0.28)
-	sep_ass.position = Vector2(15, 1035)
-	sep_ass.size = Vector2(_loja_cont_w - 30.0, 1)
-	sep_ass.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	cont.add_child(sep_ass)
-
-	var ass_hdr:= Label.new()
-	ass_hdr.text = "— COMANDANTES —"
-	ass_hdr.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	ass_hdr.position = Vector2(0, 1043)
-	ass_hdr.size = Vector2(_loja_cont_w, 34)
-	ass_hdr.add_theme_font_size_override("font_size", 27)
-	ass_hdr.add_theme_color_override("font_color", Color(0.25, 0.65, 1.0, 0.88))
-	ass_hdr.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	cont.add_child(ass_hdr)
-
-	var ass_sub:= Label.new()
-	ass_sub.text = "Companheiros que atacam mobs e ativam habilidades especiais  •  Pagos com ouro"
-	ass_sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	ass_sub.position = Vector2(0, 1081)
-	ass_sub.size = Vector2(_loja_cont_w, 26)
-	ass_sub.add_theme_font_size_override("font_size", 19)
-	ass_sub.add_theme_color_override("font_color", Color(0.45, 0.6, 0.75, 0.7))
-	ass_sub.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	cont.add_child(ass_sub)
-
-	var pet_keys:= []
-	for pk in Salvar.PETS_INFO.keys():
-		var pet_id_k : String = pk as String
-		if not ((Salvar.PETS_INFO[pet_id_k] as Dictionary).get("premium", false) == true):
-			pet_keys.append(pet_id_k)
-	for pi in range(pet_keys.size()):
-		var pet_id_p : String = pet_keys[pi] as String
-		if (Salvar.PETS_INFO[pet_id_p] as Dictionary).get("premium", false) == true:
-			continue
-		_criar_card_assistente(pet_id_p, pi, pet_keys.size())
-
-	cont.custom_minimum_size = Vector2(cont_w, 2820 if m.SHOW_PREMIUM_PURCHASES else 2360)
+	# COMANDANTES removidos da loja (eram de teste). O sistema segue no inventário.
+	cont.custom_minimum_size = Vector2(cont_w, 1120.0)
 
 
 	var sep_bot:= ColorRect.new()

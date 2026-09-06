@@ -26,6 +26,7 @@ var fissura_ativa:= false  # Fissura Venenosa: envenena mobs em 70px ao acertar
 var is_critico   := false  # Golpe Crítico: trilha laranja
 var queimadura   := false  # P5 Lenda do Canhão / Brasa: aplica queimadura no alvo
 var fogo_fusao   := false  # FUSÃO Bolas de Fogo: explode em área flamejante
+var is_missil    := false  # Lança-Mísseis: desenha como foguete com rastro
 var canhao_g_gelo := false  # Canhão Glacial: congela o alvo ao acertar
 var mobs_group   := "mobs"
 var low_fx       := false
@@ -70,6 +71,7 @@ func setup(alvo: Node, dano: float, pierce: int = 0, speed_bonus: float = 0.0,
 	queimadura    = extras.get("queimadura",     false) as bool
 	fogo_fusao    = extras.get("fogo_fusao",     false) as bool
 	canhao_g_gelo = extras.get("canhao_g_gelo", false) as bool
+	is_missil     = extras.get("is_missil",      false) as bool
 	mobs_group    = extras.get("mobs_group",    "mobs") as String
 	low_fx        = extras.get("low_fx",        false) as bool
 	origin_pos    = global_position
@@ -118,7 +120,7 @@ func _process(delta: float) -> void:
 		for mob in get_tree().get_nodes_in_group(mobs_group):
 			if not is_instance_valid(mob) or (mob.get("morto") as bool): continue
 			if mob in hit_targets: continue
-			if global_position.distance_to((mob as Node2D).global_position) < 16.0:
+			if global_position.distance_to((mob as Node2D).global_position) < 22.0:
 				var mult   : float = PIERCE_MULT[mini(pierce_hit, PIERCE_MULT.size() - 1)]
 				var dano_h : float = damage * mult
 				if armadura_inv:
@@ -245,8 +247,25 @@ func _chain_hit(origin: Vector2, count: int) -> void:
 		var mob = pair[1]
 		if is_instance_valid(mob) and mob.has_method("receber_dano"):
 			mob.receber_dano(damage, true)
+			_spawn_arco_eletrico(origin, (mob as Node2D).global_position)
 			hit_targets.append(mob)
 			hits += 1
+
+
+func _spawn_arco_eletrico(de: Vector2, ate: Vector2) -> void:
+	# Visual do salto da Corrente Elétrica (antes invisível = "dano fantasma").
+	# Carga com guarda + respeita low_fx; se falhar, o dano do chain segue normal.
+	if low_fx:
+		return
+	var scr = load("res://scripts/partida/arco_eletrico.gd")
+	if scr == null:
+		return
+	var parent = get_parent()
+	if parent == null or not is_instance_valid(parent):
+		return
+	var arc = scr.new()
+	parent.add_child(arc)
+	arc.iniciar(de, ate)
 
 
 func _splash_at(pos: Vector2) -> void:
@@ -320,7 +339,29 @@ func _draw() -> void:
 			draw_circle(tp, 3.5 * t, Color(1.0, 0.88, 0.25,  t * 0.45))
 
 	# Núcleo
-	if fogo_fusao:
+	if is_missil:
+		# Foguete: corpo + nariz vermelho + chama atrás, orientado pelo movimento
+		var mdir : Vector2 = _ultima_dir
+		if mdir == Vector2.ZERO: mdir = free_dir
+		if mdir == Vector2.ZERO: mdir = Vector2.RIGHT
+		var fwd  : Vector2 = mdir.normalized()
+		var perp : Vector2 = Vector2(-fwd.y, fwd.x)
+		var fl   : float   = 0.6 + 0.4 * sin(pulse * 5.0)
+		# Chama do propulsor (atrás)
+		draw_circle(-fwd * 8.0, 4.5 * fl, Color(1.0, 0.5, 0.08, 0.9))
+		draw_circle(-fwd * 12.0 * fl, 2.6 * fl, Color(1.0, 0.85, 0.3, 0.85))
+		# Corpo
+		var corpo := PackedVector2Array([
+			fwd * 9.0, fwd * 3.0 + perp * 3.6, -fwd * 7.0 + perp * 3.6,
+			-fwd * 7.0 - perp * 3.6, fwd * 3.0 - perp * 3.6,
+		])
+		var fill := PackedColorArray(); fill.resize(corpo.size()); fill.fill(Color(0.82, 0.84, 0.90))
+		draw_polygon(corpo, fill)
+		# Nariz vermelho
+		var nariz := PackedVector2Array([fwd * 9.0, fwd * 3.0 + perp * 3.6, fwd * 3.0 - perp * 3.6])
+		var fn := PackedColorArray(); fn.resize(3); fn.fill(Color(0.9, 0.22, 0.18))
+		draw_polygon(nariz, fn)
+	elif fogo_fusao:
 		var fp : float = sin(pulse * 1.4) * 0.25 + 0.85
 		draw_circle(Vector2.ZERO, 12.0, Color(1.0, 0.30, 0.0, 0.30 * fp))
 		draw_circle(Vector2.ZERO,  8.0, Color(1.0, 0.55, 0.05, 0.85 * fp))

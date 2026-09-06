@@ -65,10 +65,10 @@ func _ready() -> void:
 		push_error("FALHA: 5 brasa + arma ricochete NAO fundiu")
 		get_tree().quit(1)
 		return
-	# Todas as 10 armas existem (5 comuns + 5 lendárias)
+	# Armas: 7 comuns + 5 lendárias (Bombardeio + Lança-Chamas em comum)
 	var comuns := 0
 	var lendarias := 0
-	for aid in ["padrao","ricochete","escopeta","sniper","metralhadora","orbital","missil","gemea","vortice","aniquilador"]:
+	for aid in ["padrao","ricochete","escopeta","sniper","metralhadora","bombardeio","lanca_chamas","orbital","missil","gemea","vortice","aniquilador"]:
 		if not t2.ARMAS.has(aid):
 			push_error("FALHA: arma %s ausente" % aid)
 			get_tree().quit(1)
@@ -77,13 +77,25 @@ func _ready() -> void:
 			comuns += 1
 		else:
 			lendarias += 1
-	if comuns != 5 or lendarias != 5:
-		push_error("FALHA: esperado 5 comuns + 5 lendarias, veio %d/%d" % [comuns, lendarias])
+	if comuns != 7 or lendarias != 5:
+		push_error("FALHA: esperado 7 comuns + 5 lendarias, veio %d/%d" % [comuns, lendarias])
 		get_tree().quit(1)
 		return
-	# Arma inválida não muda nada
+	# Burst: metralhadora solta 2 balas por tiro (em linha), padrão solta 1
+	t2.definir_arma("metralhadora")
+	if t2._arma_burst() != 3:
+		push_error("FALHA: metralhadora deveria ter burst 3, veio %d" % t2._arma_burst())
+		get_tree().quit(1)
+		return
+	t2.definir_arma("padrao")
+	if t2._arma_burst() != 1:
+		push_error("FALHA: padrao deveria ter burst 1, veio %d" % t2._arma_burst())
+		get_tree().quit(1)
+		return
+
+	# Arma inválida não muda nada (mantém a última válida = padrao)
 	t2.definir_arma("inexistente")
-	if t2.arma_ativa != "ricochete":
+	if t2.arma_ativa != "padrao":
 		push_error("FALHA: arma invalida nao deveria trocar")
 		get_tree().quit(1)
 		return

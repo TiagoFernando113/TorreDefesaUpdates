@@ -31,6 +31,10 @@ var regen_rate            := 0.0
 # Canhões orbitais (Canhão Duplo — um por carta selecionada)
 var _canhao_angs : Array  = []   # ângulo de mira de cada canhão extra
 var _orbit_rot   := 0.0          # rotação lenta das posições orbitais
+var _orbital_rot       := 0.0    # rotação dos orbes (velocidade escala com cadência)
+var _orbital_dmg_timer := 0.0    # tick de dano das mini-áreas dos orbes
+var _aniq_rot          := 0.0    # ângulo do feixe do Aniquilador (varre girando)
+var _aniq_timer        := 0.0    # tick do feixe varredor
 
 # Stats dos talentos permanentes
 var damage_reduction := 0.0   # 0.25 = reduz 25% dano
@@ -76,7 +80,8 @@ var ricochete_count      := 0      # Ricochete: projétil quica para N inimigos 
 var brasa_count          := 0      # Brasa: cartas de fogo empilhadas (fusão em 5)
 var fogo_fusao           := false   # FUSÃO: 5 Brasa + Ricochete = Bolas de Fogo
 var veneno_dps           := 0.0    # Veneno Arcano: DoT nos acertados
-var crit_chance          := 0.0    # Golpe Crítico: chance de 3× dano
+var crit_chance          := 0.0    # Golpe Crítico: chance de crítico
+var crit_mult            := 3.0    # multiplicador do crítico (Painel: Dano Crítico)
 var explosao_ativa       := false   # Explosão Mortal: explode ao matar
 var chama_bonus_por_kill := 0.0    # Chama Perpétua: +dano por kill
 var overdrive_ativa      := false   # Overdrive: cadência ×2 após boss
@@ -123,15 +128,17 @@ const ARMAS : Dictionary = {
 	# Comuns — desde a wave 1
 	"padrao":       {"nome": "Padrão",      "cad": 1.0,  "dano": 1.0,  "alcance": 1.0, "modo": "single",   "tier": "comum"},
 	"ricochete":    {"nome": "Ricochete",   "cad": 1.0,  "dano": 0.9,  "alcance": 1.0, "modo": "ricochete","tier": "comum"},
-	"escopeta":     {"nome": "Escopeta",    "cad": 0.85, "dano": 0.55, "alcance": 0.6, "modo": "escopeta", "tier": "comum"},
-	"sniper":       {"nome": "Sniper",      "cad": 0.35, "dano": 4.5,  "alcance": 1.6, "modo": "sniper",   "tier": "comum"},
-	"metralhadora": {"nome": "Metralhadora","cad": 2.2,  "dano": 0.45, "alcance": 0.9, "modo": "single",   "tier": "comum"},
+	"escopeta":     {"nome": "Escopeta",    "cad": 0.85, "dano": 0.78, "alcance": 0.62, "modo": "escopeta", "tier": "comum"},
+	"sniper":       {"nome": "Sniper",      "cad": 0.35, "dano": 4.5,  "alcance": 1.6,  "modo": "sniper",   "tier": "comum"},
+	"metralhadora": {"nome": "Metralhadora","cad": 3.0,  "dano": 0.40, "alcance": 0.9,  "modo": "single",   "tier": "comum", "burst": 3},
+	"lanca_chamas": {"nome": "Lança-Chamas","cad": 5.0,  "dano": 0.16, "alcance": 0.9,  "modo": "lanca_chamas","tier": "comum"},
 	# Lendárias — a partir da wave LENDARIA_WAVE
-	"orbital":      {"nome": "Orbital",      "cad": 1.1, "dano": 0.85, "alcance": 1.0, "modo": "orbital",  "tier": "lendaria"},
+	"orbital":      {"nome": "Orbital",      "cad": 1.1, "dano": 1.0,  "alcance": 1.0, "modo": "orbital",  "tier": "lendaria"},
 	"missil":       {"nome": "Lança-Mísseis","cad": 0.55,"dano": 2.0,  "alcance": 1.2, "modo": "missil",   "tier": "lendaria"},
 	"gemea":        {"nome": "Canhão Gêmeo", "cad": 0.9, "dano": 0.85, "alcance": 1.0, "modo": "gemea",    "tier": "lendaria"},
 	"vortice":      {"nome": "Vórtice",      "cad": 0.75,"dano": 0.7,  "alcance": 0.85,"modo": "vortice",  "tier": "lendaria"},
-	"aniquilador":  {"nome": "Aniquilador",  "cad": 0.30,"dano": 7.0,  "alcance": 1.8, "modo": "aniquilador","tier": "lendaria"},
+	"aniquilador":  {"nome": "Aniquilador",  "cad": 0.80,"dano": 5.0,  "alcance": 1.8, "modo": "aniquilador","tier": "lendaria"},
+	"bombardeio":   {"nome": "Bombardeio Orbital","cad": 1.0,"dano": 7.0,"alcance": 1.0,"modo": "bombardeio","tier": "lendaria"},
 }
 const LENDARIA_WAVE : int = 100   # lendárias só aparecem na escolha a partir daqui
 var arma_ativa : String = "padrao"
@@ -153,6 +160,11 @@ func _arma_modo() -> String:
 var focus_dir   : Vector2 = Vector2.ZERO   # direção clicada pelo jogador
 var focus_ativo : bool    = false
 var focus_timer : float   = 0.0
+# Bombardeio Orbital (arma manual): cooldown entre disparos no ponto clicado
+var bombardeio_cd : float = 0.0
+const BOMBARDEIO_CD  : float = 0.6
+const BOMBARDEIO_RAIO: float = 140.0
+const BOMBARDEIO_MIN_DIST : float = 150.0   # zona morta: não pode bombardear em cima da torre
 const FOCUS_DUR : float   = 6.0            # duração em segundos
 var _manual_spin : float = 0.0   # 0→1: aquece enquanto segura mira manual (bônus cadência+projéteis)
 
@@ -217,6 +229,8 @@ func _process(delta: float) -> void:
 	_raio_flash_timer  = max(0.0, _raio_flash_timer  - delta)
 	_raio_flash_timer2 = max(0.0, _raio_flash_timer2 - delta)
 	shoot_timer      += delta
+	if bombardeio_cd > 0.0:
+		bombardeio_cd = max(0.0, bombardeio_cd - delta)
 
 	# Focus de Ataque: expira após FOCUS_DUR
 	if focus_ativo:
@@ -289,6 +303,27 @@ func _process(delta: float) -> void:
 
 	_orbit_rot += delta * 0.38
 
+	# Orbital: mecânica CONTÍNUA (não por tiro). Orbes giram (velocidade ∝ cadência)
+	# e suas mini-áreas (tamanho ∝ alcance) ferem quem passa perto.
+	if arma_ativa == "orbital":
+		# Começa LENTO (base fixa) e só ACELERA com a Cadência investida (o que
+		# passa do fire_rate base ~1.0). Assim o giro reflete o upgrade do jogador.
+		var cad_extra : float = maxf(0.0, fire_rate - 1.0)
+		_orbital_rot += delta * (1.2 + cad_extra * 3.5)
+		_orbital_dmg_timer -= delta
+		if _orbital_dmg_timer <= 0.0:
+			_orbital_dmg_timer = 0.16
+			_orbital_aplicar_dano()
+
+	# Aniquilador: feixe que VARRE girando (a torre roda o raio atirando). A
+	# velocidade da varredura escala com a cadência.
+	if arma_ativa == "aniquilador":
+		_aniq_rot += delta * (1.1 + maxf(0.0, fire_rate - 1.0) * 2.2)
+		_aniq_timer -= delta
+		if _aniq_timer <= 0.0:
+			_aniq_timer = 0.07
+			_aniquilador_disparar(_aniq_rot)
+
 	# Âncora: verifica se há mob âncora no alcance + 80px
 	ancora_suprimida = false
 	for m in _alvos_validos():
@@ -309,14 +344,8 @@ func _process(delta: float) -> void:
 		elif maldicao_timer > 0.0: fr_m *= 0.55
 		if shoot_timer >= 1.0 / maxf(fr_m, 0.01):
 			shoot_timer = 0.0
+			# Tiro manual = 1 LINHA só (o spin acelera a cadência, não abre leque).
 			_disparar_direcao(focus_dir)
-			# Projéteis extras em leque conforme calor do spin
-			var ang_b : float = atan2(focus_dir.y, focus_dir.x)
-			var off   : float = 0.28   # ~16° de abertura
-			if _manual_spin > 0.35:
-				_disparar_direcao(Vector2(cos(ang_b + off), sin(ang_b + off)))
-			if _manual_spin > 0.70:
-				_disparar_direcao(Vector2(cos(ang_b - off), sin(ang_b - off)))
 	else:
 		# Resfria o spin ao soltar (1→0 em ~1.2s)
 		_manual_spin = maxf(_manual_spin - delta / 1.2, 0.0)
@@ -387,17 +416,23 @@ func _atirar() -> void:
 	if not is_instance_valid(target):
 		return
 	match _arma_modo():
+		"bombardeio":
+			return   # arma 100% manual: só dispara via lancar_bombardeio (clique)
 		"escopeta":
 			_atirar_escopeta()
 			return
 		"orbital":
-			_atirar_orbital()
-			return
+			return   # passivo: orbes giram e ferem em _process (não atira projétil)
 		"gemea":
 			_atirar_gemea()
 			return
 		"vortice":
 			_atirar_vortice()
+			return
+		"aniquilador":
+			return   # passivo: feixe varre girando em _process
+		"lanca_chamas":
+			_atirar_lanca_chamas()
 			return
 		_:
 			pass
@@ -406,17 +441,43 @@ func _atirar() -> void:
 	_disparar_em(target)
 
 
+func lancar_bombardeio(alvo_world: Vector2) -> bool:
+	# Raio Orbital manual: feixe explode no ponto clicado. Respeita cooldown.
+	if _arma_modo() != "bombardeio": return false
+	if bombardeio_cd > 0.0: return false
+	var scr = load("res://scripts/partida/raio_orbital.gd")
+	if scr == null: return false
+	var parent = get_parent()
+	if parent == null or not is_instance_valid(parent): return false
+	bombardeio_cd = BOMBARDEIO_CD
+	# Perto da torre vira MINI RAIO: dano e raio reduzidos (não bloqueia mais —
+	# mob que entra na zona ainda pode ser atingido, só não é spam OP no centro).
+	var dist : float = alvo_world.distance_to(global_position)
+	var raio_final : float = BOMBARDEIO_RAIO
+	var mini : bool = dist < BOMBARDEIO_MIN_DIST
+	# Pipeline: herda crit/b1/ia. Mini-raio (perto) tem dano/raio reduzidos.
+	var res : Array = _calc_dano_arma(null, 0.35 if mini else 1.0)
+	if mini:
+		raio_final *= 0.65
+	var ro = scr.new()
+	parent.add_child(ro)
+	ro.iniciar(alvo_world, float(res[0]), raio_final, mobs_group)
+	if ro.has_method("set_mini"):
+		ro.set_mini(mini)
+	if ro.has_method("set_crit") and bool(res[1]):
+		ro.set_crit(true)
+	if typeof(Som) != TYPE_NIL and Som.has_method("tiro"):
+		Som.tiro()
+	return true
+
+
 func _atirar_vortice() -> void:
-	# Dispara em 10 direções ao redor (360°), cobrindo todos os flancos
+	# 360° SEMPRE RETO: 10 balas radiais em estrela, girando. Não teleguia (senão
+	# convergem num lado e viram escopeta). Cada raio acerta quem cruza a linha.
 	const N : int = 10
 	for i in range(N):
 		var ang : float = _orbit_rot + float(i) * TAU / float(N)
-		var dir : Vector2 = Vector2(cos(ang), sin(ang))
-		var alvo_v : Node = _achar_alvo_em_direcao(dir)
-		if alvo_v and is_instance_valid(alvo_v):
-			_disparar_de(alvo_v, global_position, 0.7)
-		else:
-			_disparar_direcao(dir)
+		_disparar_direcao(Vector2(cos(ang), sin(ang)))
 	# Rajada: 2 tiros adicionais em ±15°
 	if rajada_ativa:
 		for ang_off in [-0.26, 0.26]:
@@ -457,8 +518,21 @@ func _achar_alvos_multiplos(n: int) -> Array:
 	return result
 
 
+func _arma_burst() -> int:
+	# Balas POR TIRO, em linha (uma atrás da outra). Mesma direção e velocidade —
+	# só MAIS projéteis (não é cadência nem velocidade de viagem).
+	return maxi(1, int((ARMAS.get(arma_ativa, {}) as Dictionary).get("burst", 1)))
+
 func _disparar_em(alvo: Node) -> void:
-	_disparar_de(alvo, global_position)
+	var n : int = _arma_burst()
+	if n <= 1:
+		_disparar_de(alvo, global_position)
+		return
+	# Cada bala spawna mais À FRENTE na direção do alvo (saindo do cano, nunca de
+	# trás da torre): viajam enfileiradas, mesma velocidade.
+	var dir : Vector2 = (_target_pos(alvo) - global_position).normalized()
+	for i in range(n):
+		_disparar_de(alvo, global_position + dir * (float(i) * 16.0))
 
 
 func _disparar_de(alvo: Node, spawn_gp: Vector2, dmg_mult: float = 1.0) -> void:
@@ -506,7 +580,7 @@ func _disparar_de(alvo: Node, spawn_gp: Vector2, dmg_mult: float = 1.0) -> void:
 	# Golpe Crítico
 	var eh_critico : bool = false
 	if crit_chance > 0.0 and randf() < crit_chance:
-		dano_final  *= 3.0
+		dano_final  *= crit_mult
 		eh_critico   = true
 
 	# Punição da Perfuração: anula pierce enquanto debuff ativo
@@ -519,14 +593,21 @@ func _disparar_de(alvo: Node, spawn_gp: Vector2, dmg_mult: float = 1.0) -> void:
 		pierce_efetivo = maxi(pierce_efetivo, 12)
 	var splash_r       : float = pierce_splash_radius if pierce_efetivo > 0 else 0.0
 	var splash_d       : float = dano_final * pierce_splash_dmg_mult
-	# Lança-Mísseis: explosão grande em área a cada acerto
-	if arma_ativa == "missil":
+	# Lança-Mísseis: explosão grande + DANO ESCALA COM A DISTÂNCIA do alvo (combo
+	# com alcance: quanto mais longe acerta, mais forte). Perto 0.5×, longe 2.0×.
+	var eh_missil : bool = (arma_ativa == "missil")
+	if eh_missil:
+		var max_alc : float = maxf(range_r * _arma_mult("alcance"), 1.0)
+		var dist_alvo : float = global_position.distance_to(_target_pos(alvo))
+		var fator : float = clampf(dist_alvo / max_alc, 0.0, 1.0)
+		dano_final *= 0.5 + fator * 1.5
 		splash_r = maxf(splash_r, 90.0)
 		splash_d = maxf(splash_d, dano_final * 0.6)
 
 	var extras : Dictionary = {}
 	extras["mobs_group"] = mobs_group
 	extras["low_fx"] = _efeitos_leves_ativos()
+	if eh_missil:                       extras["is_missil"]     = true
 	if corrente_ativa:                  extras["chain"]        = 2
 	if ricochete_count > 0:             extras["ricochete"]    = ricochete_count
 	if brasa_count > 0:                 extras["queimadura"]   = true   # Brasa: tiros queimam
@@ -546,7 +627,7 @@ func _disparar_de(alvo: Node, spawn_gp: Vector2, dmg_mult: float = 1.0) -> void:
 	Som.tiro()
 
 
-func _disparar_direcao(dir: Vector2) -> void:
+func _disparar_direcao(dir: Vector2, spawn_offset: Vector2 = Vector2.ZERO) -> void:
 	var x1_mult : float = 1.0
 	if Salvar.talento_ativo("x1"):
 		if randf() < 0.20: return
@@ -554,14 +635,14 @@ func _disparar_direcao(dir: Vector2) -> void:
 	var ang : float = atan2(dir.y, dir.x)
 	var proj = PROJETIL_SCENE.instantiate()
 	get_parent().add_child(proj)
-	proj.global_position = global_position + Vector2(cos(ang), sin(ang)) * 20.0
+	proj.global_position = global_position + spawn_offset + Vector2(cos(ang), sin(ang)) * 20.0
 	var dano_final : float = damage * _arma_mult("dano") * x1_mult
 	if ia_dano_boost_ativo: dano_final *= IA_DANO_BOOST_MULT
 	if Salvar.talento_ativo("b1") and max_hp > 0.0:
 		var hp_f : float = clampf(1.0 - (hp / max_hp), 0.0, 1.0)
 		dano_final *= 1.0 + clampf(floorf(hp_f * 10.0) * 0.05, 0.0, 0.50)
 	var eh_crit : bool = crit_chance > 0.0 and randf() < crit_chance
-	if eh_crit: dano_final *= 3.0
+	if eh_crit: dano_final *= crit_mult
 	var pierce_ef : int   = 0 if punicao_pierce_timer > 0.0 else pierce_count
 	var splash_r  : float = pierce_splash_radius if pierce_ef > 0 else 0.0
 	var splash_d  : float = dano_final * pierce_splash_dmg_mult if pierce_ef > 0 else 0.0
@@ -603,37 +684,151 @@ func _range_para_alvo(alvo: Node) -> float:
 	return range_r * _arma_mult("alcance")
 
 
+# ── Pipeline de dano compartilhado (armas de AoE/feixe que não usam _disparar_de) ─
+func _calc_dano_arma(alvo, dmg_mult: float = 1.0) -> Array:
+	# Aplica: base × mult × dmg_mult, IA boost, boss mult, b1 (Fúria) e crítico.
+	# Retorna [dano, eh_crit]. Atributos/ascensão/arsenal já estão em `damage`.
+	var d : float = damage * _arma_mult("dano") * dmg_mult
+	if ia_dano_boost_ativo: d *= IA_DANO_BOOST_MULT
+	if is_instance_valid(alvo) and alvo.is_in_group("boss_dante"): d *= boss_damage_mult
+	if Salvar.talento_ativo("b1") and max_hp > 0.0:
+		var hpf : float = clampf(1.0 - (hp / max_hp), 0.0, 1.0)
+		d *= 1.0 + clampf(floorf(hpf * 10.0) * 0.05, 0.0, 0.50)
+	var eh_crit : bool = crit_chance > 0.0 and randf() < crit_chance
+	if eh_crit: d *= crit_mult
+	return [d, eh_crit]
+
+func _ferir_mob(mob, dano: float, eh_crit: bool, explosivo: bool) -> void:
+	# Aplica dano + modificadores POR-ALVO (Armadura Invertida) + DoT (veneno,
+	# queimadura). Usado pelas armas de AoE/feixe pra herdar cartas/talentos.
+	if not is_instance_valid(mob) or not mob.has_method("receber_dano"): return
+	var d : float = dano
+	if armadura_inv:
+		var mhp : float = _get_f(mob, "max_hp")
+		var chp : float = _get_f(mob, "hp")
+		if mhp > 0.0 and chp / mhp < 0.30: d *= 1.60
+	mob.receber_dano(d, explosivo, eh_crit)
+	if veneno_dps > 0.0:
+		mob.set("veneno_dps",   maxf(_get_f(mob, "veneno_dps"), veneno_dps))
+		mob.set("veneno_timer", 4.0)
+	if brasa_count > 0 or Salvar.talento_ativo("p5"):
+		mob.set("queima_dps",   maxf(_get_f(mob, "queima_dps"),   10.0))
+		mob.set("queima_timer", maxf(_get_f(mob, "queima_timer"), 2.0))
+
+
 func _atirar_escopeta() -> void:
 	# Leque FIXO de 6 pelotas em ±40° na direção do alvo. Cada pelota vai reta
 	# (direcional) e fura quem cruzar — espalha de verdade, nunca converge.
+	# Triângulo: 7 pelotas saindo do MESMO ponto (ponta na torre) e abrindo. Perto
+	# do cano elas estão juntas → mob colado leva VÁRIAS = dano alto; longe espalha.
 	var dir_base : Vector2 = (_target_pos(target) - global_position).normalized()
 	var ang_base : float = atan2(dir_base.y, dir_base.x)
-	const N : int = 6
+	const N : int = 7
 	for i in range(N):
 		var frac : float = (float(i) / float(N - 1)) - 0.5   # -0.5..0.5
-		var ang  : float = ang_base + frac * deg_to_rad(80.0)
+		var ang  : float = ang_base + frac * deg_to_rad(38.0)
 		_disparar_direcao(Vector2(cos(ang), sin(ang)))
 
 
-func _atirar_orbital() -> void:
-	# Dispara de 3 pontos girando ao redor da torre, cada um no melhor alvo
-	var alvos := _achar_alvos_multiplos(3)
-	for i in range(3):
-		var orbit_a : float = float(i) * TAU / 3.0 + _orbit_rot
-		var spawn_gp : Vector2 = global_position + Vector2(cos(orbit_a), sin(orbit_a)) * 50.0
-		var alvo_o : Node = target
-		if i < alvos.size() and is_instance_valid(alvos[i]):
-			alvo_o = alvos[i]
-		if is_instance_valid(alvo_o):
-			_disparar_de(alvo_o, spawn_gp, 0.6)
+const ORBITAL_N         : int   = 3
+const ORBITAL_DIST      : float = 86.0   # distância FIXA dos orbes à torre
+const ORBITAL_RAIO_BASE : float = 30.0   # mini-área base (escala com alcance)
+
+func _orbital_raio_area() -> float:
+	# Tamanho da mini-área de cada orbe ESCALA COM O ALCANCE (upar alcance =
+	# áreas maiores). Áreas grandes cobrem até o centro (mob não fica safe lá).
+	return clampf(range_r * _arma_mult("alcance") * 0.24, 45.0, 160.0)
+
+func alcance_efetivo() -> float:
+	# Alcance REAL de combate da torre = range_r × mult da arma (cada arma alcança
+	# diferente: escopeta curta, sniper longa). No Orbital é a zona dos ORBES.
+	# Usado pela câmera E pelo atirador (que para dentro do alcance que a arma
+	# realmente cobre — senão a escopeta nunca o pega).
+	if arma_ativa == "orbital":
+		return ORBITAL_DIST + _orbital_raio_area()
+	return range_r * _arma_mult("alcance")
+
+func _orbital_aplicar_dano() -> void:
+	# Dano nas mini-áreas dos orbes (chamado por tick em _process, não por tiro).
+	var raio_area : float = _orbital_raio_area()
+	for i in range(ORBITAL_N):
+		var a : float = float(i) * TAU / float(ORBITAL_N) + _orbital_rot
+		var orb_pos : Vector2 = global_position + Vector2(cos(a), sin(a)) * ORBITAL_DIST
+		var res : Array = _calc_dano_arma(null)   # crit/b1/ia por orbe
+		for mob in get_tree().get_nodes_in_group(mobs_group):
+			if not is_instance_valid(mob) or (mob.get("morto") == true): continue
+			if orb_pos.distance_to((mob as Node2D).global_position) <= raio_area:
+				_ferir_mob(mob, res[0], res[1], false)
+
+
+func _aniquilador_disparar(ang: float) -> void:
+	# Feixe reto no ângulo dado: atinge TODOS no corredor de uma vez. Usado pelo
+	# sweep contínuo (a torre gira o raio atirando). Herda crit/veneno/etc.
+	var dir : Vector2 = Vector2(cos(ang), sin(ang))
+	var comp : float = range_r * _arma_mult("alcance")
+	var fim : Vector2 = global_position + dir * comp
+	const CORREDOR : float = 34.0
+	for mob in get_tree().get_nodes_in_group(mobs_group):
+		if not is_instance_valid(mob) or (mob.get("morto") == true): continue
+		var rel : Vector2 = (mob as Node2D).global_position - global_position
+		var ao_longo : float = rel.dot(dir)
+		if ao_longo < 0.0 or ao_longo > comp: continue
+		if (rel - dir * ao_longo).length() <= CORREDOR:
+			var res : Array = _calc_dano_arma(mob)
+			_ferir_mob(mob, res[0], res[1], false)
+	var scr = load("res://scripts/partida/feixe_laser.gd")
+	if scr != null:
+		var parent = get_parent()
+		if parent != null and is_instance_valid(parent):
+			var fx = scr.new()
+			parent.add_child(fx)
+			fx.iniciar(global_position + dir * 22.0, fim, Color(1.0, 0.32, 0.55), 8.0)
+
+
+func _atirar_lanca_chamas() -> void:
+	# Cone de fogo curto: dano em todos no leque + queimadura. Alcance baixo, mas
+	# acerta vários de perto. Visual = línguas de chama.
+	if not is_instance_valid(target): return
+	var dir : Vector2 = (_target_pos(target) - global_position).normalized()
+	var ang : float = atan2(dir.y, dir.x)
+	var alcance : float = range_r * _arma_mult("alcance")
+	var meia_ang : float = deg_to_rad(28.0)
+	var res : Array = _calc_dano_arma(null)   # crit/b1/ia + herda cartas via _ferir_mob
+	for mob in get_tree().get_nodes_in_group(mobs_group):
+		if not is_instance_valid(mob) or (mob.get("morto") == true): continue
+		var rel : Vector2 = (mob as Node2D).global_position - global_position
+		if rel.length() > alcance: continue
+		if absf(angle_difference(ang, rel.angle())) <= meia_ang:
+			_ferir_mob(mob, res[0], res[1], false)
+			# Queimadura forte é a marca do lança-chamas (além do DoT herdado)
+			mob.set("queima_dps",   maxf(_get_f(mob, "queima_dps"),   14.0))
+			mob.set("queima_timer", maxf(_get_f(mob, "queima_timer"), 2.5))
+	var scr = load("res://scripts/partida/cone_fogo.gd")
+	if scr != null:
+		var parent = get_parent()
+		if parent != null and is_instance_valid(parent):
+			var fx = scr.new()
+			parent.add_child(fx)
+			fx.iniciar(global_position, ang, alcance, meia_ang)
+	if typeof(Som) != TYPE_NIL and Som.has_method("tiro"):
+		Som.tiro()
+
+
+func _get_f(obj, prop: String, fb: float = 0.0) -> float:
+	if not is_instance_valid(obj): return fb
+	var v = obj.get(prop)
+	return float(v) if v != null else fb
 
 
 func _atirar_gemea() -> void:
-	# Dois canhões miram 2 alvos distintos simultaneamente
-	var alvos := _achar_alvos_multiplos(2)
-	_disparar_em(target)
-	if alvos.size() >= 2 and is_instance_valid(alvos[1]) and alvos[1] != target:
-		_disparar_de(alvos[1], global_position)
+	# Dois canhões: 2 balas RETAS PARALELAS na direção do alvo. Cada linha acerta
+	# quem cruza o caminho dela (não persegue 2 alvos distintos).
+	if not is_instance_valid(target): return
+	var dir : Vector2 = (_target_pos(target) - global_position).normalized()
+	var perp : Vector2 = Vector2(-dir.y, dir.x)
+	const GEMEA_SEP : float = 9.0   # distância de cada cano ao centro (perto = acerta)
+	_disparar_direcao(dir, perp * GEMEA_SEP)
+	_disparar_direcao(dir, perp * -GEMEA_SEP)
 
 
 func receber_dano(dano: float) -> void:
@@ -729,6 +924,7 @@ func aplicar_carta(efeito: String, val: float) -> void:
 		"brasa":      brasa_count     = mini(brasa_count + int(val), 5);     _checar_fusao_fogo()
 		"veneno":     veneno_dps     = max(0.0, veneno_dps + val)
 		"critico":    crit_chance    = clampf(crit_chance + val, 0.0, 0.75)
+		"crit_mult":  crit_mult      = min(crit_mult + val, 12.0)
 		"explosao":   explosao_ativa = true
 		"chama":      chama_bonus_por_kill += val
 		"overdrive":  overdrive_ativa = true
@@ -892,6 +1088,29 @@ func _draw() -> void:
 	var p   := sin(pulse) * 0.25 + 0.75
 	var cor := _skin_cor() if hit_flash < 0.05 else Color(1.0, 0.35, 0.1)
 
+	# Bombardeio: anel da zona de MINI RAIO (dentro = dano reduzido). Mostra ao jogador.
+	if _arma_modo() == "bombardeio":
+		var bf : float = sin(pulse * 1.2) * 0.12 + 0.6
+		draw_arc(Vector2.ZERO, BOMBARDEIO_MIN_DIST, 0.0, TAU, 64,
+				Color(0.45, 0.85, 1.0, 0.30 * bf), 2.0)
+
+	# Orbital: orbes girando (distância fixa), cada um com mini-área (∝ alcance)
+	# e mini-orbes girando RÁPIDO dentro da área.
+	if _arma_modo() == "orbital":
+		var area : float = _orbital_raio_area()
+		var of : float = sin(pulse * 2.0) * 0.2 + 0.8
+		for i in range(ORBITAL_N):
+			var a : float = float(i) * TAU / float(ORBITAL_N) + _orbital_rot
+			var op : Vector2 = Vector2(cos(a), sin(a)) * ORBITAL_DIST
+			draw_circle(op, area, Color(0.65, 0.55, 1.0, 0.13 * of))            # mini-área
+			draw_arc(op, area, 0.0, TAU, 28, Color(0.70, 0.62, 1.0, 0.30 * of), 1.5)
+			# Mini-orbes girando rápido dentro da área
+			for j in range(3):
+				var ma : float = _orbital_rot * 5.0 + float(j) * TAU / 3.0
+				var mp : Vector2 = op + Vector2(cos(ma), sin(ma)) * (area * 0.55)
+				draw_circle(mp, 3.2, Color(0.92, 0.88, 1.0, 0.9))
+			draw_circle(op, 6.0, Color(0.80, 0.70, 1.0, 0.55 * of))
+
 	# Campo de gelo: anel azul-claro ao redor do alcance
 	if gelo_ativo:
 		var gelo_r : float = range_r
@@ -941,8 +1160,9 @@ func _draw() -> void:
 
 	var is_saberpunk : bool = Salvar.skin_ativa == "saberpunk"
 
-	# Círculo de alcance
-	var _vis_range : float = range_r
+	# Círculo de alcance: usa o alcance EFETIVO da arma (range × mult), senão
+	# escopeta/lança-chamas pareciam alcançar longe e aniquilador passava do anel.
+	var _vis_range : float = range_r * _arma_mult("alcance")
 	if target and is_instance_valid(target) and _vis_range > 10.0:
 		if is_saberpunk:
 			# Anel de alcance cyberpunk: dual-neon rotativo com segmentos
@@ -1027,19 +1247,8 @@ func _draw() -> void:
 	else:
 		draw_circle(Vector2.ZERO, 8.0, Color(cor.r + 0.2, cor.g + 0.2, cor.b, p))
 
-	# Canhão
-	var dir  := Vector2(cos(angle), sin(angle))
-	var lat  := dir.rotated(PI / 2.0) * 4.5
-	var tip  := dir * 32.0
-	var gun  := PackedVector2Array([-lat * 0.4, lat * 0.4, tip + lat * 0.15, tip - lat * 0.15])
-	draw_polygon(gun, _cores(gun.size(), Color(cor.r, cor.g, cor.b, 0.9)))
-	if is_saberpunk:
-		# Trilha neon no canhão
-		draw_polyline(PackedVector2Array([Vector2.ZERO, tip]),
-			Color(0.88, 0.0, 1.0, 0.35 * p), 2.5)
-		draw_circle(tip, 6.0, Color(0.0, 1.0, 0.88, p))
-	else:
-		draw_circle(tip, 5.0, Color(1.0, 1.0, 1.0, p))
+	# Canhão: agora é desenhado por _desenhar_torreta (silhueta única por arma).
+	# Não desenhar canhão genérico aqui — senão toda arma fica com o mesmo cano.
 
 	# Flash do Raio Arcano (torre → alvo 1)
 	if _raio_flash_timer > 0.01 and _raio_flash_pts.size() > 1:
@@ -1119,8 +1328,203 @@ func _draw() -> void:
 			draw_polygon(cgun, _cores(cgun.size(), Color(cor.r, cor.g, cor.b, 0.90)))
 			draw_circle(ctip, 3.5, Color(1.0, 1.0, 1.0, p))
 
+	# Torreta muda conforme a arma (2 canos no gêmeo, cano longo no laser, etc)
+	var aim : float = 0.0
+	if target and is_instance_valid(target):
+		aim = (_target_pos(target) - global_position).angle()
+	elif focus_ativo and focus_dir != Vector2.ZERO:
+		aim = focus_dir.angle()
+	_desenhar_torreta(aim, cor)
+	_torreta_fx(aim)   # camada extra por skin (premium)
+
 	# Barra de HP
 	_draw_hp()
+
+
+func _cano(ang: float, comp: float, larg: float, base: float, cor: Color, off_perp: float = 0.0) -> void:
+	# Desenha um cano apontando em `ang`, deslocado `off_perp` perpendicular.
+	var fwd  : Vector2 = Vector2(cos(ang), sin(ang))
+	var perp : Vector2 = Vector2(-fwd.y, fwd.x)
+	var desl : Vector2 = perp * off_perp
+	var p0 : Vector2 = fwd * base + desl
+	var p1 : Vector2 = fwd * (base + comp) + desl
+	var lat  : Vector2 = perp * (larg * 0.5)
+	var lat2 : Vector2 = perp * (larg * 0.5 * 0.74)            # leve taper na boca
+	# sombra (profundidade)
+	var sombra := PackedVector2Array([
+			p0 - lat + Vector2(0, 2), p0 + lat + Vector2(0, 2),
+			p1 + lat2 + Vector2(0, 2), p1 - lat2 + Vector2(0, 2)])
+	draw_polygon(sombra, _cores(4, Color(0, 0, 0, 0.28)))
+	# corpo metálico escuro
+	var corpo := PackedVector2Array([p0 - lat, p0 + lat, p1 + lat2, p1 - lat2])
+	draw_polygon(corpo, _cores(4, Color(cor.r * 0.42, cor.g * 0.42, cor.b * 0.48, 0.98)))
+	# faixa de brilho ao longo de uma borda (sheen)
+	var sheen := PackedVector2Array([
+			p0 - lat, p0 - lat + perp * (larg * 0.30),
+			p1 - lat2 + perp * (larg * 0.30), p1 - lat2])
+	draw_polygon(sheen, _cores(4, Color(minf(cor.r + 0.25, 1.0), minf(cor.g + 0.25, 1.0), minf(cor.b + 0.30, 1.0), 0.40)))
+	# contorno neon
+	var brd := PackedVector2Array([p0 - lat, p0 + lat, p1 + lat2, p1 - lat2, p0 - lat])
+	draw_polyline(brd, Color(minf(cor.r + 0.30, 1.0), minf(cor.g + 0.30, 1.0), minf(cor.b + 0.35, 1.0), 0.90), 1.4)
+	# boca: glow + anel escuro + núcleo brilhante
+	for g in range(3, 0, -1):
+		draw_circle(p1, larg * 0.36 + float(g) * 1.5,
+				Color(minf(cor.r + 0.2, 1.0), minf(cor.g + 0.2, 1.0), minf(cor.b + 0.25, 1.0), 0.09 / float(g)))
+	draw_circle(p1, larg * 0.34, Color(0.05, 0.05, 0.09, 0.95))
+	draw_circle(p1, larg * 0.19, Color(minf(cor.r + 0.35, 1.0), minf(cor.g + 0.32, 1.0), minf(cor.b + 0.32, 1.0), 0.95))
+
+
+func _placa(pts: PackedVector2Array, cor: Color) -> void:
+	# Polígono "bonito": sombra + corpo metálico + bisel claro + contorno neon.
+	if pts.size() < 3:
+		return
+	var ctr := Vector2.ZERO
+	for v in pts:
+		ctr += v
+	ctr /= float(pts.size())
+	var sh := PackedVector2Array()
+	for v in pts:
+		sh.append(v + Vector2(0.0, 2.2))
+	draw_polygon(sh, _cores(pts.size(), Color(0.0, 0.0, 0.0, 0.30)))
+	draw_polygon(pts, _cores(pts.size(), Color(cor.r * 0.40, cor.g * 0.40, cor.b * 0.46, 0.98)))
+	var ins := PackedVector2Array()
+	for v in pts:
+		ins.append(v.lerp(ctr, 0.36))
+	draw_polygon(ins, _cores(ins.size(), Color(minf(cor.r * 0.9 + 0.08, 1.0), minf(cor.g * 0.9 + 0.08, 1.0), minf(cor.b * 0.9 + 0.10, 1.0), 0.42)))
+	var brd := PackedVector2Array(pts)
+	brd.append(pts[0])
+	draw_polyline(brd, Color(minf(cor.r + 0.28, 1.0), minf(cor.g + 0.28, 1.0), minf(cor.b + 0.32, 1.0), 0.90), 1.5)
+
+
+func _bola(pos: Vector2, r: float, cor: Color) -> void:
+	# Esfera/disco metálico com glow + highlight + aro neon.
+	for g in range(3, 0, -1):
+		draw_circle(pos, r + float(g) * 1.4, Color(minf(cor.r + 0.1, 1.0), minf(cor.g + 0.1, 1.0), minf(cor.b + 0.15, 1.0), 0.07 / float(g)))
+	draw_circle(pos, r, Color(cor.r * 0.45, cor.g * 0.45, cor.b * 0.50, 0.98))
+	draw_circle(pos - Vector2(r * 0.30, r * 0.30), r * 0.42, Color(minf(cor.r + 0.2, 1.0), minf(cor.g + 0.2, 1.0), minf(cor.b + 0.25, 1.0), 0.65))
+	draw_arc(pos, r, 0.0, TAU, 20, Color(minf(cor.r + 0.30, 1.0), minf(cor.g + 0.30, 1.0), minf(cor.b + 0.35, 1.0), 0.85), 1.3)
+
+
+func _chama_leque(fwd: Vector2, perp: Vector2) -> void:
+	# Leque de chama emissivo (não-metálico) na boca do lança-chamas.
+	for g in range(3, 0, -1):
+		var w : float = 8.0 + float(g) * 1.6
+		draw_polygon(PackedVector2Array([fwd * 15.0, fwd * 27.0 + perp * w, fwd * 27.0 - perp * w]),
+				_cores(3, Color(1.0, 0.45, 0.08, 0.10)))
+	draw_polygon(PackedVector2Array([fwd * 16.0, fwd * 25.0 + perp * 8.0, fwd * 25.0 - perp * 8.0]),
+			_cores(3, Color(1.0, 0.58, 0.12, 0.85)))
+	draw_polygon(PackedVector2Array([fwd * 16.0, fwd * 22.0 + perp * 4.0, fwd * 22.0 - perp * 4.0]),
+			_cores(3, Color(1.0, 0.88, 0.40, 0.90)))
+
+
+func _breech(ang: float, half_w: float, comp: float, cor: Color) -> void:
+	# Bloco/recâmara da torreta na base do cano (dá corpo à silhueta).
+	var f  : Vector2 = Vector2(cos(ang), sin(ang))
+	var pp : Vector2 = Vector2(-f.y, f.x)
+	var a  : Vector2 = -f * 6.0 + pp * half_w
+	var b  : Vector2 = -f * 6.0 - pp * half_w
+	var d  : Vector2 =  f * comp + pp * (half_w * 0.82)        # taper p/ frente
+	var e  : Vector2 =  f * comp - pp * (half_w * 0.82)
+	_placa(PackedVector2Array([a, b, e, d]), cor)
+
+
+func _desenhar_torreta(ang: float, base_cor: Color) -> void:
+	# Silhueta ÚNICA por arma (recâmara + bocal próprios), não só um cano fino
+	# por cima da skin. Aponta para o alvo.
+	var c    : Color   = Color(base_cor.r * 0.65, base_cor.g * 0.65, base_cor.b * 0.70, 0.96)
+	var hi   : Color   = Color(min(base_cor.r + 0.30, 1.0), min(base_cor.g + 0.28, 1.0), min(base_cor.b + 0.20, 1.0), 1.0)
+	var fwd  : Vector2 = Vector2(cos(ang), sin(ang))
+	var perp : Vector2 = Vector2(-fwd.y, fwd.x)
+	match arma_ativa:
+		"gemea":
+			_breech(ang, 10.0, 15.0, c)
+			_cano(ang, 24.0, 5.5, 8.0, c, 7.0)
+			_cano(ang, 24.0, 5.5, 8.0, c, -7.0)
+		"aniquilador":
+			_breech(ang, 8.5, 15.0, c)
+			_cano(ang, 38.0, 4.5, 6.0, Color(1.0, 0.40, 0.60, 0.96))   # emissor longo
+			for k in range(2):                                          # bobinas de carga
+				_bola(fwd * (18.0 + float(k) * 11.0), 3.6, Color(1.0, 0.35, 0.58, 1.0))
+		"sniper":
+			_breech(ang, 8.0, 13.0, c)
+			_cano(ang, 44.0, 3.6, 6.0, c)                              # cano bem longo fino
+			_bola(fwd * 15.0 + perp * 6.0, 3.2, c)                     # luneta em cima
+		"escopeta":
+			_breech(ang, 11.0, 12.0, c)
+			_cano(ang, 11.0, 11.0, 8.0, c)
+			_placa(PackedVector2Array([                                # boca em leque (escopeta)
+					fwd * 19.0, fwd * 30.0 + perp * 12.0, fwd * 30.0 - perp * 12.0]),
+					Color(1.0, 0.55, 0.18, 1.0))
+		"metralhadora":
+			_breech(ang, 9.5, 14.0, c)
+			_cano(ang, 27.0, 6.5, 8.0, c)
+			_bola(fwd * 5.0 - perp * 10.0, 6.5, c)                     # tambor de munição
+		"lanca_chamas":
+			_breech(ang, 9.0, 12.0, c)
+			_bola(-fwd * 9.0, 7.0, Color(0.85, 0.32, 0.10, 1.0))       # tanque de combustível
+			_cano(ang, 15.0, 9.0, 8.0, Color(1.0, 0.50, 0.15, 0.96))   # bocal
+			_chama_leque(fwd, perp)                                     # leque de chama
+		"missil":
+			_breech(ang, 11.0, 20.0, c)                                # corpo retangular do lançador
+			for s in [1.0, -1.0]:                                      # 2 bocas de tubo
+				var tb : Vector2 = fwd * 18.0 + perp * (5.0 * float(s))
+				draw_circle(tb, 3.8, Color(0.06, 0.06, 0.09, 1.0))
+				draw_circle(tb, 2.0, Color(1.0, 0.50, 0.22, 0.95))
+				draw_circle(tb, 0.9, Color(1.0, 0.90, 0.60, 0.95))
+		"bombardeio":
+			_breech(ang, 12.0, 9.0, c)                                 # placa-base
+			_cano(-PI / 2.0 + 0.20, 18.0, 12.0, 4.0, Color(0.50, 0.72, 0.95, 0.96))  # morteiro p/ cima
+			_bola(Vector2(0.0, -23.0), 3.6, Color(0.62, 0.80, 1.0, 1.0))
+		"vortice":
+			_bola(Vector2.ZERO, 9.0, c)                                 # hub central
+			for k in range(6):
+				_cano(_orbit_rot + float(k) * TAU / 6.0, 13.0, 4.5, 9.0, c)  # 6 portas radiais
+		"orbital":
+			# sem cano: os orbes são o visual. Só um núcleo girando p/ não ficar nu.
+			draw_arc(Vector2.ZERO, 13.0, _orbital_rot, _orbital_rot + TAU * 0.7, 24,
+					Color(0.75, 0.65, 1.0, 0.7), 2.0)
+			for k in range(3):
+				var oa : float = _orbital_rot * 2.0 + float(k) * TAU / 3.0
+				_bola(Vector2(cos(oa), sin(oa)) * 11.0, 2.4, hi)
+		_:
+			_breech(ang, 8.0, 12.0, c)
+			_cano(ang, 24.0, 7.0, 8.0, c)   # padrão / ricochete
+
+
+func _torreta_fx(ang: float) -> void:
+	# Camada extra POR SKIN em cima da torreta (premium). Skins comuns só
+	# recolorem (já feito via base_cor); aqui entram efeitos exclusivos.
+	# Isolado: se uma skin der erro, não trava o resto do desenho.
+	var fwd : Vector2 = Vector2(cos(ang), sin(ang))
+	match Salvar.skin_ativa:
+		"saberpunk":
+			# Pulso de energia correndo do corpo até a boca + eco magenta.
+			var ts : float = fmod(pulse * 0.6, 1.0)
+			var ps : Vector2 = fwd * (10.0 + ts * 26.0)
+			draw_circle(ps, 4.6, Color(0.88, 0.0, 1.0, 0.22 * (1.0 - ts)))
+			draw_circle(ps, 2.3, Color(0.0, 1.0, 0.88, 0.90 * (1.0 - ts)))
+		"void_core":
+			# Partículas de vácuo sugadas para a boca do cano.
+			for k in range(4):
+				var ph : float = fmod(pulse * 0.5 + float(k) * 0.25, 1.0)
+				var a  : float = float(k) * TAU / 4.0 + pulse * 0.8
+				var pos : Vector2 = fwd * 30.0 + Vector2(cos(a), sin(a)) * (40.0 * (1.0 - ph))
+				draw_circle(pos, 1.6 * (1.0 - ph) + 0.5, Color(0.55, 0.25, 1.0, 0.85 * (1.0 - ph)))
+		"orbital_gold":
+			# Glint dourado girando + halo quente.
+			for g in range(3, 0, -1):
+				draw_arc(Vector2.ZERO, 18.0 + float(g) * 2.5, 0.0, TAU, 32,
+						Color(1.0, 0.78, 0.15, 0.05 / float(g)), 1.5)
+			var ga : float = pulse * 1.5
+			draw_circle(Vector2(cos(ga), sin(ga)) * 16.0, 2.8, Color(1.0, 0.88, 0.40, 0.85))
+		"nebula_prime":
+			# Poeira de nebulosa rosa orbitando a torreta.
+			for k in range(5):
+				var na : float = float(k) * TAU / 5.0 + pulse * 0.4
+				var nr : float = 25.0 + sin(pulse * 1.5 + float(k)) * 5.0
+				draw_circle(Vector2(cos(na), sin(na)) * nr, 2.8, Color(0.95, 0.30, 0.95, 0.32))
+		_:
+			pass
 
 
 func _draw_hp() -> void:

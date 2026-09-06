@@ -16,6 +16,9 @@ const TECH_FONT_RESOURCE : FontFile = preload("res://assets/fonts/bahnschrift.tt
 const DEBUG_MENU_WHITE_BACKGROUND : bool = false
 const DEBUG_MENU_MAP_PREVIEW : bool = false
 const DEBUG_MOCHILA_MOSTRAR_TODOS_ITENS : bool = false
+# Floor de recursos em build debug. DESLIGADO: estava pisando no saldo REAL da
+# conta (logada) e sincronizando 50K/5K pra nuvem. Ligue só p/ testar do zero.
+const DEBUG_GARANTIR_RECURSOS : bool = false
 const SHOW_PREMIUM_PURCHASES : bool = false
 const DEBUG_PREMIUM_TEST_PURCHASES : bool = false
 const DISCORD_CANAL_URL : String = "https://discord.gg/qDvVaTvDeb"
@@ -93,6 +96,7 @@ var _hist_overlay = null
 var _hist_panel = null
 var _perfil_overlay = null
 var _perfil_panel = null
+var _perfil_btn_google: Button = null   # botão "Entrar com Google" (Supabase Auth)
 var _perfil_btn: Control = null
 var _patente_overlay = null
 var _patente_panel = null
@@ -141,17 +145,38 @@ func _ready() -> void :
 	_mod_inv = MENU_INV_MOD.new(self)
 	_mod_cfg = MENU_CFG_MOD.new(self)
 	_mod_contas = MENU_CONTAS_MOD.new(self)
+	# Login Google (Supabase Auth): conectado UMA vez aqui → completa o login
+	# independente de qual tela disparou (contas ou perfil).
+	if not Auth.perfil_pronto.is_connected(_on_perfil_google_pronto):
+		Auth.login_ok.connect(_on_perfil_google_ok)
+		Auth.login_falhou.connect(_on_perfil_google_falhou)
+		Auth.perfil_pronto.connect(_on_perfil_google_pronto)
+		Auth.precisa_apelido.connect(_on_precisa_apelido)
 	if not RankingOnline.premio_temporada_aplicado.is_connected(_mod_ranking._on_premio_temporada_aplicado):
 		RankingOnline.premio_temporada_aplicado.connect(_mod_ranking._on_premio_temporada_aplicado)
 	RankingOnline.buscar_premios_pendentes()
-	if not Salvar.tutorial_menu_visto:
-		_abrir_tutorial()
+	RankingOnline.buscar_ranking()                       # aquece o cache do placar
+	RankingOnline.buscar_campeoes_temporada_anterior()   # aquece o cache dos campeões
+	if not Notificacoes.notices_carregados.is_connected(_mostrar_avisos_pendentes):
+		Notificacoes.notices_carregados.connect(_mostrar_avisos_pendentes)
+	call_deferred("_mostrar_avisos_pendentes")           # caso já tenham carregado
 	Som.tocar_musica_menu(true)
 	_garantir_musica_menu_depois_de_voltar()
 	RankingOnline.checar_diario()
 	if _mod_contas.deve_abrir_no_boot():
-		_mod_contas.abrir(_ui_main)
+		_mod_contas.abrir(_ui_main)   # deslogado: login primeiro — tutorial só depois (ver _checar_tutorial_boot)
+	else:
+		_checar_tutorial_boot()
 	RankingOnline.checar_premio_temporada()
+
+
+func _checar_tutorial_boot() -> void:
+	# Chamado só depois que o jogador já está logado/escolheu jogar sem conta —
+	# nunca antes, senão o tutorial (e o popup de permissão de notificação)
+	# aparecem em cima da tela de login.
+	if not Salvar.tutorial_menu_visto:
+		_abrir_tutorial()
+	Notificacoes.ativar_automatica_pos_login()
 
 
 func _garantir_musica_menu_depois_de_voltar() -> void:
@@ -469,8 +494,22 @@ func _reconstruir_ui_por_resize() -> void:
 		return
 	_resize_rebuilding = true
 	var tela_aberta := _tela_aberta_por_resize()
+	var contas_aberta : bool = _mod_contas != null and _mod_contas.esta_aberta()
+	# Diálogo de apelido também é filho do _ui_main → preservar o texto e reabrir.
+	var apelido_aberto : bool = _apelido_overlay != null and is_instance_valid(_apelido_overlay)
+	var apelido_txt : String = ""
+	if apelido_aberto:
+		var _le := _apelido_overlay.find_child("ApelidoEdit", true, false) as LineEdit
+		if _le:
+			apelido_txt = _le.text
 	_limpar_referencias_ui_por_resize()
 	_construir_ui()
+	if contas_aberta:                       # F11/resize não pode sumir com o login
+		_mod_contas.limpar_refs()
+		_mod_contas.abrir(_ui_main)
+	if apelido_aberto:                       # nem com o diálogo de apelido
+		_apelido_overlay = null
+		_abrir_dialogo_apelido(apelido_txt, _apelido_obrigatorio)
 	match tela_aberta:
 		"inventario":
 			_abrir_inventario(_ui_main)
@@ -795,17 +834,17 @@ func _construir_ui() -> void :
 
 	var btn_cfg:= Button.new()
 	btn_cfg.text = "CONFIG"
-	btn_cfg.position = Vector2(vp_w - 158.0, 8)
-	btn_cfg.size = Vector2(150, 38)
+	btn_cfg.position = Vector2(vp_w - 132.0, 6)
+	btn_cfg.size = Vector2(124, 44)
 	btn_cfg.focus_mode = Control.FOCUS_NONE
 	btn_cfg.add_theme_font_size_override("font_size", 16)
 	var sty_cfg:= StyleBoxFlat.new()
-	sty_cfg.bg_color = Color(0.08, 0.1, 0.14, 0.9)
-	sty_cfg.border_color = Color(0.38, 0.45, 0.55, 0.75)
+	sty_cfg.bg_color = Color(0.07, 0.11, 0.17, 0.94)
+	sty_cfg.border_color = Color(0.30, 0.60, 0.95, 0.85)
 	for side in ["left", "right", "top", "bottom"]:
-		sty_cfg.set("border_width_" + side, 1)
+		sty_cfg.set("border_width_" + side, 2)
 	for corner in ["top_left", "top_right", "bottom_left", "bottom_right"]:
-		sty_cfg.set("corner_radius_" + corner, 6)
+		sty_cfg.set("corner_radius_" + corner, 11)
 	btn_cfg.add_theme_stylebox_override("normal", sty_cfg)
 	var sty_cfg_h: StyleBoxFlat = sty_cfg.duplicate()
 	sty_cfg_h.bg_color = Color(0.15, 0.18, 0.24, 0.95)
@@ -819,8 +858,20 @@ func _construir_ui() -> void :
 			func(): _abrir_config(ui)))
 	mc.add_child(btn_cfg)
 
+	# Ícone de mensagens do sistema (avisos) + badge de não-vistos, ao lado do CONFIG.
+	var msg_btn := Control.new()
+	msg_btn.name = "BtnMensagens"
+	msg_btn.position = Vector2(btn_cfg.position.x - 66.0, 6)
+	msg_btn.size = Vector2(58, 44)
+	msg_btn.mouse_filter = Control.MOUSE_FILTER_STOP
+	msg_btn.draw.connect(_draw_btn_msg.bind(msg_btn))
+	msg_btn.gui_input.connect(func(e):
+		if e is InputEventMouseButton and e.pressed and e.button_index == MOUSE_BUTTON_LEFT:
+			_abrir_notificacoes(ui))
+	mc.add_child(msg_btn)
+
 	var currency_w : float = 286.0
-	var currency_x : float = btn_cfg.position.x - currency_w - 10.0
+	var currency_x : float = msg_btn.position.x - currency_w - 10.0
 	if currency_x >= 360.0:
 		_add_currency_status(mc, Vector2(currency_x, 9.0), false, 90)
 	else:
@@ -840,6 +891,7 @@ func _construir_ui() -> void :
 	mc.add_child(btn_ac)
 
 	var btn_rank:= _ui_image_menu_button(MENU_RANKING_TEXTURE, Vector2(quick_x, quick_y + quick_sz.y + quick_gap), quick_sz)
+	_tut_hist_rect = Rect2(btn_rank.position, btn_rank.size)   # tutorial RANKING aponta pro ícone certo
 	btn_rank.pressed.connect( func():
 		if not (_mod_ranking and _mod_ranking._ranking_overlay) and not (_mod_cfg and _mod_cfg._config_overlay) and not (_mod_loja and _mod_loja._loja_overlay) and not _nexo_overlay:
 			_abrir_ranking(ui))
@@ -906,21 +958,7 @@ func _construir_ui() -> void :
 	btn_patente.add_child(patente_preview)
 
 
-	var btn_aval_sm:= Button.new()
-	btn_aval_sm.text = "AVALIAÇÃO"
-	btn_aval_sm.position = Vector2(104, 660)
-	btn_aval_sm.size = Vector2(162, 34)
-	btn_aval_sm.focus_mode = Control.FOCUS_NONE
-	btn_aval_sm.add_theme_font_size_override("font_size", 13)
-	var sty_av:= StyleBoxFlat.new()
-	sty_av.bg_color = Color(0.05, 0.15, 0.25, 0.9)
-	sty_av.border_color = Color(0.2, 0.75, 1.0, 0.8)
-	for s in ["left", "right", "top", "bottom"]: sty_av.set("border_width_" + s, 2)
-	for c in ["top_left", "top_right", "bottom_left", "bottom_right"]: sty_av.set("corner_radius_" + c, 8)
-	btn_aval_sm.add_theme_stylebox_override("normal", sty_av)
-	btn_aval_sm.add_theme_color_override("font_color", Color(0.2, 0.85, 1.0))
-	btn_aval_sm.pressed.connect( func(): _abrir_avaliacao(ui))
-	mc.add_child(btn_aval_sm)
+	# AVALIAÇÃO movida para dentro do Config (botão lá).
 	_corrigir_textos_ui(mc)
 
 
@@ -1004,7 +1042,7 @@ func _criar_btn(texto: String, pos: Vector2, cor: Color, sz: Vector2 = Vector2(3
 
 func _menu_safe_margin_x() -> float:
 	var margin := 36.0
-	if OS.has_feature("android") or OS.has_feature("ios"):
+	if BuildConfig.is_mobile():
 		margin = 52.0
 	var screen := DisplayServer.get_display_safe_area()
 	if screen.size.x > 0.0:
@@ -1063,8 +1101,17 @@ func _mostrar_popup_cyron(titulo: String, corpo: String, linhas: Array, cor: Col
 	shade.size = vp
 	overlay.add_child(shade)
 
+	var mob : bool = BuildConfig.is_mobile()
 	var panel_w : float = minf(560.0, vp.x - 48.0)
-	var panel_h : float = 286.0
+	var f_title : int = 27 if mob else 23
+	var f_body : int = 18 if mob else 14
+	var body_x : float = 178.0
+	var body_w : float = panel_w - body_x - 24.0
+	# Mede o corpo p/ dimensionar a altura — antes era fixo 286 e o texto vazava.
+	var _fbody : Font = _font_tech if _font_tech else ThemeDB.fallback_font
+	var body_h : float = maxf(44.0, _fbody.get_multiline_string_size(corpo, HORIZONTAL_ALIGNMENT_LEFT, body_w, f_body).y + 8.0)
+	var linhas_y0 : float = 84.0 + body_h + 10.0
+	var panel_h : float = maxf(286.0, linhas_y0 + float(linhas.size()) * 25.0 + 74.0)
 	var panel := PanelContainer.new()
 	panel.position = Vector2((vp.x - panel_w) * 0.5, (vp.y - panel_h) * 0.5)
 	panel.size = Vector2(panel_w, panel_h)
@@ -1101,22 +1148,23 @@ func _mostrar_popup_cyron(titulo: String, corpo: String, linhas: Array, cor: Col
 	title_lbl.text = titulo
 	title_lbl.position = Vector2(176.0, 38.0)
 	title_lbl.size = Vector2(panel_w - 218.0, 42.0)
-	title_lbl.add_theme_font_size_override("font_size", 23)
+	title_lbl.add_theme_font_size_override("font_size", f_title)
 	title_lbl.add_theme_color_override("font_color", Color(0.95, 0.98, 1.0, 1.0))
 	_ui_title_label(title_lbl, 3.0)
 	content.add_child(title_lbl)
 
 	var body_lbl := Label.new()
 	body_lbl.text = corpo
-	body_lbl.position = Vector2(178.0, 84.0)
-	body_lbl.size = Vector2(panel_w - 220.0, 42.0)
+	body_lbl.position = Vector2(body_x, 84.0)
+	body_lbl.size = Vector2(body_w, body_h)
+	body_lbl.custom_minimum_size = Vector2(body_w, body_h)  # garante a largura de quebra
 	body_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	body_lbl.add_theme_font_size_override("font_size", 14)
+	body_lbl.add_theme_font_size_override("font_size", f_body)
 	body_lbl.add_theme_color_override("font_color", Color(0.72, 0.82, 0.94, 0.92))
 	_ui_tech_label(body_lbl, 0.0)
 	content.add_child(body_lbl)
 
-	var y := 136.0
+	var y := linhas_y0
 	for line in linhas:
 		var row := Label.new()
 		row.text = String(line)
@@ -2941,8 +2989,462 @@ func _on_perfil_input(event: InputEvent) -> void :
 			_abrir_perfil(_ui_main)
 
 
+func _on_perfil_google_ok(uid: String) -> void:
+	# Token OK; ainda carregando o perfil (apelido). Feedback interino.
+	print("AUTH: login Google OK — uid=", uid)
+	if is_instance_valid(_perfil_btn_google):
+		_perfil_btn_google.text = "Entrando…"
+
+
+var _apelido_overlay: Control = null
+var _apelido_obrigatorio: bool = false
+
+
+func _on_precisa_apelido(sugestao: String) -> void:
+	# 1º login Google: jogador ESCOLHE o apelido (sugerido = nome do Google).
+	if _mod_contas:
+		_mod_contas._fechar()              # fecha a tela de login
+	_abrir_dialogo_apelido(sugestao, true)   # obrigatório (precisa de um apelido)
+
+
+func _cancelar_apelido(obrigatorio: bool, sugestao: String) -> void:
+	if obrigatorio:
+		Auth.definir_apelido(sugestao)     # 1º login: usa a sugestão do Google
+	elif _apelido_overlay and is_instance_valid(_apelido_overlay):
+		_apelido_overlay.queue_free()      # trocar: só fecha, mantém o nome
+		_apelido_overlay = null
+
+
+func _abrir_dialogo_apelido(sugestao: String, obrigatorio: bool = false) -> void:
+	_apelido_obrigatorio = obrigatorio
+	if _apelido_overlay and is_instance_valid(_apelido_overlay):
+		return
+	if _ui_main == null:
+		Auth.definir_apelido(sugestao)     # sem UI: usa a sugestão
+		return
+	var vp := get_viewport().get_visible_rect().size
+	var bg := ColorRect.new()
+	bg.color = Color(0.01, 0.01, 0.02, 0.93)
+	bg.position = Vector2.ZERO; bg.size = vp
+	bg.mouse_filter = Control.MOUSE_FILTER_STOP
+	bg.z_index = 240
+	_ui_main.add_child(bg)
+	_apelido_overlay = bg
+
+	var cw : float = minf(420.0, vp.x - 60.0)
+	var cx : float = (vp.x - cw) * 0.5
+	var cy : float = vp.y * 0.30
+
+	var tit := Label.new()
+	tit.text = "ESCOLHA SEU APELIDO"
+	tit.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	tit.position = Vector2(cx, cy); tit.size = Vector2(cw, 34)
+	tit.add_theme_font_size_override("font_size", 26)
+	tit.add_theme_color_override("font_color", Color(0.92, 0.97, 1.0))
+	bg.add_child(tit)
+
+	var sub := Label.new()
+	sub.text = "Aparece no ranking. Dá pra trocar depois."
+	sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	sub.position = Vector2(cx, cy + 38); sub.size = Vector2(cw, 22)
+	sub.add_theme_font_size_override("font_size", 14)
+	sub.add_theme_color_override("font_color", Color(0.55, 0.62, 0.75))
+	bg.add_child(sub)
+
+	var ed := LineEdit.new()
+	ed.name = "ApelidoEdit"
+	ed.text = sugestao.substr(0, 20)
+	ed.placeholder_text = "Apelido (máx 20)"
+	ed.max_length = 20
+	ed.alignment = HORIZONTAL_ALIGNMENT_CENTER
+	ed.position = Vector2(cx, cy + 70); ed.size = Vector2(cw, 46)
+	ed.add_theme_font_size_override("font_size", 22)
+	bg.add_child(ed)
+	ed.grab_focus()
+	ed.select_all()
+
+	var st := Label.new()
+	st.name = "ApStatus"
+	st.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	st.position = Vector2(cx, cy + 122); st.size = Vector2(cw, 20)
+	st.add_theme_font_size_override("font_size", 14)
+	st.add_theme_color_override("font_color", Color(0.6, 0.8, 1.0))
+	bg.add_child(st)
+
+	var bt := Button.new()
+	bt.text = "CONFIRMAR"
+	bt.position = Vector2(cx, cy + 150); bt.size = Vector2(cw, 48)
+	bt.focus_mode = Control.FOCUS_NONE
+	bt.add_theme_font_size_override("font_size", 20)
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0.12, 0.45, 0.22, 0.95)
+	sb.set_corner_radius_all(10)
+	bt.add_theme_stylebox_override("normal", sb)
+	bt.add_theme_color_override("font_color", Color(0.7, 1.0, 0.8))
+	bg.add_child(bt)
+
+	var confirmar := func() -> void:
+		var nome := ed.text.strip_edges()
+		if nome.length() < 2:
+			st.text = "Mínimo 2 letras"
+			st.add_theme_color_override("font_color", Color(1.0, 0.8, 0.2))
+			return
+		st.text = "Salvando…"
+		st.add_theme_color_override("font_color", Color(0.6, 0.8, 1.0))
+		bt.disabled = true
+		Auth.definir_apelido(nome)
+	bt.pressed.connect(confirmar)
+	ed.text_submitted.connect(func(_t): confirmar.call())
+
+	# Cancelar: trocar = fecha sem mudar; 1º login = usa o nome do Google.
+	var bc := Button.new()
+	bc.text = ("Usar \"%s\"" % sugestao.substr(0, 14)) if obrigatorio else "Cancelar"
+	bc.position = Vector2(cx, cy + 206)
+	bc.size = Vector2(cw, 38)
+	bc.focus_mode = Control.FOCUS_NONE
+	bc.add_theme_font_size_override("font_size", 16)
+	var sbc := StyleBoxFlat.new()
+	sbc.bg_color = Color(0.10, 0.10, 0.13, 0.9)
+	sbc.set_corner_radius_all(8)
+	bc.add_theme_stylebox_override("normal", sbc)
+	bc.add_theme_color_override("font_color", Color(0.72, 0.74, 0.82))
+	bc.pressed.connect(func(): _cancelar_apelido(obrigatorio, sugestao))
+	bg.add_child(bc)
+
+
+func _on_perfil_google_pronto(apelido: String) -> void:
+	# Login REAL concluído: grava apelido como nome do jogador e fecha a tela.
+	print("AUTH: perfil pronto — apelido=", apelido)
+	Salvar.nome_jogador = apelido
+	Salvar.player_id    = Auth.uid()
+	Salvar.salvar()
+	if _apelido_overlay and is_instance_valid(_apelido_overlay):
+		_apelido_overlay.queue_free()  # fecha o diálogo de apelido, se aberto
+	_apelido_overlay = null
+	if _mod_contas:
+		_mod_contas._fechar()      # fecha a tela de login (Google), se aberta
+	_fechar_perfil()               # fecha o perfil, se aberto
+	_rebuild_patente()             # atualiza patente no menu
+	_atualizar_nome_menu()         # atualiza o nome no canto inferior
+	_checar_tutorial_boot()        # só agora que o login terminou
+	# Puxa o save da nuvem do Google (se houver) e aplica.
+	RankingOnline.download_save(apelido, func(s_ok: bool, dados: Dictionary, _force: bool = false) -> void:
+		if s_ok and not dados.is_empty():
+			Salvar.importar_cloud(dados)
+			Salvar.nome_jogador = apelido   # apelido do perfil tem prioridade
+			Salvar.player_id    = Auth.uid()
+			Salvar.salvar()
+			_rebuild_patente()
+			_atualizar_nome_menu())
+
+
+func _atualizar_nome_menu() -> void:
+	if _menu_contents and is_instance_valid(_menu_contents):
+		var ln = _menu_contents.find_child("LPerfilNome")
+		if ln:
+			(ln as Label).text = _perfil_nome_curto()
+
+
+var _avisos_overlay: Control = null
+
+
+func _draw_btn_msg(ctrl: Control) -> void:
+	# Ícone de envelope + badge de mensagens não-vistas.
+	var w := ctrl.size.x
+	var h := ctrl.size.y
+	var cor := Color(0.72, 0.80, 0.92)
+	var ex := 7.0; var ey := 9.0; var ew := w - 14.0; var eh := h - 18.0
+	ctrl.draw_rect(Rect2(ex, ey, ew, eh), Color(0.10, 0.13, 0.18, 0.95), true)
+	ctrl.draw_rect(Rect2(ex, ey, ew, eh), cor, false, 1.5)
+	ctrl.draw_line(Vector2(ex, ey), Vector2(ex + ew * 0.5, ey + eh * 0.55), cor, 1.5)
+	ctrl.draw_line(Vector2(ex + ew, ey), Vector2(ex + ew * 0.5, ey + eh * 0.55), cor, 1.5)
+	var n := Notificacoes.notices_nao_vistas().size()
+	if n > 0:
+		var bc := Vector2(w - 7.0, 8.0)
+		ctrl.draw_circle(bc, 9.0, Color(0.95, 0.20, 0.25))
+		var f := ThemeDB.fallback_font
+		if f:
+			var s := str(n) if n < 10 else "9+"
+			ctrl.draw_string(f, bc + Vector2(-4.0, 4.5), s, HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color(1, 1, 1))
+
+
+func _redesenhar_badge_msg() -> void:
+	# Atualiza o badge de mensagens não-lidas (owned=false p/ achar nó de runtime).
+	if _menu_contents and is_instance_valid(_menu_contents):
+		var b = _menu_contents.find_child("BtnMensagens", true, false)
+		if b:
+			(b as Control).queue_redraw()
+
+
+func _card_notice(notice: Dictionary, w: float) -> Control:
+	var tipo := str(notice.get("type", "info"))
+	var cor: Color = {
+		"update": Color(0.25, 0.65, 1.0), "discord": Color(0.45, 0.50, 1.0), "evento": Color(1.0, 0.70, 0.20),
+	}.get(tipo, Color(0.30, 0.85, 1.0))
+	var card := PanelContainer.new()
+	card.custom_minimum_size = Vector2(w, 0)
+	var sc := StyleBoxFlat.new()
+	sc.bg_color = Color(0.08, 0.10, 0.15, 0.95)
+	sc.border_color = Color(cor.r, cor.g, cor.b, 0.6)
+	sc.set("border_width_left", 4)
+	sc.set_corner_radius_all(8)
+	sc.content_margin_left = 12; sc.content_margin_right = 12
+	sc.content_margin_top = 10;  sc.content_margin_bottom = 10
+	card.add_theme_stylebox_override("panel", sc)
+	var vb := VBoxContainer.new()
+	vb.add_theme_constant_override("separation", 4)
+	card.add_child(vb)
+	var t := Label.new()
+	t.text = str(notice.get("title", "Aviso"))
+	t.add_theme_font_size_override("font_size", 17)
+	t.add_theme_color_override("font_color", cor)
+	vb.add_child(t)
+	var b := Label.new()
+	b.text = str(notice.get("body", ""))
+	b.autowrap_mode = TextServer.AUTOWRAP_WORD
+	b.custom_minimum_size = Vector2(w - 34, 0)
+	b.add_theme_font_size_override("font_size", 14)
+	b.add_theme_color_override("font_color", Color(0.82, 0.88, 0.96))
+	vb.add_child(b)
+	var url := str(notice.get("url", ""))
+	if url.begins_with("http"):
+		var bt := Button.new()
+		bt.text = str(notice.get("button", "ABRIR"))
+		bt.custom_minimum_size = Vector2(0, 34)
+		bt.focus_mode = Control.FOCUS_NONE
+		var sbt := StyleBoxFlat.new()
+		sbt.bg_color = Color(cor.r * 0.3, cor.g * 0.3, cor.b * 0.35, 0.95); sbt.set_corner_radius_all(6)
+		bt.add_theme_stylebox_override("normal", sbt)
+		bt.add_theme_color_override("font_color", Color(0.95, 0.97, 1.0))
+		bt.pressed.connect(func(): Notificacoes.abrir_acao_notice(notice))
+		vb.add_child(bt)
+	return card
+
+
+func _abrir_notificacoes(ui: CanvasLayer) -> void:
+	if _avisos_overlay and is_instance_valid(_avisos_overlay):
+		return
+	var vp := get_viewport().get_visible_rect().size
+	var bg := ColorRect.new()
+	bg.color = Color(0.0, 0.0, 0.02, 0.82)
+	bg.position = Vector2.ZERO; bg.size = vp
+	bg.mouse_filter = Control.MOUSE_FILTER_STOP
+	bg.z_index = 250
+	ui.add_child(bg)
+	_avisos_overlay = bg
+
+	var pw: float = minf(560.0, vp.x - 40.0)
+	var ph: float = minf(560.0, vp.y - 120.0)
+	var pnl := Panel.new()
+	pnl.position = Vector2((vp.x - pw) * 0.5, (vp.y - ph) * 0.5); pnl.size = Vector2(pw, ph)
+	var sty := StyleBoxFlat.new()
+	sty.bg_color = Color(0.05, 0.07, 0.12, 0.98)
+	sty.border_color = Color(0.30, 0.50, 0.70, 0.8)
+	for s in ["left", "right", "top", "bottom"]: sty.set("border_width_" + s, 2)
+	for c in ["top_left", "top_right", "bottom_left", "bottom_right"]: sty.set("corner_radius_" + c, 12)
+	pnl.add_theme_stylebox_override("panel", sty)
+	bg.add_child(pnl)
+
+	var tit := Label.new()
+	tit.text = "MENSAGENS"
+	tit.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	tit.position = Vector2(0, 14); tit.size = Vector2(pw, 30)
+	tit.add_theme_font_size_override("font_size", 22)
+	tit.add_theme_color_override("font_color", Color(0.70, 0.85, 1.0))
+	pnl.add_child(tit)
+
+	var scroll := ScrollContainer.new()
+	scroll.position = Vector2(14, 52); scroll.size = Vector2(pw - 28, ph - 118)
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	pnl.add_child(scroll)
+	var vbox := VBoxContainer.new()
+	vbox.custom_minimum_size = Vector2(pw - 44, 0)
+	vbox.add_theme_constant_override("separation", 10)
+	scroll.add_child(vbox)
+
+	# Lista que repopula sozinha quando os avisos chegam (evita ficar vazia por timing).
+	var repopular := func() -> void:
+		if not is_instance_valid(vbox):
+			return
+		for ch in vbox.get_children():
+			ch.queue_free()
+		var notices: Array = Notificacoes.notices_cache
+		if notices.is_empty():
+			var vazio := Label.new()
+			vazio.text = "Carregando mensagens..." if Notificacoes.esta_carregando_notices() else "Sem mensagens no momento."
+			vazio.add_theme_font_size_override("font_size", 15)
+			vazio.add_theme_color_override("font_color", Color(0.55, 0.62, 0.72))
+			vbox.add_child(vazio)
+		else:
+			for notice in notices:
+				vbox.add_child(_card_notice(notice as Dictionary, pw - 44))
+				Notificacoes.marcar_vista(str((notice as Dictionary).get("id", "")))
+			_redesenhar_badge_msg()
+	repopular.call()
+	if not Notificacoes.notices_carregados.is_connected(repopular):
+		Notificacoes.notices_carregados.connect(repopular)
+	if Notificacoes.notices_cache.is_empty():
+		Notificacoes.recarregar_notices()   # tenta de novo se não carregou no boot
+
+	var bf := Button.new()
+	bf.text = "FECHAR"
+	bf.position = Vector2((pw - 200.0) * 0.5, ph - 54.0); bf.size = Vector2(200, 42)
+	bf.focus_mode = Control.FOCUS_NONE
+	var sbf := StyleBoxFlat.new()
+	sbf.bg_color = Color(0.12, 0.13, 0.16, 0.95); sbf.set_corner_radius_all(8)
+	bf.add_theme_stylebox_override("normal", sbf)
+	bf.add_theme_color_override("font_color", Color(0.80, 0.82, 0.88))
+	bf.pressed.connect(func():
+		if Notificacoes.notices_carregados.is_connected(repopular):
+			Notificacoes.notices_carregados.disconnect(repopular)
+		if _avisos_overlay and is_instance_valid(_avisos_overlay):
+			_avisos_overlay.queue_free()
+		_avisos_overlay = null
+		_redesenhar_badge_msg())
+	pnl.add_child(bf)
+
+
+var _aviso_overlay: Control = null
+
+
+func _mostrar_avisos_pendentes() -> void:
+	# Popup in-game dos avisos do GitHub (não-vistos). Funciona em PC e Android.
+	if _aviso_overlay and is_instance_valid(_aviso_overlay):
+		return
+	if _ui_main == null or not is_instance_valid(_ui_main):
+		return
+	if _mod_contas and _mod_contas.esta_aberta():
+		return   # não empilha em cima da tela de login
+	var pend: Array = Notificacoes.notices_nao_vistas()
+	if pend.is_empty():
+		return
+	_mostrar_aviso_popup(pend[0] as Dictionary)
+
+
+func _mostrar_aviso_popup(notice: Dictionary) -> void:
+	var vp := get_viewport().get_visible_rect().size
+	var bg := ColorRect.new()
+	bg.color = Color(0.0, 0.0, 0.02, 0.78)
+	bg.position = Vector2.ZERO; bg.size = vp
+	bg.mouse_filter = Control.MOUSE_FILTER_STOP
+	bg.z_index = 260
+	_ui_main.add_child(bg)
+	_aviso_overlay = bg
+
+	var mob: bool = BuildConfig.is_mobile()
+	# Painel maior no celular; largura quase cheia.
+	var pw: float = (vp.x - 28.0) if mob else minf(520.0, vp.x - 50.0)
+	var f_tit: int = 30 if mob else 23
+	var f_corpo: int = 22 if mob else 17
+	var btn_h: float = 60.0 if mob else 44.0
+	var pad: float = 24.0 if mob else 20.0
+
+	var tit_txt := str(notice.get("title", "Aviso"))
+	var corpo_txt := str(notice.get("body", ""))
+	# Mede a altura real do texto (com quebra) pra dimensionar o painel — antes
+	# tinha altura fixa 250 e o texto longo (ex: recompensa Discord) estourava.
+	var _fnt: Font = ThemeDB.fallback_font
+	var cont_w: float = pw - pad * 2.0
+	var tit_h: float = maxf(float(f_tit) + 8.0, _fnt.get_multiline_string_size(tit_txt, HORIZONTAL_ALIGNMENT_LEFT, cont_w, f_tit).y)
+	var corpo_h: float = maxf(40.0, _fnt.get_multiline_string_size(corpo_txt, HORIZONTAL_ALIGNMENT_LEFT, cont_w, f_corpo).y + 6.0)
+	var ph: float = pad + tit_h + 14.0 + corpo_h + 18.0 + btn_h + pad
+	# Cabe na tela: se passar, encolhe o corpo (raríssimo nesses avisos curtos).
+	var ph_max: float = vp.y - 40.0
+	if ph > ph_max:
+		corpo_h -= (ph - ph_max)
+		ph = ph_max
+	var px: float = (vp.x - pw) * 0.5
+	var py: float = (vp.y - ph) * 0.5
+
+	var tipo := str(notice.get("type", "info"))
+	var cor: Color = {
+		"update":  Color(0.25, 0.65, 1.0),
+		"discord": Color(0.45, 0.50, 1.0),
+		"evento":  Color(1.0, 0.70, 0.20),
+	}.get(tipo, Color(0.30, 0.85, 1.0))
+
+	var pnl := Panel.new()
+	pnl.position = Vector2(px, py); pnl.size = Vector2(pw, ph)
+	var sty := StyleBoxFlat.new()
+	sty.bg_color = Color(0.05, 0.07, 0.12, 0.98)
+	sty.border_color = cor
+	for s in ["left", "right", "top", "bottom"]: sty.set("border_width_" + s, 2)
+	for c in ["top_left", "top_right", "bottom_left", "bottom_right"]: sty.set("corner_radius_" + c, 12)
+	pnl.add_theme_stylebox_override("panel", sty)
+	bg.add_child(pnl)
+
+	var tit := Label.new()
+	tit.text = tit_txt
+	tit.autowrap_mode = TextServer.AUTOWRAP_WORD
+	tit.position = Vector2(pad, pad); tit.size = Vector2(cont_w, tit_h)
+	tit.add_theme_font_size_override("font_size", f_tit)
+	tit.add_theme_color_override("font_color", cor)
+	pnl.add_child(tit)
+
+	var corpo := Label.new()
+	corpo.text = corpo_txt
+	corpo.autowrap_mode = TextServer.AUTOWRAP_WORD
+	corpo.position = Vector2(pad, pad + tit_h + 14.0); corpo.size = Vector2(cont_w, corpo_h)
+	corpo.add_theme_font_size_override("font_size", f_corpo)
+	corpo.add_theme_color_override("font_color", Color(0.82, 0.88, 0.96))
+	pnl.add_child(corpo)
+
+	var id := str(notice.get("id", ""))
+	var fechar := func() -> void:
+		Notificacoes.marcar_vista(id)
+		_redesenhar_badge_msg()
+		if _aviso_overlay and is_instance_valid(_aviso_overlay):
+			_aviso_overlay.queue_free()
+		_aviso_overlay = null
+		_mostrar_avisos_pendentes()   # mostra o próximo, se houver
+
+	var btn_y: float = ph - pad - btn_h
+	var meia: float = (pw - pad * 2.0 - 12.0) * 0.5
+	var url := str(notice.get("url", ""))
+	var tem_url: bool = url.begins_with("http")
+	if tem_url:
+		var bt := Button.new()
+		bt.text = str(notice.get("button", "ABRIR"))
+		bt.position = Vector2(pad, btn_y); bt.size = Vector2(meia, btn_h)
+		bt.focus_mode = Control.FOCUS_NONE
+		bt.add_theme_font_size_override("font_size", 17 if mob else 15)
+		var sbt := StyleBoxFlat.new()
+		sbt.bg_color = Color(cor.r * 0.3, cor.g * 0.3, cor.b * 0.35, 0.95)
+		sbt.set_corner_radius_all(8)
+		bt.add_theme_stylebox_override("normal", sbt)
+		bt.add_theme_color_override("font_color", Color(0.95, 0.97, 1.0))
+		bt.pressed.connect(func():
+			Notificacoes.abrir_acao_notice(notice)
+			fechar.call())
+		pnl.add_child(bt)
+
+	var bf := Button.new()
+	bf.text = "FECHAR"
+	bf.position = Vector2((pad + meia + 12.0) if tem_url else pad, btn_y)
+	bf.size = Vector2(meia if tem_url else (pw - pad * 2.0), btn_h)
+	bf.focus_mode = Control.FOCUS_NONE
+	bf.add_theme_font_size_override("font_size", 17 if mob else 15)
+	var sbf := StyleBoxFlat.new()
+	sbf.bg_color = Color(0.12, 0.13, 0.16, 0.95); sbf.set_corner_radius_all(8)
+	bf.add_theme_stylebox_override("normal", sbf)
+	bf.add_theme_color_override("font_color", Color(0.80, 0.82, 0.88))
+	bf.pressed.connect(func(): fechar.call())
+	pnl.add_child(bf)
+
+
+func _on_perfil_google_falhou(erro: String) -> void:
+	print("AUTH: login Google FALHOU — ", erro)
+	if is_instance_valid(_perfil_btn_google):
+		_perfil_btn_google.text = "Erro: " + erro
+
+
 func _abrir_perfil(ui: CanvasLayer) -> void :
 	if _perfil_overlay:
+		return
+	# Deslogado: abre a tela de login (Google), não o formulário antigo de
+	# apelido/email/senha. Logado: mostra o perfil (abaixo).
+	if Salvar.nome_jogador.strip_edges() == "":
+		_mod_contas.abrir(ui)
 		return
 	if _menu_contents:
 		_menu_contents.hide()
@@ -2950,8 +3452,7 @@ func _abrir_perfil(ui: CanvasLayer) -> void :
 	var vp:= get_viewport().get_visible_rect().size
 	var bg:= ColorRect.new()
 	bg.color = Color(0.0, 0.0, 0.0, 0.8)
-	bg.position = Vector2.ZERO
-	bg.size = vp
+	bg.set_anchors_preset(Control.PRESET_FULL_RECT)   # cobre a tela mesmo após F11/resize
 	bg.mouse_filter = Control.MOUSE_FILTER_STOP
 	ui.add_child(bg)
 	_perfil_overlay = bg
@@ -3046,7 +3547,8 @@ func _abrir_perfil(ui: CanvasLayer) -> void :
 		for c2 in ["top_left", "top_right", "bottom_left", "bottom_right"]: s.set("corner_radius_" + c2, 8)
 		return s
 
-	var _registrado: bool = Salvar.senha_jogador != ""
+	# Logado = conta antiga (senha) OU login Google (sessão Supabase Auth válida).
+	var _registrado: bool = Salvar.senha_jogador != "" or (Auth.sessao_valida() and Salvar.nome_jogador.strip_edges() != "")
 
 	if _registrado:
 
@@ -3101,6 +3603,9 @@ func _abrir_perfil(ui: CanvasLayer) -> void :
 		)
 		pnl.add_child(nome_badge_ctrl)
 
+		# Bloco de e-mail/senha SÓ para contas antigas (nome+senha). Login Google
+		# (senha vazia) não precisa — o e-mail vem do Google.
+		var _mostrar_email: bool = Salvar.senha_jogador != ""
 		var _tem_email: bool = Salvar.email_jogador != ""
 		var email_lbl:= Label.new()
 		email_lbl.text = Salvar.email_jogador if _tem_email else "Sem e-mail cadastrado"
@@ -3110,10 +3615,11 @@ func _abrir_perfil(ui: CanvasLayer) -> void :
 		email_lbl.add_theme_font_size_override("font_size", 18)
 		email_lbl.add_theme_color_override("font_color",
 			Color(0.5, 0.68, 0.9, 0.85) if _tem_email else Color(1.0, 0.72, 0.22, 0.9))
-		pnl.add_child(email_lbl)
+		if _mostrar_email:
+			pnl.add_child(email_lbl)
 
 
-		if not _tem_email:
+		if _mostrar_email and not _tem_email:
 			var aviso:= Label.new()
 			aviso.text = "Adicione um e-mail para recuperar sua conta caso esqueça a senha."
 			aviso.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -3202,7 +3708,13 @@ func _abrir_perfil(ui: CanvasLayer) -> void :
 			)
 
 
-		var _cy: float = 406.0 if not _tem_email else 218.0
+		var _cy: float
+		if not _mostrar_email:
+			_cy = 200.0          # Google: sem bloco de e-mail, avatar logo abaixo do nome
+		elif _tem_email:
+			_cy = 218.0
+		else:
+			_cy = 406.0
 		var bw: float = (pw - 100.0) * 0.5
 
 		var _av_y: float = _cy + 14.0
@@ -3303,7 +3815,7 @@ func _abrir_perfil(ui: CanvasLayer) -> void :
 			hl.add_theme_color_override("font_color", Color(0.55, 0.65, 0.85, 0.65))
 			hl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 			rec_bg.add_child(hl)
-		_hdr.call("DIFICULDADE", 12.0, 120.0, HORIZONTAL_ALIGNMENT_LEFT)
+		_hdr.call("", 12.0, 120.0, HORIZONTAL_ALIGNMENT_LEFT)
 		_hdr.call("MELHOR ONDA", 140.0, 90.0, HORIZONTAL_ALIGNMENT_CENTER)
 		_hdr.call("MELHOR SCORE", 240.0, pw - 60.0 - 250.0, HORIZONTAL_ALIGNMENT_RIGHT)
 
@@ -3314,11 +3826,12 @@ func _abrir_perfil(ui: CanvasLayer) -> void :
 		rec_bg.add_child(sep_hdr)
 
 		# ── Linhas de dados ──────────────────────────────────────────────────
+		# Dinâmica atual é por WAVE ALCANÇADA (sem as dificuldades antigas).
+		# Recorde ÚNICO = melhor onda/score entre tudo que está salvo.
+		var _best_w : int = maxi(maxi(Salvar.melhor_wave_facil, Salvar.melhor_wave_normal), maxi(Salvar.melhor_wave_dificil, Salvar.melhor_wave_abismo))
+		var _best_s : int = maxi(maxi(Salvar.high_score_facil, Salvar.high_score_normal), maxi(Salvar.high_score_dificil, Salvar.high_score_abismo))
 		var rec_dados:= [
-			["Fácil",   Salvar.melhor_wave_facil,   Salvar.high_score_facil,   Color(0.1, 0.88, 0.42)],
-			["Normal",  Salvar.melhor_wave_normal,  Salvar.high_score_normal,  Color(0.0, 0.72, 1.0)],
-			["Difícil", Salvar.melhor_wave_dificil, Salvar.high_score_dificil, Color(1.0, 0.28, 0.18)],
-			["Abismo",  Salvar.melhor_wave_abismo,  Salvar.high_score_abismo,  Color(0.88, 0.08, 0.08)],
+			["Recorde", _best_w, _best_s, Color(0.0, 0.72, 1.0)],
 		]
 		var ry: float = 28.0
 		for ri in range(rec_dados.size()):
@@ -3420,6 +3933,32 @@ func _abrir_perfil(ui: CanvasLayer) -> void :
 
 		pnl.add_child(tab_reg);pnl.add_child(tab_ent)
 		pnl.add_child(cont_reg);pnl.add_child(cont_ent)
+
+		# Login novo (Supabase Auth / Google) — fica acima das abas, sempre visível.
+		var btn_g := Button.new()
+		btn_g.focus_mode = Control.FOCUS_NONE
+		btn_g.text = "G   Entrar com Google"
+		btn_g.position = Vector2((pw - 360.0) * 0.5, 535.0)
+		btn_g.size = Vector2(360.0, 46.0)
+		var sty_g := StyleBoxFlat.new()
+		sty_g.bg_color = Color(0.94, 0.95, 0.97, 1.0)
+		sty_g.set_corner_radius_all(23)
+		btn_g.add_theme_stylebox_override("normal", sty_g)
+		var sty_gh: StyleBoxFlat = sty_g.duplicate()
+		sty_gh.bg_color = Color(1, 1, 1, 1)
+		btn_g.add_theme_stylebox_override("hover", sty_gh)
+		btn_g.add_theme_font_size_override("font_size", 19)
+		btn_g.add_theme_color_override("font_color", Color(0.10, 0.11, 0.13))
+		if not Auth.login_ok.is_connected(_on_perfil_google_ok):
+			Auth.login_ok.connect(_on_perfil_google_ok)
+			Auth.login_falhou.connect(_on_perfil_google_falhou)
+			Auth.perfil_pronto.connect(_on_perfil_google_pronto)
+		_perfil_btn_google = btn_g
+		btn_g.pressed.connect(func():
+			if is_instance_valid(btn_g):
+				btn_g.text = "Abrindo o Google…"
+			Auth.entrar_google())
+		pnl.add_child(btn_g)
 
 		var _sel_aba:= func(reg: bool) -> void :
 			tab_reg.add_theme_stylebox_override("normal", _sty_tab_on.call() if reg else _sty_tab_off.call())
@@ -3618,7 +4157,56 @@ func _abrir_perfil(ui: CanvasLayer) -> void :
 	btn_f.add_theme_color_override("font_color", Color(_perfil_cor().r + 0.2, _perfil_cor().g + 0.2, _perfil_cor().b + 0.2))
 	btn_f.pressed.connect(_fechar_perfil)
 	pnl.add_child(btn_f)
+
+	# Sair da conta (logout) — só quando logado.
+	if _registrado:
+		var btn_logout := Button.new()
+		btn_logout.text = "Sair da conta"
+		btn_logout.position = Vector2(pw - 150.0, 14.0)
+		btn_logout.size = Vector2(132, 30)
+		btn_logout.focus_mode = Control.FOCUS_NONE
+		btn_logout.add_theme_font_size_override("font_size", 14)
+		var sty_lo := StyleBoxFlat.new()
+		sty_lo.bg_color = Color(0.18, 0.05, 0.06, 0.9)
+		sty_lo.set_corner_radius_all(8)
+		btn_logout.add_theme_stylebox_override("normal", sty_lo)
+		btn_logout.add_theme_color_override("font_color", Color(1.0, 0.6, 0.55))
+		btn_logout.pressed.connect(_logout_conta)
+		pnl.add_child(btn_logout)
+
+		# Trocar apelido — só faz sentido logado via Google (salva no perfil).
+		if Auth.sessao_valida():
+			var btn_nick := Button.new()
+			btn_nick.text = "Trocar apelido"
+			btn_nick.position = Vector2(18.0, 14.0)
+			btn_nick.size = Vector2(132, 30)
+			btn_nick.focus_mode = Control.FOCUS_NONE
+			btn_nick.add_theme_font_size_override("font_size", 14)
+			var sty_nk := StyleBoxFlat.new()
+			sty_nk.bg_color = Color(0.08, 0.10, 0.20, 0.9)
+			sty_nk.set_corner_radius_all(8)
+			btn_nick.add_theme_stylebox_override("normal", sty_nk)
+			btn_nick.add_theme_color_override("font_color", Color(0.7, 0.85, 1.0))
+			btn_nick.pressed.connect(func(): _abrir_dialogo_apelido(Salvar.nome_jogador))
+			pnl.add_child(btn_nick)
+
 	_corrigir_textos_ui(pnl)
+
+
+func _logout_conta() -> void:
+	# Logout: limpa identidade LOCAL (nuvem permanece). Volta pra tela de login.
+	Auth.sair()
+	Salvar.nome_jogador  = ""
+	Salvar.player_id     = ""
+	Salvar.senha_jogador = ""
+	Salvar.email_jogador = ""
+	Salvar.salvar()
+	_fechar_perfil()
+	_rebuild_patente()
+	_atualizar_nome_menu()
+	if _mod_contas:
+		_mod_contas.limpar_refs()
+		_mod_contas.abrir(_ui_main)
 
 
 func _perfil_add_field(parent: Control, lbl_txt: String, y: float, ph_txt: String, secret: bool, max_len: int, sty_fn: Callable) -> LineEdit:
@@ -4122,11 +4710,9 @@ func _abrir_hist(_ui: CanvasLayer) -> void :
 		["Bosses derrotados", _format_num(Salvar.total_boss_mortos), Color(1.0, 0.35, 0.1)], 
 		["Ouro acumulado", _format_num(Salvar.total_ouro_ganho), Color(1.0, 0.82, 0.1)], 
 		["Score total", _format_num(Salvar.total_score), Color(0.55, 1.0, 0.6)], 
-		["RECORDES", "", Color(0.35, 0.5, 0.45)], 
-		["Recorde  Normal", _format_num(Salvar.high_score_normal), Color(0.2, 1.0, 0.55)], 
-		["Recorde  Dificil", _format_num(Salvar.high_score_dificil), Color(1.0, 0.65, 0.15)], 
-		["Recorde  Facil", _format_num(Salvar.high_score_facil), Color(0.4, 0.78, 0.4)], 
-		["Recorde  Abismo", _format_num(Salvar.high_score_abismo), Color(1.0, 0.32, 0.32)], 
+		["RECORDES", "", Color(0.35, 0.5, 0.45)],
+		["Melhor score", _format_num(maxi(maxi(Salvar.high_score_facil, Salvar.high_score_normal), maxi(Salvar.high_score_dificil, Salvar.high_score_abismo))), Color(0.2, 1.0, 0.55)],
+		["Melhor onda", "%d" % maxi(maxi(Salvar.melhor_wave_facil, Salvar.melhor_wave_normal), maxi(Salvar.melhor_wave_dificil, Salvar.melhor_wave_abismo)), Color(0.0, 0.82, 1.0)],
 	]
 
 	for linha in linhas_esq:
@@ -4349,26 +4935,23 @@ func _abrir_tutorial() -> void:
 		{"titulo": "Bem-vindo ao Cyron Defense!",
 		 "texto": "Você controla uma torre que defende contra\nondas de inimigos cada vez mais fortes.\nVamos aprender a jogar passo a passo!",
 		 "rect": Rect2(), "cor": Color(0.25, 0.78, 1.0)},
-		{"titulo": "DIFICULDADE",
-		 "texto": "Escolha a dificuldade aqui antes de jogar.\nComece pelo FÁCIL para aprender!\nModos mais difíceis se desbloqueiam com o tempo.",
-		 "rect": _tut_diff_rect, "cor": Color(0.25, 0.78, 1.0)},
 		{"titulo": "JOGAR",
-		 "texto": "Clique aqui para iniciar uma partida.\nSua torre ATIRA AUTOMATICAMENTE nos inimigos.\nSobreviva o máximo de waves possível!",
+		 "texto": "Inicia a partida. Você escolhe uma ARMA e a torre\nATIRA SOZINHA. Ganhe Energia matando inimigos e\nuse no PAINEL pra upar dano, vida e cadência.\nCartas de habilidade a cada 10 waves!",
 		 "rect": _tut_jogar_rect, "cor": Color(0.0, 0.72, 1.0)},
 		{"titulo": "LOJA",
 		 "texto": "Use o ouro ganho nas partidas para comprar\nmelhorias PERMANENTES da sua torre.\nForça, Resistência, Visão, Cadência e Fortuna.",
 		 "rect": _tut_loja_rect, "cor": Color(1.0, 0.78, 0.0)},
 		{"titulo": "INVENTÁRIO",
-		 "texto": "Equipe Skins que dão bônus Ã  torre,\nComandantes que operam a torre por você\ne Habilidades especiais ativáveis em jogo.",
+		 "texto": "Equipe Skins que dão bônus à torre e\nHabilidades especiais ativáveis durante a partida.",
 		 "rect": _tut_inv_rect, "cor": Color(0.35, 0.82, 0.6)},
-		{"titulo": "TALENTOS",
-		 "texto": "Desbloqueie Talentos com cristais ganhos nas partidas.\nDão bônus PERMANENTES a cada partida.\nConstrua uma árvore poderosa ao longo do tempo!",
+		{"titulo": "TECNOLOGIAS",
+		 "texto": "Desbloqueie tecnologias com os cristais ganhos.\nDão bônus PERMANENTES a cada partida.\nConstrua uma árvore poderosa ao longo do tempo!",
 		 "rect": _tut_tal_rect, "cor": Color(0.5, 0.25, 1.0)},
-		{"titulo": "ESTATÍSTICAS",
+		{"titulo": "RANKING GLOBAL",
 		 "texto": "Acompanhe seu progresso: recordes,\nhistórico de partidas e mobs eliminados.\nCompita no RANKING GLOBAL com outros jogadores!",
 		 "rect": _tut_hist_rect, "cor": Color(0.1, 0.85, 0.6)},
 		{"titulo": "Pronto para jogar!",
-		 "texto": "Você aprendeu o básico!\nAgora jogue sua primeira partida no modo FÁCIL.\nDicas em jogo vão te guiar durante as waves.",
+		 "texto": "Você aprendeu o básico!\nAgora é só JOGAR e sobreviver o máximo de waves.\nDicas em jogo vão te guiar. Boa sorte!",
 		 "rect": Rect2(), "cor": Color(0.25, 0.78, 1.0)},
 	]
 
@@ -4453,8 +5036,8 @@ func _abrir_tutorial() -> void:
 		var total := passos.size()
 
 		lbarra.text = "Passo %d de %d" % [idx + 1, total]
-		ltit.text   = p["titulo"] as String
-		ltxt.text   = p["texto"] as String
+		ltit.text   = _texto_ui_limpo(p["titulo"] as String)   # blinda contra mojibake
+		ltxt.text   = _texto_ui_limpo(p["texto"] as String)
 		ltit.add_theme_color_override("font_color", Color(cor.r+0.1, cor.g+0.1, cor.b+0.1, 1.0))
 		psty.border_color = Color(cor.r*0.7, cor.g*0.7, cor.b*0.7, 0.9)
 		panel.add_theme_stylebox_override("panel", psty)
@@ -4927,7 +5510,7 @@ func _abrir_loja(ui: CanvasLayer) -> void :
 	_mod_loja._abrir_loja(ui)
 
 
-const _AVAL_ABAS:= ["LOJA", "CARTAS", "TALENTOS", "CONFIG", "DIFICULDADES", "GERAL"]
+const _AVAL_ABAS:= ["LOJA", "CARTAS", "TALENTOS", "CONFIG", "WAVES", "GERAL"]
 const _AVAL_CORES:= [
 	Color(1.0, 0.78, 0.0), Color(0.5, 0.25, 1.0), Color(0.85, 0.25, 0.95), 
 	Color(0.25, 0.85, 1.0), Color(1.0, 0.35, 0.35), Color(0.25, 1.0, 0.65)
@@ -4937,7 +5520,7 @@ const _AVAL_PERGUNTAS:= [
 	"Como você avalia o sistema de Cartas?\n(variedade, balanceamento, sinergia)", 
 	"Como você avalia a Árvore de Talentos?\n(progressão, custo, impacto)", 
 	"Como você avalia as Configurações?\n(opções disponíveis, acessibilidade)", 
-	"Como você avalia as Dificuldades?\n(balanceamento, progressão de dificuldade)", 
+	"Como você avalia as Waves?\n(balanceamento, ritmo, dificuldade crescente)",
 	"Avaliação geral do jogo.\n(experiência completa, diversão, vontade de jogar novamente)", 
 ]
 
@@ -5356,7 +5939,9 @@ func _abrir_nexo() -> void:
 
 
 func _debug_garantir_recursos_talentos() -> void:
-	if not OS.is_debug_build():
+	# Só age se a flag estiver ligada (e em build debug). Por padrão NÃO mexe no
+	# saldo — evita pisar na conta real e sincronizar valores falsos pra nuvem.
+	if not (DEBUG_GARANTIR_RECURSOS and OS.is_debug_build()):
 		return
 	var alterou := false
 	if Salvar.ouro_banco < 50000:

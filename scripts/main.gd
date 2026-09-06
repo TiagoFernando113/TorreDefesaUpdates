@@ -120,34 +120,33 @@ var _focus_touch_idx  : int  = -1     # índice do dedo fazendo mira
 var _cartas_colhidas : Dictionary = {}   # {"pierce": 2, "dano": 3, ...}
 var _arma_run : String = "padrao"        # arma ativa da partida (escolha wave 1/20)
 
+# ── Painel de Comando (Núcleo) ───────────────────────────────────────────────
+# Lógica + UI ficam no módulo isolado scripts/partida/painel_comando.gd.
+# Carregado com guarda em _ready(); se falhar, `painel` fica null e o jogo segue
+# sem painel (NÃO trava a partida).
+const PAINEL_MOD_PATH : String = "res://scripts/partida/painel_comando.gd"
+var painel = null   # instância do módulo (ou null se o módulo falhar ao carregar)
+var _energia_passiva_t : float = 0.0   # timer da energia passiva (a cada 3s = wave)
+
 # raridade: "comum"(8) | "incomum"(4) | "raro"(2) | "epico"(1)
 # peso: probabilidade relativa no pool
 # min_wave: wave mínima para aparecer
 # max_picks: máximo de vezes escolhível por partida (talentos podem +1)
 const CARTAS := [
-	{"id":"dano_m", "nome":"Força Bruta",        "desc":"+25 de dano\nnesta partida",           "cor":Color(1.0, 0.42, 0.1),  "efeito":"dano",    "val":25.0,  "raridade":"comum",   "peso":8, "min_wave":1,  "max_picks":6},
-	{"id":"dano_g", "nome":"Canhão de Obsidiana","desc":"+50 de dano\nnesta partida",           "cor":Color(1.0, 0.58, 0.0),  "efeito":"dano",    "val":50.0,  "raridade":"incomum", "peso":4, "min_wave":4,  "max_picks":4},
-	{"id":"cad_m",  "nome":"Ritmo Acelerado",    "desc":"+0.5 tiros/s\nnesta partida",          "cor":Color(0.75,0.2,  1.0),  "efeito":"cadencia","val":0.5,   "raridade":"comum",   "peso":8, "min_wave":1,  "max_picks":6},
-	{"id":"cad_g",  "nome":"Metralhadora",       "desc":"+1.0 tiro/s\nnesta partida",           "cor":Color(0.9, 0.3,  1.0),  "efeito":"cadencia","val":1.0,   "raridade":"raro",    "peso":2, "min_wave":7,  "max_picks":3},
-	{"id":"range_m","nome":"Visão Ampla",        "desc":"+60 de alcance\nnesta partida",        "cor":Color(0.12,0.62, 1.0),  "efeito":"alcance", "val":60.0,  "raridade":"comum",   "peso":8, "min_wave":1,  "max_picks":4},
-	{"id":"range_g","nome":"Olho de Deus",       "desc":"+120 de alcance\nnesta partida",       "cor":Color(0.2, 0.80, 1.0),  "efeito":"alcance", "val":120.0, "raridade":"raro",    "peso":2, "min_wave":6,  "max_picks":3},
-	{"id":"vida_m", "nome":"Couraça",            "desc":"Cura 60 HP\ne +40 vida máxima",        "cor":Color(0.12,1.0,  0.45), "efeito":"vida",    "val":40.0,  "raridade":"comum",   "peso":8, "min_wave":1,  "max_picks":5},
-	{"id":"vida_g", "nome":"Fortaleza",          "desc":"Cura 120 HP\ne +80 vida máxima",       "cor":Color(0.1, 0.9,  0.4),  "efeito":"vida",    "val":80.0,  "raridade":"incomum", "peso":4, "min_wave":5,  "max_picks":3},
+	# Cartas de STAT puro (dano/cadência/vida/alcance/speed/regen) saíram do
+	# baralho — agora são as trilhas do Painel de Comando. Cartas = só especialidade.
 	{"id":"pierce", "nome":"Bala Perfurante",    "desc":"Atravessa em linha reta\ne fura +1 inimigo",       "cor":Color(1.0, 0.88, 0.12), "efeito":"pierce",  "val":1.0,   "raridade":"raro",    "peso":2, "min_wave":7,  "max_picks":3},
-	{"id":"multi",  "nome":"Canhão Duplo",       "desc":"Cria um canhão orbital\nque atira em paralelo","cor":Color(0.12,1.0,0.88),"efeito":"multi","val":1.0,  "raridade":"epico",   "peso":1, "min_wave":12, "max_picks":2},
-	{"id":"vel",    "nome":"Projétil Sônico",    "desc":"+260 velocidade\nde projétil",         "cor":Color(0.95,0.95,0.12),  "efeito":"speed",   "val":260.0, "raridade":"incomum", "peso":3, "min_wave":4,  "max_picks":2},
-	{"id":"regen",  "nome":"Regeneração",        "desc":"+4 HP/s de\nregeneração",             "cor":Color(0.4, 1.0,  0.55), "efeito":"regen",   "val":4.0,   "raridade":"incomum", "peso":5, "min_wave":3,  "max_picks":4},
-	{"id":"escudo", "nome":"Escudo Arcano",      "desc":"-20% dano\nrecebido",                 "cor":Color(0.2, 0.6,  1.0),  "efeito":"reducao", "val":0.20,  "raridade":"raro",    "peso":2, "min_wave":9,  "max_picks":1},
+	{"id":"multi",  "nome":"Canhão Duplo",       "desc":"Cria um canhão paralelo\nque atira junto","cor":Color(0.12,1.0,0.88),"efeito":"multi","val":1.0,  "raridade":"epico",   "peso":1, "min_wave":12, "max_picks":2},
+	{"id":"escudo", "nome":"Escudo Arcano",      "desc":"-20% dano\nrecebido",                 "cor":Color(0.2, 0.6,  1.0),  "efeito":"reducao", "val":0.20,  "raridade":"raro",    "peso":2, "min_wave":9,  "max_picks":2},
 	{"id":"ouro",      "nome":"Toque de Midas",     "desc":"+40% de ouro\nem cada kill",                  "cor":Color(1.0, 0.82, 0.1),  "efeito":"ouro",       "val":0.40,  "raridade":"raro",    "peso":2, "min_wave":7,  "max_picks":3},
-	{"id":"fragmento",  "nome":"Fragmento Arcano",    "desc":"Pierce explode em 60px\n(+25% dano de área)",             "cor":Color(1.0, 0.65, 0.0),  "efeito":"fragmento",  "val":0.25, "raridade":"epico",   "peso":1, "min_wave":10, "max_picks":3},
+	{"id":"fragmento",  "nome":"Fragmento Arcano",    "desc":"Pierce explode em 60px\n(+25% dano de área)",             "cor":Color(1.0, 0.80, 0.22),  "efeito":"fragmento",  "val":0.25, "raridade":"epico",   "peso":1, "min_wave":10, "max_picks":3},
 	# ── Novas cartas ────────────────────────────────────────────────────────────
 	{"id":"raio",       "nome":"Raio Arcano",         "desc":"Golpeia inimigo aleatório\na cada ~4s (+45 dano/nv)",    "cor":Color(0.40, 0.72, 1.0), "efeito":"raio",       "val":1.0,  "raridade":"epico",   "peso":1, "min_wave":15, "max_picks":5},
 	{"id":"corrente",   "nome":"Corrente Elétrica",   "desc":"Projéteis saltam para\n2 inimigos extras (sem redução)","cor":Color(0.25, 0.95, 1.0), "efeito":"corrente",   "val":1.0,  "raridade":"epico",   "peso":1, "min_wave":15, "max_picks":1},
-	{"id":"brasa",      "nome":"Brasa",               "desc":"Tiros queimam o alvo.\n5× Brasa + arma Ricochete\n= Bolas de Fogo!","cor":Color(1.0, 0.45, 0.08), "efeito":"brasa",      "val":1.0,  "raridade":"incomum", "peso":5, "min_wave":3,  "max_picks":5},
-	{"id":"veneno",     "nome":"Veneno Arcano",        "desc":"+8 dano/s por 4s\nem inimigos acertados",             "cor":Color(0.25, 1.0,  0.2),  "efeito":"veneno",     "val":8.0,  "raridade":"incomum", "peso":5, "min_wave":4,  "max_picks":4},
-	{"id":"critico",    "nome":"Golpe Crítico",        "desc":"+12% chance de\n3× dano por tiro",                    "cor":Color(1.0,  0.50, 0.05), "efeito":"critico",    "val":0.12, "raridade":"raro",    "peso":2, "min_wave":6,  "max_picks":3},
+	{"id":"brasa",      "nome":"Brasa",               "desc":"Tiros queimam: 10/s\npor 2s no alvo",                  "cor":Color(1.0, 0.45, 0.08), "efeito":"brasa",      "val":1.0,  "raridade":"incomum", "peso":5, "min_wave":1,  "max_picks":5},
+	{"id":"veneno",     "nome":"Veneno Arcano",        "desc":"+8 dano/s por 4s\nem inimigos acertados",             "cor":Color(0.25, 1.0,  0.2),  "efeito":"veneno",     "val":8.0,  "raridade":"incomum", "peso":5, "min_wave":1,  "max_picks":4},
 	{"id":"explosao",   "nome":"Explosão Mortal",      "desc":"Ao matar: explode\n40% dano em 80px",                 "cor":Color(1.0,  0.38, 0.05), "efeito":"explosao",   "val":1.0,  "raridade":"epico",   "peso":2, "min_wave":10, "max_picks":2},
-	{"id":"chama",      "nome":"Chama Perpétua",       "desc":"+0.2 dano permanente\npor kill (máx +200 total)",    "cor":Color(1.0,  0.58, 0.08), "efeito":"chama",      "val":0.2,  "raridade":"incomum", "peso":5, "min_wave":5,  "max_picks":3},
+	{"id":"chama",      "nome":"Chama Perpétua",       "desc":"+0.2 dano permanente\npor kill (máx +200 total)",    "cor":Color(1.0,  0.58, 0.08), "efeito":"chama",      "val":0.2,  "raridade":"incomum", "peso":5, "min_wave":3,  "max_picks":3},
 	{"id":"overdrive",  "nome":"Overdrive",            "desc":"Após boss: cadência\n×2 por 6s",                      "cor":Color(1.0,  0.80, 0.0),  "efeito":"overdrive",  "val":1.0,  "raridade":"epico",   "peso":2, "min_wave":15, "max_picks":2},
 	{"id":"armadura_i", "nome":"Armadura Invertida",   "desc":"Inimigos <30% HP\nrecebem +60% dano",                "cor":Color(0.85, 0.25, 0.95), "efeito":"armadura_i", "val":0.60, "raridade":"raro",    "peso":3, "min_wave":8,  "max_picks":2},
 	{"id":"bencao",     "nome":"Bênção de Energia",    "desc":"A cada 15 kills\npróximo tiro: 8× dano",             "cor":Color(1.0,  0.95, 0.25), "efeito":"bencao",     "val":1.0,  "raridade":"epico",   "peso":2, "min_wave":12, "max_picks":2},
@@ -158,9 +157,43 @@ const CARTAS := [
 	{"id":"fissura",    "nome":"Fissura Venenosa",     "desc":"Projéteis envenenam\ntodos em 70px ao acertar",       "cor":Color(0.38, 1.0,  0.30),  "efeito":"fissura",    "val":1.0,  "raridade":"epico",   "peso":1, "min_wave":10, "max_picks":1},
 	{"id":"cacador",    "nome":"Caçador de Fantasmas", "desc":"Fantasmas revelam-se\ninstantaneamente ao surgir",    "cor":Color(0.88, 0.55, 1.0),  "efeito":"cacador",    "val":1.0,  "raridade":"raro",    "peso":2, "min_wave":12, "max_picks":1},
 	{"id":"rajada",     "nome":"Rajada de Tiros",      "desc":"3 projéteis em leque (±15°)\ncada um com 70% do dano",     "cor":Color(1.0,  0.72, 0.15), "efeito":"rajada",     "val":1.0,  "raridade":"epico",   "peso":1, "min_wave":10, "max_picks":1},
-	{"id":"carga",      "nome":"Tiro Carregado",       "desc":"Sem alvo por 3.5s →\npróximo tiro causa 6× dano",         "cor":Color(0.88, 0.30, 0.05), "efeito":"carga",      "val":1.0,  "raridade":"raro",    "peso":2, "min_wave":6,  "max_picks":1},
+	{"id":"carga",      "nome":"Tiro Carregado",       "desc":"Sem alvo por 3.5s →\npróximo tiro causa 6× dano",         "cor":Color(0.95, 0.14, 0.12), "efeito":"carga",      "val":1.0,  "raridade":"raro",    "peso":2, "min_wave":3,  "max_picks":1},
 	{"id":"gelo",       "nome":"Campo de Gelo",        "desc":"Mobs no alcance ficam\n45% mais lentos (imune: blindado)", "cor":Color(0.45, 0.82, 1.0),  "efeito":"gelo",       "val":1.0,  "raridade":"epico",   "peso":2, "min_wave":10, "max_picks":1},
 ]
+
+# Fusões possíveis por arma: a carta-elemento + qtd que ativa cada fusão.
+# Usado na tela de escolha de arma para mostrar "o que combina".
+const FUSOES_ARMA : Dictionary = {
+	"ricochete": [{"elem": "brasa", "elem_nome": "Brasa", "qtd": 5, "icone": "arma_missil",
+		"nome": "Bolas de Fogo", "cor": Color(1.0, 0.45, 0.08)}],
+}
+
+
+func sinergia_para_carta(carta: Dictionary) -> Dictionary:
+	# "Rotas": FUSÃO só aparece quando o jogador JÁ tem o parceiro.
+	#   Carta de ARMA     → mostra a fusão SÓ se já coletou o elemento parceiro.
+	#   Carta de ELEMENTO → mostra a fusão SÓ se já tem a arma ATIVA parceira.
+	# Sem parceiro = {} (nada). Reseta a cada partida (via _cartas_colhidas/_arma_run).
+	var cid : String = str(carta.get("id", ""))
+	if str(carta.get("efeito", "")) == "arma":
+		var lst : Array = FUSOES_ARMA.get(cid, []) as Array
+		if lst.is_empty(): return {}
+		var f : Dictionary = (lst[0] as Dictionary).duplicate(true)
+		var elem : String = str(f.get("elem", ""))
+		# Só revela se a rota já começou (tem ao menos 1 do elemento parceiro).
+		if int(_cartas_colhidas.get(elem, 0)) < 1:
+			return {}
+		f["modo"]      = "arma"
+		f["progresso"] = int(_cartas_colhidas.get(elem, 0))
+		return f
+	for entry_any in (FUSOES_ARMA.get(_arma_run, []) as Array):
+		var entry : Dictionary = entry_any as Dictionary
+		if str(entry.get("elem", "")) == cid:
+			var f2 : Dictionary = entry.duplicate(true)
+			f2["modo"]      = "elemento"
+			f2["progresso"] = int(_cartas_colhidas.get(cid, 0))
+			return f2
+	return {}
 
 const CHEFE_TIPOS : Array = [
 	"normal","fast","tank","elite","berserker","colossus",
@@ -193,6 +226,9 @@ const _RANGE_MAX   : float    = 450.0  # cap de alcance (igual ao do main)
 var _tut_ativo      : bool = false
 var _tut_step       : int  = 0   # 0=wave1, 1=cartas, 2=wave2done
 var _tut_dica_node  : CanvasLayer = null
+var _tutg_overlay   : CanvasLayer = null   # tutorial guiado (pausa + destaca)
+var _tutg_step      : int  = 0
+var _tutg_passos    : Array = []
 
 
 func _ready() -> void:
@@ -223,13 +259,26 @@ func _ready() -> void:
 	# Consumíveis: cria slots no HUD (ativação manual pelo jogador)
 	if ui_node:
 		ui_node.criar_consumivel_hud()
+	# Painel de Comando: módulo ISOLADO, carregado com guarda. Se falhar, `painel`
+	# fica null e o jogo segue sem painel/energia (NÃO trava a partida).
+	var _pscr = load(PAINEL_MOD_PATH)
+	if _pscr:
+		painel = _pscr.new(self)
+		painel.criar_ui()
+		painel.capturar_base()
 	if not Salvar.tutorial_jogo_visto:
 		_tut_ativo = true
 	# Restaurar checkpoint de run se existir
 	if Salvar.tem_checkpoint():
 		_restaurar_run_do_checkpoint(Salvar.run_checkpoint)
 		Salvar.limpar_checkpoint()
-	_iniciar_wave()
+		if torre and is_instance_valid(torre):
+			torre.definir_arma(_arma_run)
+		_iniciar_wave()
+	else:
+		# ARMA primeiro: a escolha da arma abre a partida, antes da wave 1.
+		estado = "cartas"
+		_mostrar_escolha_arma()
 
 
 func _mapa_teste_override_ativo() -> bool:
@@ -425,7 +474,7 @@ func _get_wave_config(w: int) -> Dictionary:
 	var n        : int   = min(6 + int(roundf(float(w) * 1.25 + maxf(0.0, float(w - 15)) * 0.55)), 105)
 	var fast     : int   = min(max(0, int(roundf(float(w - 1) * 1.15))), 36)
 	var tank     : int   = min(max(0, int(roundf(float(w - 2) * 0.78))), 28)
-	var elite    : int   = min(max(0, (w - 8) / 2), 18) if w >= 9 else 0
+	var elite    : int   = min(max(0, (w - 12) / 2), 16) if w >= 13 else 0
 	var berserk  : int   = min(max(0, (w - 16) / 3), 14) if w >= 17 else 0
 	var coloss   : int   = min(max(0, (w - 24) / 5), 6) if w >= 25 else 0
 	var atirad   : int   = min(max(0, (w - 10) / 5), 4) if w >= 11 else 0
@@ -544,9 +593,7 @@ func _iniciar_wave() -> void:
 			if ui_node:
 				ui_node.mostrar_notificacao_consumivel("Escudo estelar ativado para o boss!", Color(1.0, 0.78, 0.22))
 	if _tut_ativo and wave == 1:
-		_tut_mostrar_dica("Sua torre atira AUTOMATICAMENTE!\nSobreviva à 1ª wave para ganhar cartas de poder.", 5.0)
-	elif _tut_ativo and wave == 2:
-		_tut_mostrar_dica("Ótimo! As cartas melhoram sua torre.\nSobreviva mais waves para ficar mais forte!", 4.0)
+		_tut_guiado_iniciar()   # tutorial guiado da 1ª partida (pausa + destaca)
 	# Abismo: multiplicador de HP cresce agressivamente por wave
 	if modo_abismo:
 		_abismo_multi = 1.60 + float(wave - 1) * 0.12   # wave 1=1.60× wave 10=2.68× wave 20=3.88× wave 30=5.08×
@@ -606,6 +653,16 @@ func _iniciar_wave() -> void:
 			if cfg.has(_k) and int(cfg[_k]) > 0:
 				cfg[_k] = max(1, int(floorf(float(cfg[_k]) * 0.70)))
 		cfg["intervalo"] = maxf(0.24, cfg["intervalo"])
+		# Ease de QUANTIDADE no início: torre base é single-target e não dá conta
+		# de horda. Ramp LONGO (até wave 14) e start baixo p/ não dar salto brusco
+		# na wave 6+ (o count base já sobe sozinho; o ease segura). Spawn mais lento.
+		if wave <= 14:
+			var qprog : float = clampf(float(wave - 1) / 13.0, 0.0, 1.0)
+			var qmult : float = lerpf(0.30, 1.0, qprog)
+			for _k in _mob_count_keys:
+				if cfg.has(_k) and int(cfg[_k]) > 0:
+					cfg[_k] = max(1, int(ceil(float(cfg[_k]) * qmult)))
+			cfg["intervalo"] = cfg["intervalo"] * lerpf(1.6, 1.0, qprog)
 	else:
 		var abismo_count : float = minf(1.85 + float(wave - 1) * 0.018, 3.35)
 		for _k in _mob_count_keys:
@@ -680,6 +737,14 @@ func _iniciar_wave() -> void:
 
 func _process(delta: float) -> void:
 	queue_redraw()
+	# Energia passiva do Painel: a cada 3s ganha = nº da wave (carrega sozinho
+	# durante o combate; o módulo aplica a trilha Ganho ⚡ por cima).
+	if painel and estado == "jogando":
+		_energia_passiva_t += delta
+		if _energia_passiva_t >= 3.0:
+			_energia_passiva_t -= 3.0
+			painel.ganhar_energia(maxi(1, wave))
+
 	# Screen shake
 	if _shake_timer > 0.0:
 		_shake_timer -= delta
@@ -705,6 +770,8 @@ func _process(delta: float) -> void:
 		else:
 			torre.position = torre.position.lerp(alvo_torre, minf(delta * 1.4, 1.0))
 		var t_range : float = torre.range_r as float
+		if torre.has_method("alcance_efetivo"):
+			t_range = float(torre.call("alcance_efetivo"))
 		# 330 = margem interna (tela tem 360px do centro à borda vertical)
 		var zoom_alvo : float = clamp(330.0 / maxf(t_range, 1.0), _ZOOM_MIN, _ZOOM_BASE)
 		var zoom_atual : float = _camera.zoom.x
@@ -738,8 +805,10 @@ func _process(delta: float) -> void:
 	if estado != "jogando":
 		return
 
-	# ── Mini-eventos ─────────────────────────────────────────────────────────
-	if _evento_delay > 0.0 and _eventos_wave_n < 2:
+	# ── Mini-eventos (baú no mapa): DESATIVADO ───────────────────────────────
+	# O baú que caía no mapa foi removido. (Baús de fim de wave continuam normais.)
+	const EVENTO_BAU_MAPA_ATIVO : bool = false
+	if EVENTO_BAU_MAPA_ATIVO and _evento_delay > 0.0 and _eventos_wave_n < 2:
 		_evento_delay -= delta
 		if _evento_delay <= 0.0:
 			_sortear_evento()
@@ -808,14 +877,20 @@ func _aplicar_focus(world_pos: Vector2) -> void:
 func _input(event: InputEvent) -> void:
 	# ── Focus de Ataque contínuo + coleta de baú (fora do boss) ──────────────
 	if estado == "jogando" and not _boss_dante_vivo() and torre and is_instance_valid(torre):
+		# Não ativa o foco se o ponteiro está sobre a GUI (Painel/HUD) — senão
+		# clicar pra comprar no Painel disparava o tiro manual junto.
+		var sobre_gui : bool = get_viewport().gui_get_hovered_control() != null
+		# Bombardeio Orbital: arma manual — o clique lança um raio no ponto.
+		var arma_bombardeio : bool = (_arma_run == "bombardeio")
 
 		if event is InputEventScreenTouch:
 			var ev := event as InputEventScreenTouch
-			if ev.pressed:
+			if ev.pressed and not sobre_gui:
 				var wp : Vector2 = _screen_to_world(ev.position)
-				# Tap no baú → coleta; caso contrário inicia mira hold
 				if not _evento_ativo.is_empty() and wp.distance_to(_evento_pos) < 55.0:
 					coletar_evento()
+				elif arma_bombardeio:
+					torre.lancar_bombardeio(wp)
 				else:
 					_focus_touch_idx = ev.index
 					_aplicar_focus(wp)
@@ -827,16 +902,18 @@ func _input(event: InputEvent) -> void:
 
 		elif event is InputEventScreenDrag:
 			var drag := event as InputEventScreenDrag
-			if drag.index == _focus_touch_idx:
+			if drag.index == _focus_touch_idx and not arma_bombardeio:
 				_aplicar_focus(_screen_to_world(drag.position))
 
 		elif event is InputEventMouseButton:
 			var mb := event as InputEventMouseButton
 			if mb.button_index == MOUSE_BUTTON_LEFT:
-				if mb.pressed:
+				if mb.pressed and not sobre_gui:
 					var wp : Vector2 = _screen_to_world(mb.position)
 					if not _evento_ativo.is_empty() and wp.distance_to(_evento_pos) < 55.0:
 						coletar_evento()
+					elif arma_bombardeio:
+						torre.lancar_bombardeio(wp)
 					else:
 						_focus_mouse_hold = true
 						_aplicar_focus(wp)
@@ -1427,6 +1504,8 @@ func _carta_bloqueada_arena(_carta: Dictionary) -> bool:
 
 
 func _fim_wave() -> void:
+	# Painel: Energia ⚡ por fechar a wave (escala com a wave)
+	if painel: painel.ganhar_energia(painel.E_WAVE_BASE + wave)
 	var fim_mapa : bool = _mapa_final_ativo_partida(wave)
 	var mapa_concluido_info : Dictionary = mapa_atual_info.duplicate()
 	var gold_antes : int = gold
@@ -1498,14 +1577,16 @@ func _fim_wave() -> void:
 
 
 func _prosseguir_pos_resumo_mapa() -> void:
-	# ARMA: wave 1 = escolha inicial; a cada 20 waves = revisão (mantém/troca).
-	if wave == 1 or wave % 20 == 0:
+	# ARMA: escolha inicial é antes da wave 1 (no _ready); aqui só a REVISÃO
+	# a cada 20 waves (mantém a atual ou troca).
+	if wave % 20 == 0:
 		estado = "cartas"
 		_mostrar_escolha_arma()
 		return
-	# Cartas aparecem a cada 5 waves (5, 10, 15...).
-	# Waves intermediárias vão direto para a próxima wave.
-	var wave_com_carta : bool = (wave % 5 == 0)
+	# Cartas (especialidades) ficaram RARAS: a cada 10 waves (10, 30, 50...).
+	# As waves de 20 em 20 são de ARMA (acima), então a escolha alterna
+	# carta/arma a cada 10. O resto vai direto pra próxima wave.
+	var wave_com_carta : bool = (wave % 10 == 0)
 	if not wave_com_carta:
 		if Salvar.pausa_auto_wave and ui_node:
 			ui_node.mostrar_btn_iniciar_wave()
@@ -1520,6 +1601,10 @@ func _mostrar_escolha_arma() -> void:
 	if not ui_node:
 		_iniciar_wave()
 		return
+	# TESTE: mostra TODAS as armas na escolha (ignora gate de lendária + cap de 4).
+	# Voltar pro normal: trocar para false.  (LANÇAMENTO: false)
+	const DEBUG_TODAS_ARMAS : bool = false
+
 	# Lista: a arma atual primeiro (manter) + outras sorteadas (trocar).
 	# Comuns sempre; lendárias só a partir da wave LENDARIA_WAVE.
 	var pool_armas : Array = []
@@ -1528,19 +1613,31 @@ func _mostrar_escolha_arma() -> void:
 		lend_wave = int(torre.LENDARIA_WAVE)
 		for aid in torre.ARMAS.keys():
 			var tier : String = str((torre.ARMAS[aid] as Dictionary).get("tier", "comum"))
-			if tier == "comum" or wave >= lend_wave:
+			if DEBUG_TODAS_ARMAS or tier == "comum" or wave >= lend_wave:
 				pool_armas.append(aid)
 	else:
 		pool_armas = ["padrao", "ricochete", "escopeta", "sniper", "metralhadora"]
 
+	# DEBUG: mostra todas de uma vez
+	if DEBUG_TODAS_ARMAS:
+		var infos_all : Array = []
+		for aid in pool_armas:
+			infos_all.append(_carta_de_arma(aid as String))
+		ui_node.mostrar_cartas(infos_all, false)
+		return
+
+	# Mostra 4 armas ALEATÓRIAS do pool. Nas revisões (wave>=20) oferece manter a
+	# arma atual; na 1ª escolha tudo entra no sorteio (inclui padrão).
+	const ARMAS_NA_ESCOLHA : int = 4
 	var ordem : Array = []
-	# A arma atual primeiro (manter) + outras aleatórias (trocar).
-	if pool_armas.has(_arma_run):
+	if wave >= 20 and pool_armas.has(_arma_run):
 		ordem.append(_arma_run)
-	var resto : Array = pool_armas.filter(func(a): return a != _arma_run)
+	var resto : Array = pool_armas.filter(func(a): return not ordem.has(a))
 	resto.shuffle()
-	for i in range(mini(4, resto.size())):
-		ordem.append(resto[i])
+	for aid in resto:
+		if ordem.size() >= ARMAS_NA_ESCOLHA:
+			break
+		ordem.append(aid)
 	if ordem.is_empty():
 		ordem = ["padrao"]
 	var infos : Array = []
@@ -1558,15 +1655,17 @@ func _carta_de_arma(aid: String) -> Dictionary:
 		"escopeta":     {"nome": "Escopeta",      "desc": "Leque de 6 pelotas.\nDevastador de perto,\nfraco de longe.","cor": Color(1.0, 0.55, 0.15)},
 		"sniper":       {"nome": "Sniper",        "desc": "Tiro lento e forte.\nAlcance máximo, perfura.",            "cor": Color(0.55, 0.80, 1.0)},
 		"metralhadora": {"nome": "Metralhadora",  "desc": "Cadência altíssima,\ndano baixo por tiro.",                "cor": Color(1.0, 0.85, 0.25)},
-		"orbital":      {"nome": "Orbital",       "desc": "3 canhões giram ao\nredor da torre, miram\nvários alvos.", "cor": Color(0.65, 0.55, 1.0)},
+		"orbital":      {"nome": "Orbital",       "desc": "3 orbes giram ao redor\nda torre, cada um com\nmini-área. Upar alcance\n= orbes mais longe.", "cor": Color(0.65, 0.55, 1.0)},
 		"missil":       {"nome": "Lança-Mísseis", "desc": "Mísseis lentos que\nexplodem em área\ngrande.",            "cor": Color(1.0, 0.40, 0.20)},
-		"gemea":        {"nome": "Canhão Gêmeo",  "desc": "Dois canhões miram\n2 alvos diferentes\nao mesmo tempo.",  "cor": Color(0.45, 0.95, 0.85)},
+		"gemea":        {"nome": "Canhão Gêmeo",  "desc": "2 balas paralelas\nretas. Acerta quem\ncruza o caminho.",  "cor": Color(0.45, 0.95, 0.85)},
 		"vortice":      {"nome": "Vórtice",       "desc": "Dispara em TODAS as\ndireções (360°).\nCobre todos os flancos.","cor": Color(0.80, 0.45, 1.0)},
 		"aniquilador":  {"nome": "Aniquilador",   "desc": "Feixe que atravessa\na tela inteira.\nDano massivo.",      "cor": Color(1.0, 0.30, 0.55)},
+		"bombardeio":   {"nome": "Bombardeio Orbital", "desc": "MANUAL: clique no ponto\n→ raio do céu explode\nem área. Super forte.", "cor": Color(0.45, 0.85, 1.0)},
+		"lanca_chamas": {"nome": "Lança-Chamas", "desc": "Cone de fogo curto.\nQueima vários de perto\n(dano + queimadura).", "cor": Color(1.0, 0.50, 0.12)},
 	}
 	var m : Dictionary = meta.get(aid, meta["padrao"]) as Dictionary
 	var nome_final : String = str(m["nome"])
-	if aid == _arma_run and wave != 1:
+	if aid == _arma_run and wave >= 20:   # "(atual)" só nas revisões
 		nome_final += "  (atual)"
 	# Lendárias usam raridade lendaria (card dourado especial)
 	var rar : String = "epico"
@@ -1576,6 +1675,7 @@ func _carta_de_arma(aid: String) -> Dictionary:
 	return {
 		"id": aid, "nome": nome_final, "desc": str(m["desc"]),
 		"cor": m["cor"], "efeito": "arma", "val": 1.0, "raridade": rar,
+		"combos": FUSOES_ARMA.get(aid, []),
 		"peso": 1, "min_wave": 1, "max_picks": 99,
 	}
 
@@ -1690,6 +1790,7 @@ func mob_morreu(val_gold: int, val_score: int) -> void:
 	wave_score  += int(float(val_score) * score_mult * score_mult_skin)
 	mobs_mortos      += 1
 	mobs_mortos_wave += 1
+	if painel: painel.ganhar_energia(painel.E_KILL)   # Painel: Energia ⚡ por kill
 	if torre and is_instance_valid(torre):
 		torre.on_mob_morreu()
 	if ui_node:
@@ -1720,6 +1821,7 @@ func boss_morreu() -> void:
 	# Mini-chefe abatido: dispara os efeitos "após boss" das cartas
 	# (Overdrive, Recuperação Rápida) e celebra com shake
 	_trigger_shake(10.0, 0.35)
+	if painel: painel.ganhar_energia(painel.E_BOSS)   # Painel: Energia ⚡ por boss
 	if torre and is_instance_valid(torre):
 		torre.boss_morreu()
 
@@ -1807,6 +1909,11 @@ func aplicar_carta(efeito: String, val: float, id: String = "") -> void:
 		ui_node.mostrar_btn_iniciar_wave()
 	else:
 		_iniciar_wave()
+
+
+# Painel: atalho seguro p/ dar Energia (no-op se o módulo não carregou)
+func painel_ganhar_energia(n: int) -> void:
+	if painel: painel.ganhar_energia(n)
 
 
 func registrar_dano_causado(amount: float) -> void:
@@ -1973,7 +2080,7 @@ func _finalizar_game_over() -> void:
 		Salvar.depositar_cristais(5)
 	Salvar.registrar_fim_partida(wave, score, gold, mobs_mortos, 0, _cartas_colhidas, modo_abismo)
 	RankingOnline.verificar_e_enviar(Salvar.nome_jogador, score, wave)
-	if Salvar.nome_jogador != "" and Salvar.senha_jogador != "" and not Salvar.save_bloqueado:
+	if Salvar.nome_jogador != "" and (Salvar.senha_jogador != "" or Auth.sessao_valida()) and not Salvar.save_bloqueado:
 		RankingOnline.upload_save(Salvar.nome_jogador, Salvar.exportar_cloud())
 
 
@@ -2030,6 +2137,8 @@ func _capturar_estado_run() -> Dictionary:
 		"saque_bonus": saque_bonus,
 		"cartas_colhidas": _cartas_colhidas.duplicate(true),
 		"cartas_escolhidas": _cartas_escolhidas_jogador.duplicate(true),
+		"arma": _arma_run,
+		"painel": (painel.serializar() if painel else {}),
 		"ascensoes": Salvar.ascensoes,
 		"modo_abismo": modo_abismo,
 		"torre": {
@@ -2065,6 +2174,11 @@ func _restaurar_run_do_checkpoint(dados: Dictionary) -> void:
 	saque_bonus        = float(dados.get("saque_bonus", 0.0))
 	_cartas_colhidas   = (dados.get("cartas_colhidas", {}) as Dictionary).duplicate(true)
 	_cartas_escolhidas_jogador = (dados.get("cartas_escolhidas", []) as Array).duplicate(true)
+	_arma_run          = str(dados.get("arma", "padrao"))
+	# Painel: restaura níveis/energia/base no módulo. Os STATS já estão embutidos
+	# em torre.damage/max_hp/etc (salvos abaixo) — o módulo só guarda contadores.
+	if painel:
+		painel.restaurar(dados.get("painel", {}) as Dictionary)
 	var td : Dictionary = dados.get("torre", {}) as Dictionary
 	if td.is_empty() or not torre or not is_instance_valid(torre): return
 	torre.max_hp               = float(td.get("max_hp", torre.max_hp))
@@ -2153,16 +2267,25 @@ func _sortear_e_mostrar_cartas(is_x4: bool = false) -> void:
 			if escolha.size() >= max_cartas:
 				break
 
-	# Pool vazio: fallback com dano / cadência / vida (comuns) sem limite de picks.
+	# Pool vazio: fallback com especialidades de baixa raridade já disponíveis
+	# (min_wave ok), ignorando o limite de picks. Stats agora vêm do Painel.
 	if escolha.is_empty():
 		for carta in CARTAS:
-			var ef : String = carta["efeito"] as String
-			if ef in ["dano", "cadencia", "vida"] and (carta["raridade"] as String) == "comum":
+			if (carta["min_wave"] as int) > wave:
+				continue
+			if (carta["raridade"] as String) in ["incomum", "raro"]:
 				var c : Dictionary = (carta as Dictionary).duplicate()
 				c["max_picks"] = 99
 				escolha.append(c)
 				if escolha.size() >= max_cartas:
 					break
+	# Garantia final: se ainda vazio (wave muito baixa), oferece Brasa/Veneno.
+	if escolha.is_empty():
+		for carta in CARTAS:
+			if (carta["id"] as String) in ["brasa", "veneno"]:
+				var c2 : Dictionary = (carta as Dictionary).duplicate()
+				c2["max_picks"] = 99
+				escolha.append(c2)
 
 	# M2 — Alquimia de Cartas: cartas comuns têm 30% chance de virar incomum
 	if Salvar.talento_ativo("m2"):
@@ -2409,3 +2532,133 @@ func _tut_fechar_dica() -> void:
 	if is_instance_valid(_tut_dica_node):
 		_tut_dica_node.queue_free()
 	_tut_dica_node = null
+
+
+# ── Tutorial guiado da 1ª partida (pausa a ação + destaca cada elemento) ──────
+func _tut_guiado_iniciar() -> void:
+	if _tutg_overlay and is_instance_valid(_tutg_overlay):
+		return
+	var vp : Vector2 = get_viewport().get_visible_rect().size
+	var cx : float = vp.x * 0.5
+	var cy : float = vp.y * 0.5
+	_tutg_passos = [
+		{"t": "SUA TORRE", "d": "Ela atira SOZINHA nos inimigos.\nDefenda o NÚCLEO no centro da arena!", "r": Rect2(cx - 95, cy - 95, 190, 190)},
+		{"t": "PAINEL DE COMANDO", "d": "Gaste Energia aqui pra deixar a torre mais forte:\ndano, vida, cadência, crítico e mais.", "r": Rect2(6, 86, 184, 402)},
+		{"t": "ENERGIA", "d": "Você ganha Energia MATANDO inimigos.\nQuanto mais matar, mais upa o Painel!", "r": Rect2(6, 86, 184, 58)},
+		{"t": "CARTAS DE HABILIDADE", "d": "A cada 10 waves você escolhe uma CARTA\ncom um poder especial pra sua torre.", "r": Rect2()},
+		{"t": "PRONTO!", "d": "Sobreviva o máximo de waves possível\ne suba no RANKING GLOBAL. Boa sorte!", "r": Rect2()},
+	]
+	_tutg_step = 0
+	Engine.time_scale = 0.0   # pausa a ação enquanto o tutorial roda
+
+	var cl := CanvasLayer.new()
+	cl.layer = 50
+	add_child(cl)
+	_tutg_overlay = cl
+
+	var hl := Control.new()
+	hl.name = "HL"
+	hl.position = Vector2.ZERO
+	hl.size = vp
+	hl.mouse_filter = Control.MOUSE_FILTER_STOP   # bloqueia cliques no jogo
+	hl.draw.connect(_tut_guiado_draw.bind(hl))
+	cl.add_child(hl)
+
+	var pnl := Panel.new()
+	pnl.name = "PNL"
+	pnl.size = Vector2(560, 184)
+	var psty := StyleBoxFlat.new()
+	psty.bg_color = Color(0.04, 0.06, 0.12, 0.98)
+	psty.border_color = Color(0.28, 0.62, 1.0, 0.95)
+	for s in ["left", "right", "top", "bottom"]: psty.set("border_width_" + s, 2)
+	for c in ["top_left", "top_right", "bottom_left", "bottom_right"]: psty.set("corner_radius_" + c, 12)
+	pnl.add_theme_stylebox_override("panel", psty)
+	cl.add_child(pnl)
+
+	var tit := Label.new(); tit.name = "T"
+	tit.position = Vector2(20, 16); tit.size = Vector2(520, 28)
+	tit.add_theme_font_size_override("font_size", 22)
+	tit.add_theme_color_override("font_color", Color(0.35, 0.80, 1.0))
+	pnl.add_child(tit)
+
+	var txt := Label.new(); txt.name = "D"
+	txt.position = Vector2(20, 54); txt.size = Vector2(520, 64)
+	txt.add_theme_font_size_override("font_size", 16)
+	txt.add_theme_color_override("font_color", Color(0.85, 0.90, 0.97))
+	pnl.add_child(txt)
+
+	var bprox := Button.new(); bprox.name = "B"
+	bprox.position = Vector2(360, 130); bprox.size = Vector2(180, 40)
+	bprox.focus_mode = Control.FOCUS_NONE
+	var bsty := StyleBoxFlat.new(); bsty.bg_color = Color(0.12, 0.40, 0.70, 0.95); bsty.set_corner_radius_all(8)
+	bprox.add_theme_stylebox_override("normal", bsty)
+	bprox.add_theme_color_override("font_color", Color(0.95, 0.97, 1.0))
+	bprox.pressed.connect(_tut_guiado_proximo)
+	pnl.add_child(bprox)
+
+	var bpular := Button.new()
+	bpular.text = "Pular"
+	bpular.position = Vector2(20, 130); bpular.size = Vector2(120, 40)
+	bpular.focus_mode = Control.FOCUS_NONE
+	var bsty2 := StyleBoxFlat.new(); bsty2.bg_color = Color(0.10, 0.10, 0.13, 0.9); bsty2.set_corner_radius_all(8)
+	bpular.add_theme_stylebox_override("normal", bsty2)
+	bpular.add_theme_color_override("font_color", Color(0.60, 0.62, 0.70))
+	bpular.pressed.connect(_tut_guiado_fim)
+	pnl.add_child(bpular)
+
+	_tut_guiado_atualizar()
+
+
+func _tut_guiado_atualizar() -> void:
+	if not (_tutg_overlay and is_instance_valid(_tutg_overlay)):
+		return
+	var p : Dictionary = _tutg_passos[_tutg_step] as Dictionary
+	var pnl : Panel = _tutg_overlay.get_node_or_null("PNL") as Panel
+	var hl : Control = _tutg_overlay.get_node_or_null("HL") as Control
+	if pnl == null or hl == null:
+		return
+	(pnl.get_node("T") as Label).text = str(p["t"])
+	(pnl.get_node("D") as Label).text = str(p["d"])
+	(pnl.get_node("B") as Button).text = "COMEÇAR!" if _tutg_step >= _tutg_passos.size() - 1 else "Próximo  →"
+	var vp : Vector2 = get_viewport().get_visible_rect().size
+	var r : Rect2 = p["r"] as Rect2
+	var py : float = vp.y - pnl.size.y - 24.0
+	if r.size != Vector2.ZERO and (r.position.y + r.size.y) > vp.y * 0.55:
+		py = 24.0   # destaque embaixo → painel sobe
+	pnl.position = Vector2((vp.x - pnl.size.x) * 0.5, py)
+	hl.queue_redraw()
+
+
+func _tut_guiado_draw(hl: Control) -> void:
+	if _tutg_step >= _tutg_passos.size():
+		return
+	var p : Dictionary = _tutg_passos[_tutg_step] as Dictionary
+	var r : Rect2 = p["r"] as Rect2
+	var vp : Vector2 = hl.size
+	var dark := Color(0, 0, 0, 0.62)
+	if r.size == Vector2.ZERO:
+		hl.draw_rect(Rect2(Vector2.ZERO, vp), dark)
+		return
+	hl.draw_rect(Rect2(0, 0, vp.x, r.position.y), dark)
+	hl.draw_rect(Rect2(0, r.position.y + r.size.y, vp.x, vp.y - r.position.y - r.size.y), dark)
+	hl.draw_rect(Rect2(0, r.position.y, r.position.x, r.size.y), dark)
+	hl.draw_rect(Rect2(r.position.x + r.size.x, r.position.y, vp.x - r.position.x - r.size.x, r.size.y), dark)
+	hl.draw_rect(r, Color(0.30, 0.75, 1.0, 0.95), false, 3.0)
+
+
+func _tut_guiado_proximo() -> void:
+	_tutg_step += 1
+	if _tutg_step >= _tutg_passos.size():
+		_tut_guiado_fim()
+		return
+	_tut_guiado_atualizar()
+
+
+func _tut_guiado_fim() -> void:
+	Engine.time_scale = 1.0
+	_tut_ativo = false
+	Salvar.tutorial_jogo_visto = true
+	Salvar.salvar()
+	if _tutg_overlay and is_instance_valid(_tutg_overlay):
+		_tutg_overlay.queue_free()
+	_tutg_overlay = null

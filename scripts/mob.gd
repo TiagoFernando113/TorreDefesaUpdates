@@ -132,7 +132,7 @@ const TIPOS := {
 	"normal":    {"hp": 60.0,   "speed": 125.0, "damage": 8.0,  "gold": 1,  "score": 10,  "size": 14.0, "cor": Color(0.0,  0.82, 1.0),  "forma": "circulo"},
 	"fast":      {"hp": 30.0,   "speed": 240.0, "damage": 5.0,  "gold": 1,  "score": 15,  "size": 10.0, "cor": Color(0.75, 1.0,  0.1),  "forma": "triangulo"},
 	"tank":      {"hp": 230.0,  "speed": 62.0,  "damage": 22.0, "gold": 4,  "score": 35,  "size": 20.0, "cor": Color(1.0,  0.35, 0.1),  "forma": "diamante"},
-	"elite":     {"hp": 420.0,  "speed": 88.0,  "damage": 18.0, "gold": 7,  "score": 60,  "size": 17.0, "cor": Color(0.72, 0.18, 1.0),  "forma": "pentagono"},
+	"elite":     {"hp": 340.0,  "speed": 88.0,  "damage": 18.0, "gold": 7,  "score": 60,  "size": 17.0, "cor": Color(0.72, 0.18, 1.0),  "forma": "pentagono"},
 	"berserker": {"hp": 55.0,   "speed": 300.0, "damage": 12.0, "gold": 4,  "score": 25,  "size": 11.0, "cor": Color(1.0,  0.08, 0.55), "forma": "estrela"},
 	"colossus":  {"hp": 2000.0, "speed": 38.0,  "damage": 48.0, "gold": 14, "score": 100, "size": 28.0, "cor": Color(0.65, 0.18, 0.05), "forma": "hexagono"},
 	# ── Novos inimigos estratégicos ──────────────────────────────────────────
@@ -178,6 +178,26 @@ func _ready() -> void:
 	hp *= hp_mult
 	max_hp *= hp_mult
 
+	# Velocidade GLOBAL menor (todos os mobs, todas as waves): dá mais tempo de
+	# tiro à torre estacionária. Baixado 0.80 -> 0.70 porque o painel deixou o
+	# dano mais pontual (menos varredura de vários mobs), então mob rápido escapava.
+	speed *= 0.70
+
+	# Ease do início: waves 1-10 mais leves p/ o iniciante chegar na 10 tranquilo.
+	# Foco em MATABILIDADE: HP bem baixo cedo (mobs morrem antes de chegar na torre),
+	# rampando até 100% na wave 10. Dano só levemente reduzido (mob que vazar não pune).
+	# HP: curva própria, mais baixa e mais longa (20% na wave 1, só 100% na wave 12).
+	if wave_num <= 12:
+		var prog_hp : float = clampf(float(wave_num - 1) / 11.0, 0.0, 1.0)
+		var ease_hp : float = lerpf(0.20, 1.0, prog_hp)
+		hp     *= ease_hp
+		max_hp *= ease_hp
+	# Velocidade e dano à torre: rampa até a wave 12 (mob lento e fraco até lá).
+	if wave_num <= 12:
+		var prog : float = clampf(float(wave_num - 1) / 11.0, 0.0, 1.0)
+		damage *= lerpf(0.40, 1.0, prog)
+		speed  *= lerpf(0.40, 1.0, prog)
+
 	# Curva em 2 fases: aquecimento suave ate a wave 15, rampa pesada da 15 a 100
 	# (builds full precisam sentir pressao). Velocidade fica fixa p/ leitura.
 	if wave_num > 8:
@@ -194,7 +214,13 @@ func _ready() -> void:
 
 	# Mini-chefe: versao gigante do tipo com habilidades de chefe ativas
 	if is_chefe:
-		var chefe_hp_mult : float = 14.0 + float(wave_num) * 0.40
+		# Vida do chefe: multiplicador adaptativo. Tipos JA tanky (colossus 2000,
+		# tank) levam mult menor — senao a vida estourava (colossus-chefe chegava
+		# a ~30k e a torre nao tirava nem metade). tank_soft normaliza pela vida
+		# base do tipo p/ todos os chefes caírem numa faixa matável.
+		var base_hp_ref : float = cfg["hp"] as float
+		var tank_soft   : float = clampf(110.0 / maxf(base_hp_ref, 1.0), 0.28, 1.0)
+		var chefe_hp_mult : float = maxf((6.0 + float(wave_num) * 0.20) * tank_soft, 2.5)
 		hp     *= chefe_hp_mult
 		max_hp *= chefe_hp_mult
 		damage *= 2.2
@@ -321,11 +347,15 @@ func _process(delta: float) -> void:
 
 	# ── Atirador: avança até a borda do alcance da torre e atira de lá ─────
 	if tipo == "atirador":
-		# Detecta o alcance real da torre a partir do nó já obtido
+		# Para dentro do alcance EFETIVO da torre (no Orbital = zona dos orbes),
+		# senão ficaria sniper fora do alcance que a arma realmente cobre.
 		var t_range : float = 175.0
-		var r_ati = torre_node.get("range_r")
-		if r_ati != null and float(r_ati) > 50.0:
-			t_range = float(r_ati)
+		if torre_node.has_method("alcance_efetivo"):
+			t_range = float(torre_node.call("alcance_efetivo"))
+		else:
+			var r_ati = torre_node.get("range_r")
+			if r_ati != null and float(r_ati) > 50.0:
+				t_range = float(r_ati)
 		var parar_em : float = t_range - 15.0
 		if dist_torre > parar_em:
 			# Ainda fora do alcance — avança

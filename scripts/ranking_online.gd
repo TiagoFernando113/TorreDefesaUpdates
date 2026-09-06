@@ -13,6 +13,18 @@ const _URL_DISCORD_INVITE_STATUS  : String = "https://npbqezpfjrjvsqwvgtfy.supab
 const _URL_DISCORD_INVITE_CONFIRM : String = "https://npbqezpfjrjvsqwvgtfy.supabase.co/rest/v1/rpc/claim_discord_join_reward_by_request"
 const _URL_SUBMIT_RANKING : String = "https://npbqezpfjrjvsqwvgtfy.supabase.co/rest/v1/rpc/submit_ranking"
 const _URL_REMOVE_RANKING : String = "https://npbqezpfjrjvsqwvgtfy.supabase.co/rest/v1/rpc/remove_ranking_entry"
+const _URL_SUBMIT_RANKING_AUTH : String = "https://npbqezpfjrjvsqwvgtfy.supabase.co/rest/v1/rpc/submit_ranking_auth"
+# Porteiros (RPCs SECURITY DEFINER) — login/save sem mexer direto nas tabelas.
+const _URL_RPC_CADASTRAR     : String = "https://npbqezpfjrjvsqwvgtfy.supabase.co/rest/v1/rpc/cadastrar_usuario"
+const _URL_RPC_LOGIN         : String = "https://npbqezpfjrjvsqwvgtfy.supabase.co/rest/v1/rpc/login_usuario"
+const _URL_RPC_LOGIN_PID     : String = "https://npbqezpfjrjvsqwvgtfy.supabase.co/rest/v1/rpc/login_por_player_id"
+const _URL_RPC_UPLOAD_SAVE   : String = "https://npbqezpfjrjvsqwvgtfy.supabase.co/rest/v1/rpc/upload_save"
+const _URL_RPC_DOWNLOAD_SAVE : String = "https://npbqezpfjrjvsqwvgtfy.supabase.co/rest/v1/rpc/download_save"
+const _URL_RPC_APAGAR_SAVE   : String = "https://npbqezpfjrjvsqwvgtfy.supabase.co/rest/v1/rpc/apagar_save"
+const _URL_RPC_LIMPAR_ORFAOS : String = "https://npbqezpfjrjvsqwvgtfy.supabase.co/rest/v1/rpc/limpar_saves_orfaos"
+const _URL_SAVES_CLOUD       : String = "https://npbqezpfjrjvsqwvgtfy.supabase.co/rest/v1/saves_cloud"
+const _URL_RPC_LIMPAR_FORCE_SYNC : String = "https://npbqezpfjrjvsqwvgtfy.supabase.co/rest/v1/rpc/limpar_force_sync"
+const _URL_RPC_ADICIONAR_EMAIL   : String = "https://npbqezpfjrjvsqwvgtfy.supabase.co/rest/v1/rpc/adicionar_email"
 const _BETA_MAX          : int    = 10
 const _ANON              : String = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5wYnFlenBmanJqdnNxd3ZndGZ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY1MzEwODAsImV4cCI6MjA5MjEwNzA4MH0.-eJ1DWs3ujkSEgR7YYj98AzMlOBRu9v1Uj-oy-8zT88"
 # Temporadas: época de início (2026-05-10 00:00 UTC) + duração em segundos
@@ -38,6 +50,8 @@ signal campeoes_temporada_anterior_carregados(temporada: int, entradas: Array)
 # Cache único (ranking universal)
 var _cache           : Array = []
 var _cache_timestamp : int   = -1
+var _cache_campeoes      : Array = []   # cache dos campeões da temporada anterior
+var _cache_campeoes_temp : int   = -1
 
 var _http_envio   : HTTPRequest = null
 var _http_busca   : HTTPRequest = null
@@ -192,6 +206,14 @@ func temporada_anterior() -> int:
 	return _temporada_atual() - 1
 
 
+func campeoes_cache() -> Array:
+	return _cache_campeoes.duplicate(true)
+
+
+func campeoes_cache_temporada() -> int:
+	return _cache_campeoes_temp
+
+
 func temporada_display_numero() -> int:
 	return _temporada_atual() + 1
 
@@ -256,7 +278,9 @@ func atualizar_avatar(nome: String, avatar_idx: int) -> void:
 
 
 func verificar_e_enviar(nome: String, score: int, wave: int) -> void:
-	if wave <= 0 or nome.strip_edges() == "" or Salvar.senha_jogador == "":
+	# Aceita login Google (sem senha) OU conta antiga (com senha).
+	var _logado : bool = Auth.sessao_valida() or Salvar.senha_jogador != ""
+	if wave <= 0 or nome.strip_edges() == "" or not _logado:
 		return
 	if wave < Salvar.melhor_wave:
 		return
@@ -269,8 +293,23 @@ func _processar_fila() -> void:
 		return
 	if _http_qualif.get_http_client_status() != HTTPClient.STATUS_DISCONNECTED:
 		return
-	var p    : Dictionary = _fila_qualif[0] as Dictionary
-	var body : String     = JSON.stringify({
+	var p : Dictionary = _fila_qualif[0] as Dictionary
+	# Google logado → submit_ranking_auth (auth.uid() + JWT, sem senha).
+	if Auth.sessao_valida():
+		var bodyg : String = JSON.stringify({
+			"p_wave":       p["wave"],
+			"p_score":      p["score"],
+			"p_avatar_idx": int(p.get("avatar_idx", 0)),
+			"p_temporada":  _temporada_atual(),
+			"p_ascensoes":  int(p.get("ascensoes", 0)),
+		})
+		var hg := PackedStringArray([
+			"apikey: " + _ANON, "Authorization: Bearer " + Auth.bearer(),
+			"Content-Type: application/json",
+		])
+		_http_qualif.request(_URL_SUBMIT_RANKING_AUTH, hg, HTTPClient.METHOD_POST, bodyg)
+		return
+	var body : String = JSON.stringify({
 		"p_nome":       p["nome"],
 		"p_senha_hash": Salvar.senha_jogador,
 		"p_wave":       p["wave"],
@@ -317,13 +356,13 @@ func registrar_nome(nome: String, email: String, senha: String) -> void:
 	if _http_usuario.get_http_client_status() != HTTPClient.STATUS_DISCONNECTED:
 		_http_usuario.cancel_request()
 	_usuario_modo_registro = true
+	# Porteiro: cadastrar_usuario(p_nome,p_email,p_senha_hash) → linha criada [{...}]
 	var body := JSON.stringify({
-		"nome": nome.strip_edges().left(20),
-		"email": email.strip_edges().left(100),
-		"senha": _hash(senha),
+		"p_nome": nome.strip_edges().left(20),
+		"p_email": email.strip_edges().left(100),
+		"p_senha_hash": _hash(senha),
 	})
-	# return=representation para receber a linha criada (inclui player_id gerado pelo servidor)
-	var err := _http_usuario.request(_URL_USUARIOS, _headers_json_repr(), HTTPClient.METHOD_POST, body)
+	var err := _http_usuario.request(_URL_RPC_CADASTRAR, _headers_json_repr(), HTTPClient.METHOD_POST, body)
 	if err != OK:
 		emit_signal("registro_concluido", false, "Falha ao iniciar requisição (err %d)." % err)
 
@@ -334,15 +373,13 @@ func adicionar_email(nome: String, senha: String, email: String) -> void:
 		_http_usuario.cancel_request()
 	_usuario_modo_registro = false
 	_usuario_modo_email    = true
-	var url  := _URL_USUARIOS + "?nome=eq.%s&senha=eq.%s" % [
-		nome.strip_edges().uri_encode(), _hash(senha).uri_encode()
-	]
-	var body := JSON.stringify({"email": email.strip_edges().left(100)})
-	var h    := PackedStringArray([
-		"apikey: " + _ANON, "Authorization: Bearer " + _ANON,
-		"Content-Type: application/json", "Prefer: return=minimal",
-	])
-	_http_usuario.request(url, h, HTTPClient.METHOD_PATCH, body)
+	# Porteiro: adicionar_email(p_nome,p_senha_hash,p_email) — confere credencial
+	var body := JSON.stringify({
+		"p_nome": nome.strip_edges().left(20),
+		"p_senha_hash": _hash(senha),
+		"p_email": email.strip_edges().left(100),
+	})
+	_http_usuario.request(_URL_RPC_ADICIONAR_EMAIL, _headers_json_repr(), HTTPClient.METHOD_POST, body)
 
 
 ## Busca o nome atual e player_id no servidor pela senha — corrige divergência multi-dispositivo.
@@ -354,12 +391,16 @@ func sincronizar_nome() -> void:
 	_usuario_modo_registro = false
 	_usuario_modo_email    = false
 	_usuario_modo_sync     = true
-	var url : String
+	# Porteiro: por player_id quando houver; senao por nome+senha. Retorna [{...}].
+	var url  : String
+	var body : String
 	if Salvar.player_id != "":
-		url = _URL_USUARIOS + "?player_id=eq.%s&select=nome,player_id,id_sequencial" % Salvar.player_id.uri_encode()
+		url  = _URL_RPC_LOGIN_PID
+		body = JSON.stringify({"p_player_id": Salvar.player_id, "p_senha_hash": Salvar.senha_jogador})
 	else:
-		url = _URL_USUARIOS + "?senha=eq.%s&select=nome,player_id,id_sequencial" % Salvar.senha_jogador.uri_encode()
-	_http_usuario.request(url, _headers_get())
+		url  = _URL_RPC_LOGIN
+		body = JSON.stringify({"p_identificador": Salvar.nome_jogador, "p_senha_hash": Salvar.senha_jogador})
+	_http_usuario.request(url, _headers_json_repr(), HTTPClient.METHOD_POST, body)
 
 
 ## Login por nome OU email + senha. Emite login_verificado(ok, nome, email).
@@ -373,11 +414,12 @@ func verificar_login_hash(identificador: String, senha_hash: String, cb: Callabl
 		_http_usuario.cancel_request()
 	_usuario_modo_registro = false
 	_cb_login = cb
-	var id := identificador.strip_edges().uri_encode()
-	var url := _URL_USUARIOS + "?or=(nome.eq.%s,email.eq.%s)&senha=eq.%s&select=nome,email,player_id,id_sequencial" % [
-		id, id, senha_hash.uri_encode()
-	]
-	_http_usuario.request(url, _headers_get())
+	# Porteiro: login_usuario(p_identificador,p_senha_hash) → [{nome,email,player_id,id_sequencial}] ou []
+	var body := JSON.stringify({
+		"p_identificador": identificador.strip_edges(),
+		"p_senha_hash": senha_hash,
+	})
+	_http_usuario.request(_URL_RPC_LOGIN, _headers_json_repr(), HTTPClient.METHOD_POST, body)
 
 
 func confirmar_discord_link(code: String) -> void:
@@ -460,26 +502,41 @@ func buscar_premios_pendentes() -> void:
 
 
 ## Envia save completo para a nuvem (UPSERT). Usa player_id como chave quando disponível.
+func _headers_auth_json() -> PackedStringArray:
+	return PackedStringArray([
+		"apikey: " + _ANON,
+		"Authorization: Bearer " + Auth.bearer(),
+		"Content-Type: application/json",
+		"Prefer: return=minimal,resolution=merge-duplicates",
+	])
+
+
+func _headers_auth_get() -> PackedStringArray:
+	return PackedStringArray([
+		"apikey: " + _ANON,
+		"Authorization: Bearer " + Auth.bearer(),
+	])
+
+
 func upload_save(nome: String, dados: Dictionary) -> void:
 	if _http_save.get_http_client_status() != HTTPClient.STATUS_DISCONNECTED:
 		_http_save.cancel_request()
 	_save_modo = "upload"
-	var pid : String = Salvar.player_id
-	var payload : Dictionary = {"nome": nome.left(20), "data": dados}
-	var conflict_key : String
-	if pid != "":
-		payload["player_id"] = pid
-		conflict_key = "player_id"
-	else:
-		conflict_key = "nome"
-	var body := JSON.stringify(payload)
-	var url := _URL_SAVES + "?on_conflict=" + conflict_key
-	var h := PackedStringArray([
-		"apikey: " + _ANON, "Authorization: Bearer " + _ANON,
-		"Content-Type: application/json",
-		"Prefer: return=minimal,resolution=merge-duplicates",
-	])
-	_http_save.request(url, h, HTTPClient.METHOD_POST, body)
+	# Google logado → save na nuvem por auth.uid() (RLS), sem porteiro.
+	if Auth.sessao_valida():
+		var bodyg := JSON.stringify({"user_id": Auth.uid(), "data": dados})
+		_http_save.request(_URL_SAVES_CLOUD + "?on_conflict=user_id", _headers_auth_json(), HTTPClient.METHOD_POST, bodyg)
+		return
+	if Salvar.senha_jogador == "":
+		emit_signal("save_enviado", false)   # sem conta logada não tem nuvem
+		return
+	# Porteiro: upload_save(p_nome,p_senha_hash,p_data) — confere credencial e deriva player_id
+	var body := JSON.stringify({
+		"p_nome": nome.left(20),
+		"p_senha_hash": Salvar.senha_jogador,
+		"p_data": dados,
+	})
+	_http_save.request(_URL_RPC_UPLOAD_SAVE, _headers_json_repr(), HTTPClient.METHOD_POST, body)
 
 
 ## Baixa save da nuvem. Chama cb(ok, dados, force_sync). Usa player_id quando disponível.
@@ -488,14 +545,21 @@ func download_save(nome: String, cb: Callable) -> void:
 		_http_save.cancel_request()
 	_save_modo = "download"
 	_cb_save   = cb
-	_save_nome_fallback = nome.left(20)   # guardado para fallback se player_id não achar nada
-	var pid : String = Salvar.player_id
-	var url : String
-	if pid != "":
-		url = _URL_SAVES + "?player_id=eq.%s&select=data,force_sync" % pid.uri_encode()
-	else:
-		url = _URL_SAVES + "?nome=eq.%s&select=data,force_sync" % nome.left(20).uri_encode()
-	_http_save.request(url, _headers_get())
+	_save_nome_fallback = ""   # o porteiro já faz o fallback por nome internamente
+	# Google logado → baixa da nuvem por auth.uid() (RLS).
+	if Auth.sessao_valida():
+		_http_save.request(_URL_SAVES_CLOUD + "?user_id=eq.%s&select=data" % Auth.uid().uri_encode(), _headers_auth_get())
+		return
+	if Salvar.senha_jogador == "":
+		_cb_save = Callable()
+		cb.call(false, {}, false)
+		return
+	# Porteiro: download_save(p_nome,p_senha_hash) → [{data,force_sync}] ou []
+	var body := JSON.stringify({
+		"p_nome": nome.left(20),
+		"p_senha_hash": Salvar.senha_jogador,
+	})
+	_http_save.request(_URL_RPC_DOWNLOAD_SAVE, _headers_json_repr(), HTTPClient.METHOD_POST, body)
 
 
 ## Apaga completamente o save da nuvem (reset total da conta).
@@ -503,43 +567,36 @@ func apagar_save_nuvem(nome: String, player_id_val: String) -> void:
 	if _http_save.get_http_client_status() != HTTPClient.STATUS_DISCONNECTED:
 		_http_save.cancel_request()
 	_save_modo = "delete"
-	var url : String
-	if player_id_val != "":
-		url = _URL_SAVES + "?player_id=eq.%s" % player_id_val.uri_encode()
-	else:
-		url = _URL_SAVES + "?nome=eq.%s" % nome.left(20).uri_encode()
-	var h := PackedStringArray([
-		"apikey: " + _ANON, "Authorization: Bearer " + _ANON,
-		"Content-Type: application/json", "Prefer: return=minimal",
-	])
-	_http_save.request(url, h, HTTPClient.METHOD_DELETE)
+	if Auth.sessao_valida():
+		_http_save.request(_URL_SAVES_CLOUD + "?user_id=eq.%s" % Auth.uid().uri_encode(), _headers_auth_get(), HTTPClient.METHOD_DELETE)
+		return
+	if Salvar.senha_jogador == "":
+		return
+	# Porteiro: apagar_save(p_nome,p_senha_hash) — só apaga o save do próprio dono
+	var body := JSON.stringify({"p_nome": nome.left(20), "p_senha_hash": Salvar.senha_jogador})
+	_http_save.request(_URL_RPC_APAGAR_SAVE, _headers_json_repr(), HTTPClient.METHOD_POST, body)
 
 
 ## Apaga saves com nomes antigos do mesmo player_id (evita acúmulo após renames).
 func limpar_saves_orfaos(nome_atual: String) -> void:
-	var pid : String = Salvar.player_id
-	if pid == "" or nome_atual.strip_edges() == "":
+	if Auth.sessao_valida():
+		return   # Google: 1 save por auth.uid(), sem órfãos
+	if Salvar.senha_jogador == "" or nome_atual.strip_edges() == "":
 		return
-	# DELETE saves onde player_id bate mas nome é diferente do atual
-	var url := _URL_SAVES + "?player_id=eq.%s&nome=neq.%s" % [
-		pid.uri_encode(), nome_atual.left(20).uri_encode()
-	]
-	var h := PackedStringArray([
-		"apikey: " + _ANON, "Authorization: Bearer " + _ANON,
-		"Content-Type: application/json", "Prefer: return=minimal",
-	])
-	_http_save.request(url, h, HTTPClient.METHOD_DELETE)
+	_save_modo = "delete"   # resposta ignorada
+	# Porteiro: limpar_saves_orfaos(p_nome,p_senha_hash) — apaga sobras de rename do próprio dono
+	var body := JSON.stringify({"p_nome": nome_atual.left(20), "p_senha_hash": Salvar.senha_jogador})
+	_http_save.request(_URL_RPC_LIMPAR_ORFAOS, _headers_json_repr(), HTTPClient.METHOD_POST, body)
 
 
 ## Desativa o force_sync no Supabase após aplicar.
 func _limpar_force_sync(nome: String) -> void:
-	var url  := _URL_SAVES + "?nome=eq.%s" % nome.left(20).uri_encode()
-	var body := JSON.stringify({"force_sync": false})
-	var h := PackedStringArray([
-		"apikey: " + _ANON, "Authorization: Bearer " + _ANON,
-		"Content-Type: application/json", "Prefer: return=minimal",
-	])
-	_http_save.request(url, h, HTTPClient.METHOD_PATCH, body)
+	if Salvar.senha_jogador == "":
+		return
+	_save_modo = "delete"   # resposta ignorada
+	# Porteiro: limpar_force_sync(p_nome,p_senha_hash) — só no save do próprio dono
+	var body := JSON.stringify({"p_nome": nome.left(20), "p_senha_hash": Salvar.senha_jogador})
+	_http_save.request(_URL_RPC_LIMPAR_FORCE_SYNC, _headers_json_repr(), HTTPClient.METHOD_POST, body)
 
 
 # ── Callbacks HTTP ────────────────────────────────────────────────────────────
@@ -635,7 +692,8 @@ func _on_usuario_resposta(result: int, code: int, _h: PackedStringArray, body: P
 		emit_signal("email_atualizado", ok)
 		return
 	if _usuario_modo_registro:
-		var ok   : bool   = result == HTTPRequest.RESULT_SUCCESS and code == 201
+		# Porteiro cadastrar_usuario retorna 200 com [{linha}]; erro vem com body
+		var ok   : bool   = result == HTTPRequest.RESULT_SUCCESS and code in [200, 201]
 		var erro : String = ""
 		if ok:
 			# return=representation → recebe a linha criada, extrai player_id
@@ -654,9 +712,10 @@ func _on_usuario_resposta(result: int, code: int, _h: PackedStringArray, body: P
 					Salvar.id_sequencial = int(ids_sv)
 				Salvar.salvar()
 		else:
+			var body_txt := body.get_string_from_utf8()
 			if result != HTTPRequest.RESULT_SUCCESS:
 				erro = "Sem conexão com o servidor (err %d)." % result
-			elif code == 409:
+			elif "nome_em_uso" in body_txt or code == 409:
 				erro = "Nome ou e-mail já está em uso."
 			else:
 				erro = "Erro ao registrar (HTTP %d). Tente novamente." % code
@@ -697,7 +756,7 @@ func _on_save_resposta(result: int, code: int, _h: PackedStringArray, body: Pack
 	if _save_modo == "delete":
 		return
 	if _save_modo == "upload":
-		var ok := result == HTTPRequest.RESULT_SUCCESS and code in [200, 201]
+		var ok := result == HTTPRequest.RESULT_SUCCESS and code in [200, 201, 204]
 		emit_signal("save_enviado", ok)
 	else:
 		var ok         : bool       = false
@@ -707,12 +766,7 @@ func _on_save_resposta(result: int, code: int, _h: PackedStringArray, body: Pack
 			var json := JSON.new()
 			if json.parse(body.get_string_from_utf8()) == OK:
 				var data = json.get_data()
-				# player_id retornou vazio → tenta fallback por nome
-				if data is Array and (data as Array).size() == 0 and _save_nome_fallback != "" and Salvar.player_id != "":
-					var url := _URL_SAVES + "?nome=eq.%s&select=data,force_sync" % _save_nome_fallback.uri_encode()
-					_save_nome_fallback = ""
-					_http_save.request(url, _headers_get())
-					return
+				# Porteiro download_save já faz fallback por nome internamente.
 				if data is Array and (data as Array).size() > 0:
 					var row = (data as Array)[0]
 					if row is Dictionary:
@@ -858,6 +912,8 @@ func _on_campeoes_temporada_anterior_resposta(result: int, code: int, _h: Packed
 	for i in range(mini(3, entradas.size())):
 		if entradas[i] is Dictionary:
 			top3.append(entradas[i])
+	_cache_campeoes      = top3.duplicate(true)   # cacheia p/ abrir instantâneo
+	_cache_campeoes_temp = temporada_fechada
 	emit_signal("campeoes_temporada_anterior_carregados", temporada_fechada, top3)
 
 

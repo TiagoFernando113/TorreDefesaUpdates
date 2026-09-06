@@ -15,13 +15,44 @@ func _save_path() -> String:
 # ── Contas conhecidas deste aparelho (login de 1 clique) ─────────────────────
 const CONTAS_PATH := "user://contas_conhecidas.json"
 
-func contas_conhecidas() -> Array:
-	if not FileAccess.file_exists(CONTAS_PATH):
-		return []
-	var f := FileAccess.open(CONTAS_PATH, FileAccess.READ)
+# ── Segurança do save (Tier 1 anti-cheat) ────────────────────────────────────
+# Arquivos gravados encriptados (AES) para barrar edição casual via notepad /
+# save-editor. A chave fica embutida no binário, então NÃO protege contra um
+# atacante dedicado — o anti-cheat real do ranking é validado no servidor.
+const _SAVE_KEY := "cy_d3f_2026::a7F9q!Lz#Vm4Rt8Wn1Xb6Ke3Jp0Sd5"
+
+func _ler_seguro(path: String) -> String:
+	# Lê arquivo encriptado; cai para JSON legado em texto puro (migra na próxima
+	# escrita, que já sai encriptada). Retorna "" se não houver arquivo válido.
+	if not FileAccess.file_exists(path):
+		return ""
+	var f := FileAccess.open_encrypted_with_pass(path, FileAccess.READ, _SAVE_KEY)
+	if f != null:
+		var txt := f.get_as_text()
+		f.close()
+		if txt != "" and JSON.parse_string(txt) != null:
+			return txt
+	# Fallback: arquivo antigo gravado em texto puro
+	var pf := FileAccess.open(path, FileAccess.READ)
+	if pf == null:
+		return ""
+	var ptxt := pf.get_as_text()
+	pf.close()
+	return ptxt
+
+func _escrever_seguro(path: String, texto: String) -> bool:
+	var f := FileAccess.open_encrypted_with_pass(path, FileAccess.WRITE, _SAVE_KEY)
 	if f == null:
+		return false
+	f.store_string(texto)
+	f.close()
+	return true
+
+func contas_conhecidas() -> Array:
+	var raw := _ler_seguro(CONTAS_PATH)
+	if raw == "":
 		return []
-	var data = JSON.parse_string(f.get_as_text())
+	var data = JSON.parse_string(raw)
 	if data is Array:
 		var lista : Array = data
 		lista.sort_custom(func(a, b):
@@ -38,15 +69,11 @@ func lembrar_conta(nome: String, email: String, senha_hash: String) -> void:
 		"nome": nome, "email": email, "senha": senha_hash,
 		"avatar_idx": avatar_idx, "ultima": int(Time.get_unix_time_from_system()),
 	})
-	var f := FileAccess.open(CONTAS_PATH, FileAccess.WRITE)
-	if f:
-		f.store_string(JSON.stringify(lista))
+	_escrever_seguro(CONTAS_PATH, JSON.stringify(lista))
 
 func esquecer_conta(nome: String) -> void:
 	var lista := contas_conhecidas().filter(func(c): return str((c as Dictionary).get("nome", "")) != nome)
-	var f := FileAccess.open(CONTAS_PATH, FileAccess.WRITE)
-	if f:
-		f.store_string(JSON.stringify(lista))
+	_escrever_seguro(CONTAS_PATH, JSON.stringify(lista))
 
 const MAX_LVL   := 3
 const ASCENSAO_DANO_VIDA_POR_NIVEL := 0.01
@@ -586,12 +613,9 @@ var run_checkpoint : Dictionary = {}
 func tem_checkpoint() -> bool:
 	# Preenche RAM a partir do arquivo dedicado se estiver vazio (sobrevive hot-reload)
 	if run_checkpoint.is_empty() and FileAccess.file_exists(CHECKPOINT_PATH):
-		var _f := FileAccess.open(CHECKPOINT_PATH, FileAccess.READ)
-		if _f != null:
-			var _p = JSON.parse_string(_f.get_as_text())
-			_f.close()
-			if _p is Dictionary and not (_p as Dictionary).is_empty():
-				run_checkpoint = _p as Dictionary
+		var _p = JSON.parse_string(_ler_seguro(CHECKPOINT_PATH))
+		if _p is Dictionary and not (_p as Dictionary).is_empty():
+			run_checkpoint = _p as Dictionary
 	if run_checkpoint.is_empty(): return false
 	# Invalida se ascensao mudou desde que o checkpoint foi criado
 	return run_checkpoint.get("ascensoes", -1) as int == ascensoes
@@ -599,10 +623,7 @@ func tem_checkpoint() -> bool:
 func salvar_checkpoint(dados: Dictionary) -> void:
 	run_checkpoint = dados
 	# Grava em arquivo dedicado (independente do save principal)
-	var _cf := FileAccess.open(CHECKPOINT_PATH, FileAccess.WRITE)
-	if _cf != null:
-		_cf.store_string(JSON.stringify(dados))
-		_cf.close()
+	_escrever_seguro(CHECKPOINT_PATH, JSON.stringify(dados))
 	_salvar_disco()
 
 func limpar_checkpoint() -> void:
@@ -1313,9 +1334,7 @@ func carregar() -> void:
 	# Bootstrap: lê save.json para descobrir qual conta está ativa
 	var path := SAVE_PATH_GUEST
 	if FileAccess.file_exists(SAVE_PATH_GUEST):
-		var pf := FileAccess.open(SAVE_PATH_GUEST, FileAccess.READ)
-		var peek = JSON.parse_string(pf.get_as_text())
-		pf.close()
+		var peek = JSON.parse_string(_ler_seguro(SAVE_PATH_GUEST))
 		if peek is Dictionary:
 			var pnome : String = (peek as Dictionary).get("nome_jogador", "") as String
 			if pnome != "":
@@ -1324,9 +1343,7 @@ func carregar() -> void:
 					path = acc
 	if not FileAccess.file_exists(path):
 		return
-	var f    := FileAccess.open(path, FileAccess.READ)
-	var data  = JSON.parse_string(f.get_as_text())
-	f.close()
+	var data  = JSON.parse_string(_ler_seguro(path))
 	if not data is Dictionary:
 		return
 	ouro_banco       = int(data.get("ouro_banco",       0))
@@ -1466,12 +1483,9 @@ func carregar() -> void:
 	run_checkpoint = rcp if rcp is Dictionary else {}
 	# Arquivo dedicado tem precedência (mais recente, sobrevive hot-reload)
 	if FileAccess.file_exists(CHECKPOINT_PATH):
-		var _cf2 := FileAccess.open(CHECKPOINT_PATH, FileAccess.READ)
-		if _cf2 != null:
-			var _p2 = JSON.parse_string(_cf2.get_as_text())
-			_cf2.close()
-			if _p2 is Dictionary and not (_p2 as Dictionary).is_empty():
-				run_checkpoint = _p2 as Dictionary
+		var _p2 = JSON.parse_string(_ler_seguro(CHECKPOINT_PATH))
+		if _p2 is Dictionary and not (_p2 as Dictionary).is_empty():
+			run_checkpoint = _p2 as Dictionary
 
 
 func salvar(nuvem: bool = true) -> void:
@@ -1556,14 +1570,10 @@ func _salvar_disco() -> void:
 	}
 	for k in melhorias.keys():
 		data[k] = melhorias[k]
-	var f := FileAccess.open(_save_path(), FileAccess.WRITE)
-	f.store_string(JSON.stringify(data))
-	f.close()
+	_escrever_seguro(_save_path(), JSON.stringify(data))
 	# Mantém save.json como ponteiro de conta (bootstrap na próxima abertura)
 	if nome_jogador != "" and _save_path() != SAVE_PATH_GUEST:
-		var stub := FileAccess.open(SAVE_PATH_GUEST, FileAccess.WRITE)
-		stub.store_string(JSON.stringify({"nome_jogador": nome_jogador}))
-		stub.close()
+		_escrever_seguro(SAVE_PATH_GUEST, JSON.stringify({"nome_jogador": nome_jogador}))
 
 
 func registrar_fim_partida(wave: int, score_val: int, ouro: int,

@@ -202,7 +202,14 @@ func _abrir_ranking(ui: CanvasLayer) -> void :
 	campeoes_cont.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	bg.add_child(campeoes_cont)
 	_ranking_campeoes_cont = campeoes_cont
-	_render_campeoes_temporada_anterior(-1, [])
+	# Abre instantâneo com cache; senão "Carregando..." se há temporada anterior.
+	var _camp_cache: Array = RankingOnline.campeoes_cache()
+	if not _camp_cache.is_empty():
+		_render_campeoes_temporada_anterior(RankingOnline.campeoes_cache_temporada(), _camp_cache)
+	elif RankingOnline.temporada_anterior() >= 0:
+		_render_campeoes_temporada_anterior(-2, [])   # -2 = carregando
+	else:
+		_render_campeoes_temporada_anterior(-1, [])
 
 
 	var podio_ctrl:= Control.new()
@@ -518,7 +525,7 @@ func _render_campeoes_temporada_anterior(temporada: int, entradas: Array) -> voi
 
 	if temporada < 0 or entradas.is_empty():
 		var vazio:= Label.new()
-		vazio.text = "Nenhuma temporada encerrada ainda."
+		vazio.text = "Carregando..." if temporada == -2 else "Nenhuma temporada encerrada ainda."
 		vazio.position = Vector2(210, 1)
 		vazio.size = Vector2(cont.size.x - 220, 24)
 		vazio.add_theme_font_size_override("font_size", 12)

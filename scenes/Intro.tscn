@@ -1,6 +1,6 @@
-[gd_scene load_steps=2 format=3 uid="uid://intro_cyron"]
+[gd_scene format=3 uid="uid://p6suphu4ssx3"]
 
-[ext_resource type="Script" path="res://scripts/intro.gd" id="1"]
+[ext_resource type="Script" uid="uid://c6wbq55njtqaa" path="res://scripts/intro.gd" id="1"]
 
-[node name="Intro" type="Node2D"]
+[node name="Intro" type="Node2D" unique_id=562693339]
 script = ExtResource("1")

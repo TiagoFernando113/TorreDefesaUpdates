@@ -6,9 +6,44 @@ const STORE_BUILD_FEATURE: String = "store_build"
 const FORCE_RELEASE_MODE: bool = false
 const ALLOW_SIDELOAD_ANDROID_UPDATES: bool = true
 
+# Debug: força o layout mobile rodando no PC, pra testar a cara do celular sem
+# exportar APK. Liga/desliga com F10 (só em build de debug). Reabra a tela.
+var forcar_mobile_pc: bool = false
+var _modo_janela_anterior: int = -1
+var _f10_anterior: bool = false
+
 
 func is_mobile() -> bool:
-	return OS.has_feature("android") or OS.has_feature("ios")
+	return OS.has_feature("android") or OS.has_feature("ios") or (forcar_mobile_pc and OS.is_debug_build())
+
+
+func _process(_dt: float) -> void:
+	# Polling do F10 (em vez de _unhandled_input, que telas em foco podem comer).
+	if not OS.is_debug_build():
+		return
+	var agora := Input.is_key_pressed(KEY_F10)
+	if agora and not _f10_anterior:
+		forcar_mobile_pc = not forcar_mobile_pc
+		_aplicar_janela_mobile(forcar_mobile_pc)
+		print("[BuildConfig] forcar_mobile_pc = ", forcar_mobile_pc, "  (reabra a tela pra ver o layout)")
+	_f10_anterior = agora
+
+
+# No PC, força uma janela com ASPECTO de celular (landscape ~19.5:9). Fullscreen
+# usaria o aspecto do monitor (16:9) e espremeria o layout mobile.
+func _aplicar_janela_mobile(ligar: bool) -> void:
+	if OS.has_feature("android") or OS.has_feature("ios"):
+		return
+	if ligar:
+		_modo_janela_anterior = DisplayServer.window_get_mode()
+		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED)
+		var tam := Vector2i(1300, 600)   # janela 1300x600 -> viewport vira 1560x720 (celular)
+		DisplayServer.window_set_size(tam)
+		var scr := DisplayServer.screen_get_size()
+		DisplayServer.window_set_position((scr - tam) / 2)
+	else:
+		var modo := _modo_janela_anterior if _modo_janela_anterior >= 0 else DisplayServer.WINDOW_MODE_WINDOWED
+		DisplayServer.window_set_mode(modo)
 
 
 func is_store_build() -> bool:

@@ -142,7 +142,7 @@ func _criar_hud() -> void:
 	# Label da Identidade de Build (canto inferior esquerdo acima dos kills)
 	_build_lbl = Label.new()
 	var _vp_hud := get_viewport().get_visible_rect().size
-	var _mobile_hud := OS.has_feature("android") or OS.has_feature("ios")
+	var _mobile_hud := BuildConfig.is_mobile()
 	_build_lbl.position = Vector2(12, maxf(84.0, _vp_hud.y - (136.0 if _mobile_hud else 30.0)))
 	_build_lbl.size     = Vector2(500, 30)
 	_build_lbl.add_theme_font_size_override("font_size", 20)
@@ -1260,7 +1260,7 @@ func criar_consumivel_hud() -> void:
 	var r    : float = 38.0
 	var step : float = r * 2.0 + 12.0
 	var vp   := get_viewport().get_visible_rect().size
-	var is_mobile := OS.has_feature("android") or OS.has_feature("ios")
+	var is_mobile := BuildConfig.is_mobile()
 	var cy   : float = vp.y - r - (120.0 if is_mobile else 18.0)
 
 	for i in range(info_list.size()):
@@ -1617,10 +1617,15 @@ func mostrar_btn_iniciar_wave() -> void:
 var _reroll_count : int  = 0
 const _REROLL_MAX : int  = 5
 var _m4_usado     : bool = false
+# Reroll de ARMA: re-sorteia armas e custa CRISTAIS (não ouro). Cap próprio.
+var _modo_arma_escolha : bool = false
+var _reroll_arma_count : int  = 0
+const _REROLL_ARMA_MAX : int  = 3
 
-func mostrar_cartas(cartas: Array, is_x4: bool = false) -> void:
+func mostrar_cartas(cartas: Array, is_x4: bool = false, modo_arma: bool = false) -> void:
 	if _upgrade_ativo:
 		return
+	_modo_arma_escolha = modo_arma
 	_upgrade_ativo  = true
 
 	_overlay = ColorRect.new()
@@ -1717,7 +1722,7 @@ func mostrar_cartas(cartas: Array, is_x4: bool = false) -> void:
 	var btn_rr := Button.new()
 	btn_rr.text       = "REROLL  (%d ouro)   [%d/%d]" % [custo_rr, _reroll_count, _REROLL_MAX] if not esgotado \
 						else "REROLL  esgotado  [%d/%d]" % [_reroll_count, _REROLL_MAX]
-	var mobile_cards := OS.has_feature("android") or OS.has_feature("ios")
+	var mobile_cards := BuildConfig.is_mobile()
 	var rr_w := minf(560.0, vp_w_c - 60.0)
 	var rr_h := 54.0 if mobile_cards else 42.0
 	btn_rr.position   = Vector2((vp_w_c - rr_w) * 0.5, 574.0 if mobile_cards else 580.0)
@@ -1830,11 +1835,39 @@ func _criar_carta(carta: Dictionary, x: float, y: float, w: float, h: float) -> 
 	if efeito == "arma":
 		icone.tipo = "arma_" + (carta.get("id", "padrao") as String)
 	else:
-		icone.tipo = _mapa_icone.get(efeito, "dano") as String
+		# efeitos renomeados usam o mapa; o resto usa o próprio nome do efeito
+		icone.tipo = _mapa_icone.get(efeito, efeito) as String
 	icone.cor        = cor
 	icone.position   = Vector2((w - 100.0) * 0.5, 20.0)
 	icone.size       = Vector2(100.0, 150)
 	card.add_child(icone)
+
+	# Marcador de FUSÃO: carta participa de combinação com a arma da partida
+	var _sin : Dictionary = {}
+	if jogo and is_instance_valid(jogo) and jogo.has_method("sinergia_para_carta"):
+		_sin = jogo.sinergia_para_carta(carta)
+	if not _sin.is_empty():
+		var scor : Color = _sin.get("cor", Color(1.0, 0.6, 0.1)) as Color
+		var pill := Panel.new()
+		pill.position     = Vector2(w - 84.0, 8.0)
+		pill.size         = Vector2(76.0, 26.0)
+		pill.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var pst := StyleBoxFlat.new()
+		pst.bg_color     = Color(scor.r * 0.32, scor.g * 0.22, scor.b * 0.10, 0.96)
+		pst.border_color = scor
+		for s in ["left","right","top","bottom"]: pst.set("border_width_" + s, 1)
+		for cn in ["top_left","top_right","bottom_left","bottom_right"]: pst.set("corner_radius_" + cn, 8)
+		pill.add_theme_stylebox_override("panel", pst)
+		card.add_child(pill)
+		var plbl := Label.new()
+		plbl.text                 = "⚡ FUSÃO"
+		plbl.size                 = Vector2(76.0, 26.0)
+		plbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		plbl.vertical_alignment   = VERTICAL_ALIGNMENT_CENTER
+		plbl.add_theme_font_size_override("font_size", 14)
+		plbl.add_theme_color_override("font_color", Color(1.0, 0.95, 0.85))
+		plbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		pill.add_child(plbl)
 
 	# Separador superior
 	var sep := ColorRect.new()
@@ -2047,6 +2080,30 @@ func _mostrar_tooltip(carta: Dictionary, card: Control,
 	lpick.add_theme_font_size_override("font_size", 26)
 	lpick.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	tp.add_child(lpick)
+
+	# Sinergia de fusão (arma ↔ elemento) — só aparece se a carta combina
+	var sin : Dictionary = {}
+	if jogo and is_instance_valid(jogo) and jogo.has_method("sinergia_para_carta"):
+		sin = jogo.sinergia_para_carta(carta)
+	if not sin.is_empty():
+		var scor : Color = sin.get("cor", Color(1.0, 0.6, 0.1)) as Color
+		var txt  : String
+		if str(sin.get("modo", "")) == "arma":
+			txt = "⚡ FUNDE COM\n%d× %s  →  %s" % [
+				int(sin.get("qtd", 5)), str(sin.get("elem_nome", "?")), str(sin.get("nome", "?"))]
+		else:
+			txt = "⚡ FUSÃO  %d/%d %s\n→  %s" % [
+				int(sin.get("progresso", 0)), int(sin.get("qtd", 5)),
+				str(sin.get("elem_nome", "?")), str(sin.get("nome", "?"))]
+		var lsin := Label.new()
+		lsin.text                 = txt
+		lsin.position             = Vector2(944, 6)
+		lsin.size                 = Vector2(320, 84)
+		lsin.autowrap_mode        = TextServer.AUTOWRAP_WORD
+		lsin.add_theme_font_size_override("font_size", 22)
+		lsin.add_theme_color_override("font_color", scor)
+		lsin.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		tp.add_child(lsin)
 
 	# Preview: stat atual → stat depois de aplicar a carta
 	var preview_txt : String = ""

@@ -610,7 +610,7 @@ func _abrir_inventario(ui: CanvasLayer) -> void:
 	if _inventario_overlay and is_instance_valid(_inventario_overlay):
 		_inventario_overlay.queue_free()
 
-	var _mob : bool = OS.has_feature("android") or OS.has_feature("ios")
+	var _mob : bool = BuildConfig.is_mobile()
 	var vp: Vector2 = m.get_viewport().get_visible_rect().size
 	var ov  := ColorRect.new()
 	ov.color = Color(0.0, 0.0, 0.0, 0.97); ov.size = vp
@@ -699,7 +699,7 @@ func _abrir_inventario(ui: CanvasLayer) -> void:
 	const HH  : float = 92.0
 	const HGAP: float = 8.0
 
-	var sp_h : float = 660.0 if _mob else 574.0
+	var sp_h : float = (660.0 - TY) if _mob else 574.0  # mobile: termina no mesmo y=660 do PC (antes 660 estourava o separador)
 	var sp: Panel = m._inv_painel(ov, SX, TY, SW, sp_h,
 		Color(0.018,0.025,0.040,0.96), Color(0.24,0.48,0.72,0.45), 1)
 	m._inv_decorar_painel(sp, Color(0.30,0.65,1.0), 0.75)
@@ -1206,11 +1206,6 @@ func _abrir_inventario(ui: CanvasLayer) -> void:
 			_cmd_portrait.draw_string(m._font_tech, Vector2(0, SKH - 48.0), _cmd_coligacao_curta, HORIZONTAL_ALIGNMENT_CENTER, SKW, 12, Color(_cmd_cor.r+0.1,_cmd_cor.g+0.1,_cmd_cor.b+0.1,0.92))
 		else:
 			_cmd_portrait.draw_string(m._font_tech, Vector2(0, SKH * 0.45), "SEM COMANDANTE", HORIZONTAL_ALIGNMENT_CENTER, SKW, 14, Color(0.45,0.48,0.56,0.75))
-			_cmd_portrait.draw_line(Vector2(18, SKH - 128.0), Vector2(SKW - 18.0, SKH - 128.0), Color(_cmd_cor.r, _cmd_cor.g, _cmd_cor.b, 0.35), 1.0)
-			_cmd_portrait.draw_string(m._font_tech, Vector2(0, SKH - 104.0), _cmd_nome.to_upper(), HORIZONTAL_ALIGNMENT_CENTER, SKW, 25, Color(_cmd_cor.r+0.18,_cmd_cor.g+0.18,_cmd_cor.b+0.18,0.98))
-			_cmd_portrait.draw_string(m._font_tech, Vector2(0, SKH - 74.0), _cmd_titulo_curto, HORIZONTAL_ALIGNMENT_CENTER, SKW, 10, Color(0.84,0.82,0.88,0.82))
-			_cmd_portrait.draw_string(m._font_tech, Vector2(0, SKH - 48.0), _cmd_coligacao_curta, HORIZONTAL_ALIGNMENT_CENTER, SKW, 12, Color(_cmd_cor.r+0.1,_cmd_cor.g+0.1,_cmd_cor.b+0.1,0.92))
-			_cmd_portrait.draw_circle(Vector2(SKW * 0.5, SKH - 21.0), 3.0 + sin(t * 2.2) * 0.8, Color(_cmd_cor.r, _cmd_cor.g, _cmd_cor.b, 0.9))
 	)
 	_anim_nodes.append(_cmd_portrait)
 	var _slot_names := [

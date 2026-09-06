@@ -365,7 +365,7 @@ func _abrir_config(ui: CanvasLayer) -> void :
 	_config_panel.add_child(ltela)
 
 	var chk_fs:= CheckButton.new()
-	var _is_mobile : bool = OS.has_feature("android") or OS.has_feature("ios")
+	var _is_mobile : bool = BuildConfig.is_mobile()
 	chk_fs.button_pressed = _is_mobile or DisplayServer.window_get_mode() == DisplayServer.WINDOW_MODE_FULLSCREEN
 	chk_fs.disabled = _is_mobile
 	chk_fs.position = Vector2(700, 235)
@@ -550,7 +550,7 @@ func _abrir_config(ui: CanvasLayer) -> void :
 	var btn_f:= Button.new()
 	btn_f.text = "FECHAR"
 	btn_f.position = Vector2(200, 608)
-	btn_f.size = Vector2(700, 50)
+	btn_f.size = Vector2(220, 50)
 	btn_f.focus_mode = Control.FOCUS_NONE
 	btn_f.add_theme_font_size_override("font_size", 21)
 	var sty_f:= StyleBoxFlat.new()
@@ -565,6 +565,47 @@ func _abrir_config(ui: CanvasLayer) -> void :
 	btn_f.pressed.connect( func():
 		Acessibilidade.processar("config_fechar", "Fechar configurações.", _fechar_config))
 	_config_panel.add_child(btn_f)
+
+	# VER TUTORIAL — reabre o tutorial do menu (testar / rever).
+	var btn_tut := Button.new()
+	btn_tut.text = "VER TUTORIAL"
+	btn_tut.position = Vector2(440, 608)
+	btn_tut.size = Vector2(220, 50)
+	btn_tut.focus_mode = Control.FOCUS_NONE
+	btn_tut.add_theme_font_size_override("font_size", 18)
+	var sty_tut := StyleBoxFlat.new()
+	sty_tut.bg_color = Color(0.06, 0.12, 0.20, 0.92)
+	sty_tut.border_color = Color(0.3, 0.6, 0.9, 0.7)
+	for s in ["left", "right", "top", "bottom"]: sty_tut.set("border_width_" + s, 1)
+	for c in ["top_left", "top_right", "bottom_left", "bottom_right"]: sty_tut.set("corner_radius_" + c, 8)
+	btn_tut.add_theme_stylebox_override("normal", sty_tut)
+	btn_tut.add_theme_color_override("font_color", Color(0.6, 0.8, 1.0))
+	btn_tut.pressed.connect(func():
+		Salvar.tutorial_jogo_visto = false   # rearma o tutorial guiado da próxima partida
+		Salvar.salvar()
+		_fechar_config()
+		m._abrir_tutorial())
+	_config_panel.add_child(btn_tut)
+
+	# AVALIAÇÃO movida do menu pra cá.
+	var btn_aval := Button.new()
+	btn_aval.text = "AVALIAÇÃO"
+	btn_aval.position = Vector2(680, 608)
+	btn_aval.size = Vector2(220, 50)
+	btn_aval.focus_mode = Control.FOCUS_NONE
+	btn_aval.add_theme_font_size_override("font_size", 18)
+	var sty_avc := StyleBoxFlat.new()
+	sty_avc.bg_color = Color(0.05, 0.15, 0.25, 0.92)
+	sty_avc.border_color = Color(0.2, 0.75, 1.0, 0.8)
+	for s in ["left", "right", "top", "bottom"]: sty_avc.set("border_width_" + s, 1)
+	for c in ["top_left", "top_right", "bottom_left", "bottom_right"]: sty_avc.set("corner_radius_" + c, 8)
+	btn_aval.add_theme_stylebox_override("normal", sty_avc)
+	btn_aval.add_theme_color_override("font_color", Color(0.2, 0.85, 1.0))
+	btn_aval.pressed.connect(func():
+		_fechar_config()
+		m._abrir_avaliacao(m._ui_main))
+	_config_panel.add_child(btn_aval)
+
 	m._corrigir_textos_ui(_config_panel)
 
 

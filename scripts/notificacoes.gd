@@ -5,6 +5,7 @@ extends Node
 
 signal token_recebido(token: String)
 signal notificacao_recebida(id: String, tipo: String, titulo: String, corpo: String)
+signal notices_carregados   # avisos do GitHub prontos (pro popup in-game)
 
 const URL_NOTICES: String = "https://raw.githubusercontent.com/TiagoFernando113/TorreDefesaUpdates/refs/heads/main/notices.json"
 const SETTINGS_PATH: String = "user://notificacoes_settings.json"
@@ -17,16 +18,25 @@ var _settings: Dictionary = {
 	"token": ""
 }
 var notices_cache: Array[Dictionary] = []
+var _notices_carregando: bool = false
 
 
 func _ready() -> void:
 	_carregar_settings()
 	_conectar_plugin()
+	if BuildConfig.is_mobile() and plugin_disponivel() and notificacoes_ativas() and _plugin.has_method("requestToken"):
+		_plugin.call("requestToken")
+	# Entrega pushes recebidos enquanto o app estava fechado (vira aviso in-game).
+	if _plugin and _plugin.has_method("flushPendingNotifications"):
+		_plugin.call("flushPendingNotifications")
+	_iniciar_fetch_notices()
+
+
+func ativar_automatica_pos_login() -> void:
+	# Primeira ativação (dispara o popup de permissão do Android) só DEPOIS do
+	# login — senão o popup aparece por cima da tela de login no boot do app.
 	if BuildConfig.is_mobile() and plugin_disponivel() and not notificacoes_ativas():
 		ativar_notificacoes()
-	elif BuildConfig.is_mobile() and plugin_disponivel() and notificacoes_ativas() and _plugin.has_method("requestToken"):
-		_plugin.call("requestToken")
-	_iniciar_fetch_notices()
 
 
 func plugin_disponivel() -> bool:
@@ -107,22 +117,40 @@ func _solicitar_permissao_android() -> void:
 		OS.request_permissions()
 
 
+func esta_carregando_notices() -> bool:
+	return _notices_carregando
+
+
 func _iniciar_fetch_notices() -> void:
-	_http = HTTPRequest.new()
-	_http.use_threads = true
-	_http.timeout = 10.0
-	add_child(_http)
-	_http.request_completed.connect(_on_notices_resp)
-	_http.request(URL_NOTICES)
+	# Reusa um único HTTPRequest; cancela o anterior se estiver travado e re-busca.
+	if _http == null or not is_instance_valid(_http):
+		_http = HTTPRequest.new()
+		_http.use_threads = true
+		_http.timeout = 8.0
+		add_child(_http)
+		_http.request_completed.connect(_on_notices_resp)
+	if _http.get_http_client_status() != HTTPClient.STATUS_DISCONNECTED:
+		_http.cancel_request()
+	_notices_carregando = true
+	if _http.request(URL_NOTICES) != OK:
+		_notices_carregando = false
+		notices_carregados.emit()   # falhou ao iniciar → para de "Carregando"
+
+
+func recarregar_notices() -> void:
+	_iniciar_fetch_notices()   # reusa: cancela o anterior e re-busca
 
 
 func _on_notices_resp(result: int, code: int, _h: PackedStringArray, body: PackedByteArray) -> void:
+	_notices_carregando = false
 	if result != HTTPRequest.RESULT_SUCCESS or code != 200:
+		notices_carregados.emit()   # avisa a UI mesmo na falha (para de "Carregando")
 		return
 	notices_cache = _parse_notices_manifest(body.get_string_from_utf8())
 	if notificacoes_ativas() and _plugin and _plugin.has_method("syncNotices"):
 		_plugin.call("syncNotices", JSON.stringify({"notices": notices_cache}))
 	_disparar_notices_locais()
+	notices_carregados.emit()   # avisa a UI in-game (popup no PC e Android)
 
 
 func _parse_notices_manifest(txt: String) -> Array[Dictionary]:
@@ -164,6 +192,23 @@ func _on_token_received(token: String) -> void:
 
 func _on_notification_received(id: String, tipo: String, titulo: String, corpo: String) -> void:
 	emit_signal("notificacao_recebida", id, tipo, titulo, corpo)
+	# Push do FCM também entra na central in-game (popup + sininho) — serve de
+	# prova de que o push chegou no aparelho.
+	var ja := false
+	for c in notices_cache:
+		if str((c as Dictionary).get("id", "")) == id:
+			ja = true
+			break
+	if not ja:
+		notices_cache.insert(0, {
+			"id": id, "title": titulo, "body": corpo,
+			"type": (tipo if tipo != "" else "push"), "url": "", "button": "ABRIR"
+		})
+	var vistos: Dictionary = _settings.get("last_seen", {}) as Dictionary
+	vistos.erase(id)                 # marca como NÃO-visto → popup + badge
+	_settings["last_seen"] = vistos
+	_salvar_settings()
+	notices_carregados.emit()        # avisa a UI in-game
 
 
 func _disparar_notices_locais() -> void:
