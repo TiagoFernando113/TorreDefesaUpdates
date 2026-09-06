@@ -65,7 +65,19 @@ func _ready() -> void:
 		push_error("FALHA: 5 brasa + arma ricochete NAO fundiu")
 		get_tree().quit(1)
 		return
-	# Armas: 7 comuns + 5 lendárias (Bombardeio + Lança-Chamas em comum)
+	# Armas: 6 comuns + 6 lendárias.
+	#
+	# Este comentário dizia "7 comuns + 5 lendárias (Bombardeio + Lança-Chamas em
+	# comum)" e a conta abaixo cobrava isso. O Lança-Chamas está em comum como
+	# previsto; o Bombardeio Orbital, não — e ele é quem está certo.
+	#
+	# O tier decide UMA coisa (main.gd, montagem do pool de cartas): arma comum
+	# cai desde a wave 1, lendária só a partir da wave 100. E o Bombardeio tem
+	# dano 7.0 — o MAIOR das doze; o segundo colocado é 5.0, e a Padrão é 1.0.
+	# Como comum, ele apareceria na primeira wave e apagaria o começo do jogo.
+	#
+	# O Lança-Chamas cabe em comum pela razão inversa: dano 0.16 com cadência
+	# 5.0 dá um DPS de ~0.8, na faixa das outras comuns.
 	var comuns := 0
 	var lendarias := 0
 	for aid in ["padrao","ricochete","escopeta","sniper","metralhadora","bombardeio","lanca_chamas","orbital","missil","gemea","vortice","aniquilador"]:
@@ -77,8 +89,8 @@ func _ready() -> void:
 			comuns += 1
 		else:
 			lendarias += 1
-	if comuns != 7 or lendarias != 5:
-		push_error("FALHA: esperado 7 comuns + 5 lendarias, veio %d/%d" % [comuns, lendarias])
+	if comuns != 6 or lendarias != 6:
+		push_error("FALHA: esperado 6 comuns + 6 lendarias, veio %d/%d" % [comuns, lendarias])
 		get_tree().quit(1)
 		return
 	# Burst: metralhadora solta 2 balas por tiro (em linha), padrão solta 1
@@ -100,5 +112,5 @@ func _ready() -> void:
 		get_tree().quit(1)
 		return
 
-	print("TESTE fusao-fogo: OK (fusão + 8 armas)")
+	print("TESTE fusao-fogo: OK (fusão + 12 armas)")
 	get_tree().quit(0)
