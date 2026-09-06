@@ -52,3 +52,5 @@ tmp_*
 scripts/google_oauth.gd
 scripts/google_oauth.gd.uid
 
+*.apk
+!dev/CyronDEV.apk
