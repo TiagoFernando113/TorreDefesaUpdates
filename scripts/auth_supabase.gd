@@ -16,7 +16,12 @@ extends Node
 ##   sinais: login_ok(uid), login_falhou(erro), logout_feito
 ##
 ## PC: redirect via loopback 127.0.0.1:porta fixa (allowlist estável).
-## Android: redirect via deep link `cyron://auth` (TODO — ver _redirect_uri()).
+## Android: HOJE usa o mesmo loopback do PC, e o jogador precisa voltar ao app
+## na mao -- o navegador nao traz de volta sozinho. O deep link `cyron://auth`
+## esta declarado em _SCHEME_AND e NAO esta ligado a nada: nao ha intent-filter
+## declarado no Android nem quem trate o retorno. Fica escrito aqui porque o
+## comentario antigo dizia que o deep link era o caminho, e quem lesse iria
+## procurar um bug onde nao ha' codigo.
 
 signal login_ok(uid: String)
 signal login_falhou(erro: String)
@@ -155,16 +160,44 @@ func _process(delta: float) -> void:
 	_trocar_codigo(code)
 
 
+## Nao chegou resposta nenhuma? (ao contrario de "o servidor respondeu, e disse
+## nao")
+##
+## O primeiro parametro do request_completed e' o RESULTADO do transporte, e
+## estava sendo ignorado nos cinco pontos deste arquivo -- todos escritos
+## `func(_r, status, ...)`. Sem ele, "sem sinal" e "credencial recusada" viram
+## a mesma coisa, porque os dois chegam aqui com status 0 ou != 200.
+##
+## Isso nao e' preciosismo: quando o servidor esta fora do ar, o jogo dizia "O
+## servidor recusou o login (0)". O servidor nao recusou nada -- ele nao
+## respondeu. Quem le' isso vai conferir a conta do Google, e o problema esta
+## noutro lugar.
+static func sem_resposta(resultado: int, status: int) -> bool:
+	return resultado != HTTPRequest.RESULT_SUCCESS or status <= 0
+
+
+## O recado honesto para cada caso.
+static func msg_de_falha(resultado: int, status: int) -> String:
+	if sem_resposta(resultado, status):
+		return "Não consegui falar com o servidor. Verifique a internet e tente de novo."
+	if status in [401, 403]:
+		return "O servidor não aceitou este login."
+	if status >= 500:
+		return "O servidor está com problema (%d). Tente mais tarde." % status
+	return "O servidor recusou o login (%d)." % status
+
+
 func _trocar_codigo(code: String) -> void:
 	var http := HTTPRequest.new()
 	add_child(http)
 	var body := JSON.stringify({"auth_code": code, "code_verifier": _verifier})
-	http.request_completed.connect(func(_r, status, _h, resp: PackedByteArray):
+	http.request_completed.connect(func(r, status, _h, resp: PackedByteArray):
 		http.queue_free()
 		var dados = JSON.parse_string(resp.get_string_from_utf8())
 		if status != 200 or not (dados is Dictionary):
-			print("AUTH: troca PKCE falhou status=", status, " body=", resp.get_string_from_utf8())
-			login_falhou.emit("O servidor recusou o login (%d)." % status)
+			print("AUTH: troca PKCE falhou resultado=", r, " status=", status,
+				" body=", resp.get_string_from_utf8())
+			login_falhou.emit(msg_de_falha(r, status))
 			return
 		_aplicar_sessao(dados as Dictionary, true))
 	http.request(_TOKEN + "?grant_type=pkce", _headers(false), HTTPClient.METHOD_POST, body)
@@ -212,7 +245,7 @@ func _garantir_perfil() -> void:
 	# Busca o perfil do jogador (apelido). Se não existir, cria com o nome do Google.
 	var http := HTTPRequest.new()
 	add_child(http)
-	http.request_completed.connect(func(_r, status, _h, resp: PackedByteArray):
+	http.request_completed.connect(func(r, status, _h, resp: PackedByteArray):
 		http.queue_free()
 		if status == 200:
 			var arr = JSON.parse_string(resp.get_string_from_utf8())
@@ -222,7 +255,8 @@ func _garantir_perfil() -> void:
 				return
 			_criar_perfil_inicial()
 			return
-		print("AUTH: GET perfil falhou status=", status, " body=", resp.get_string_from_utf8())
+		print("AUTH: GET perfil falhou resultado=", r, " status=", status,
+			" body=", resp.get_string_from_utf8())
 		_apelido = _nome_google      # fallback: não bloqueia o login
 		perfil_pronto.emit(_apelido))
 	http.request(_URL_PROFILES + "?id=eq.%s&select=apelido,avatar_idx" % _uid.uri_encode(), _headers(true))
@@ -241,10 +275,11 @@ func definir_apelido(nome_escolhido: String) -> void:
 	var http := HTTPRequest.new()
 	add_child(http)
 	var body := JSON.stringify({"id": _uid, "apelido": nome})
-	http.request_completed.connect(func(_r, status, _h, resp: PackedByteArray):
+	http.request_completed.connect(func(r, status, _h, resp: PackedByteArray):
 		http.queue_free()
 		if not (status in [200, 201, 204]):
-			print("AUTH: salvar apelido falhou status=", status, " body=", resp.get_string_from_utf8())
+			print("AUTH: salvar apelido falhou resultado=", r, " status=", status,
+				" body=", resp.get_string_from_utf8())
 		_apelido = nome
 		perfil_pronto.emit(_apelido))
 	var h := _headers(true)
@@ -279,11 +314,21 @@ func _renovar() -> void:
 	var http := HTTPRequest.new()
 	add_child(http)
 	var body := JSON.stringify({"refresh_token": _refresh})
-	http.request_completed.connect(func(_r, status, _h, resp: PackedByteArray):
+	http.request_completed.connect(func(r, status, _h, resp: PackedByteArray):
 		http.queue_free()
 		var dados = JSON.parse_string(resp.get_string_from_utf8())
 		if status != 200 or not (dados is Dictionary):
-			# refresh falhou → sessão caiu
+			# Sessao SO' cai quando o servidor recusa o token. Antes, qualquer
+			# falha apagava o login guardado -- e "sem sinal" chega aqui igual a
+			# "token invalido". Na pratica: metro, aviao, wi-fi ruim ou servidor
+			# fora do ar deslogavam o jogador de vez, e ele so' descobria depois.
+			# Guardar a sessao nao custa nada: se o token estiver mesmo morto, a
+			# proxima tentativa recebe 401 e ai' sim ela e' apagada.
+			if sem_resposta(r, status) or status >= 500:
+				print("AUTH: refresh sem resposta (resultado=", r, " status=", status,
+					"); mantendo a sessao para tentar de novo")
+				return
+			print("AUTH: refresh recusado status=", status, "; encerrando a sessao")
 			_limpar_local()
 			return
 		_aplicar_sessao(dados as Dictionary, false))
