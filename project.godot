@@ -26,6 +26,7 @@ config/max_fps=60
 
 [autoload]
 
+Carregador="*res://scripts/carregador.gd"
 BuildConfig="*res://scripts/build_config.gd"
 Som="*res://scripts/som.gd"
 Salvar="*res://scripts/salvar.gd"
