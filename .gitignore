@@ -22,6 +22,9 @@ data_*/
 *.apk.idsig
 *.exe
 *.pck
+# ...menos os pacotes de conteudo, que PRECISAM estar no repositorio: o jogo
+# instalado baixa eles por raw.githubusercontent, e o endereco vem daqui.
+!packs/*.pck
 *.console.exe
 build/
 
