@@ -3,6 +3,7 @@ extends Node
 const APP_VERSION_CODE: int = 12
 const APP_VERSION_NAME: String = "0.12.0"
 const STORE_BUILD_FEATURE: String = "store_build"
+const DEV_BUILD_FEATURE: String = "dev_build"
 const FORCE_RELEASE_MODE: bool = false
 const ALLOW_SIDELOAD_ANDROID_UPDATES: bool = true
 
@@ -48,6 +49,26 @@ func _aplicar_janela_mobile(ligar: bool) -> void:
 
 func is_store_build() -> bool:
 	return OS.has_feature(STORE_BUILD_FEATURE)
+
+
+## Build de desenvolvedor: um APK separado, com outro nome de pacote, que
+## instala AO LADO do jogo de verdade.
+##
+## Ele existe por um motivo unico e concreto. O canal de pacotes consegue
+## trocar codigo no aparelho (provado: uma build compilada com a barra ciano
+## passou a desenhar a barra dourada so' recebendo um pacote). Mas um pacote
+## publicado vai para TODO MUNDO que tem o jogo, fica salvo no aparelho e
+## carrega em toda abertura -- se quebrar um autoload, o jogo nao abre mais e
+## nao se conserta sozinho.
+##
+## Entao nao existe "pacote so' para testar" no app publico. A saida e' um app
+## separado: aqui os pacotes de codigo sao aceitos e vem de um canal proprio,
+## e quem tem o jogo de verdade nunca ve nada disso.
+##
+## A marca vem de `custom_features` no preset de exportacao, o mesmo mecanismo
+## que o projeto ja usa para `store_build`.
+func is_dev_build() -> bool:
+	return OS.has_feature(DEV_BUILD_FEATURE)
 
 
 func is_release_mode() -> bool:
