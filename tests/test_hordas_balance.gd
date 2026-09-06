@@ -74,8 +74,22 @@ func _test_hp_da_wave_escala_com_freio() -> void:
 	mob.wave_num = 50
 	add_child(mob)
 	await get_tree().process_frame
+	# O teto era 240, escrito no commit inicial (08/06). Quatro dias depois, o
+	# commit cd01f64 -- "balance: curva facil ate w15, pesada 15-100" -- trocou
+	# a escala de proposito, e o comentario dentro do mob.gd diz por que:
+	# "builds full precisam sentir pressao". O teste ficou para tras e passou a
+	# reprovar uma decisao tomada de olho aberto.
+	#
+	# A faixa agora guarda ESSA decisao em vez de opinar contra ela. E' uma
+	# faixa, e nao o valor exato de hoje (288), porque teste preso no numero
+	# exato quebra em qualquer ajuste fino e vira barulho. Larga o bastante para
+	# afinar, apertada o bastante para pegar escala disparada.
+	#
+	# A curva medida com este mob.gd:
+	#   wave 1 = 12   wave 10 = 54   wave 25 = 119   wave 50 = 288   wave 100 = 780
 	_esperar(mob.max_hp >= 130.0, "Wave 50 ainda deve subir HP acima do mob inicial.")
-	_esperar(mob.max_hp <= 240.0, "Wave 50 nao deve transformar mob normal em parede de HP.")
+	_esperar(mob.max_hp <= 350.0,
+		"Wave 50 passou de 350 de HP: a rampa de 15-100 disparou (era ~288 quando foi calibrada).")
 	mob.queue_free()
 
 	var escudeiro = MOB_SCRIPT.new()
