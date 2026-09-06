@@ -6,6 +6,11 @@ extends Node
 const VERSAO_ATUAL : int    = 12
 const URL_VERSAO   : String = "https://raw.githubusercontent.com/TiagoFernando113/TorreDefesaUpdates/refs/heads/main/version.json"
 const URL_CONTEUDO  : String = "https://raw.githubusercontent.com/TiagoFernando113/TorreDefesaUpdates/refs/heads/main/content_manifest.json"
+## O app de desenvolvedor le' um manifesto SO' DELE. Nao e' capricho de
+## organizacao: e' o que garante que um pacote de teste nunca chegue no aparelho
+## de quem tem o jogo de verdade. Dois arquivos, dois publicos, sem engano
+## possivel -- errar o campo `kind` no manifesto publico nao alcanca ninguem.
+const URL_CONTEUDO_DEV : String = "https://raw.githubusercontent.com/TiagoFernando113/TorreDefesaUpdates/refs/heads/main/content_manifest_dev.json"
 const CONTENT_STATE_PATH : String = "user://content_updates_state.json"
 const CONTENT_PACK_DIR   : String = "user://content_packs"
 
@@ -43,7 +48,7 @@ func _iniciar_check_conteudo() -> void:
 	_http_conteudo.timeout     = 12.0
 	add_child(_http_conteudo)
 	_http_conteudo.request_completed.connect(_on_content_manifest_resp)
-	_http_conteudo.request(URL_CONTEUDO)
+	_http_conteudo.request(URL_CONTEUDO_DEV if BuildConfig.is_dev_build() else URL_CONTEUDO)
 
 
 ## Versao atual usada pelo menu para exibir no canto.
@@ -320,7 +325,21 @@ func _should_download_content_pack(pack: Dictionary, local_versions: Dictionary)
 		return false
 	if not _is_valid_sha256(sha):
 		return false
-	if kind in ["script", "scripts", "code", "codigo", "executable", "exe", "apk"]:
+	# Pacote com codigo dentro so' passa no app de desenvolvedor.
+	#
+	# A regra "packs nunca devem carregar codigo" continua valendo para quem tem
+	# o jogo publicado, e vale por um motivo pratico: pacote publicado vai para
+	# todo mundo, fica salvo no aparelho e carrega em toda abertura. Um pacote
+	# que quebre um autoload deixa o jogo sem abrir, e sem conserto pelo proprio
+	# canal -- porque o canal e' justamente o que parou de rodar.
+	#
+	# No app de desenvolvedor o estrago maximo e' o proprio app de teste, que se
+	# reinstala. Por isso a excecao mora aqui, e nao no campo `kind`.
+	if kind in ["script", "scripts", "code", "codigo"] and not BuildConfig.is_dev_build():
+		return false
+	# Executavel e APK nunca, em build nenhuma: o canal entrega conteudo para o
+	# jogo, e nao um programa novo para instalar.
+	if kind in ["executable", "exe", "apk"]:
 		return false
 	var ext := _content_ext_from_url(url)
 	return ext == "pck" or ext == "zip"
