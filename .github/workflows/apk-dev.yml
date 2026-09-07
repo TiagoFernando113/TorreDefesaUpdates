@@ -15,6 +15,16 @@
 name: APK de desenvolvedor
 
 on:
+  # Empurrar uma tag `dev-<numero>` monta e publica sozinho. A tag JA' E' o
+  # nome da Release, entao nao ha' dois lugares para o numero divergir. E o
+  # numero da tag vira o versionCode, que precisa subir a cada APK -- senao o
+  # Android recusa instalar por cima do anterior.
+  #
+  #   git tag dev-15 && git push origin dev-15
+  push:
+    tags:
+      - "dev-*"
+
   workflow_dispatch:
     inputs:
       version_code:
@@ -69,13 +79,37 @@ jobs:
             > /tmp/import.log 2>&1 || true
           tail -3 /tmp/import.log
 
+      # Os dois gatilhos precisam chegar nos mesmos tres valores. Resolver num
+      # passo so' evita que a tag diga uma coisa e a Release outra.
+      - name: Decidir a versao
+        run: |
+          set -e
+          if [ "${{ github.event_name }}" = "push" ]; then
+            TAG="${GITHUB_REF#refs/tags/}"          # dev-15
+            CODE="${TAG#dev-}"                      # 15
+            case "$CODE" in
+              ''|*[!0-9]*)
+                echo "A tag precisa ser dev-<numero> (ex.: dev-15). Veio: $TAG"
+                exit 1 ;;
+            esac
+            NAME="0.12.0-dev$CODE"
+          else
+            CODE="${{ inputs.version_code }}"
+            NAME="${{ inputs.version_name }}"
+            TAG="dev-$CODE"
+          fi
+          echo "TAG=$TAG"   >> "$GITHUB_ENV"
+          echo "CODE=$CODE" >> "$GITHUB_ENV"
+          echo "NAME=$NAME" >> "$GITHUB_ENV"
+          echo "tag=$TAG  versionCode=$CODE  nome=$NAME"
+
       # O script confere o APK QUE SAIU e reprova se faltar permissao, audio ou
       # a lista de modulos. Preset com chave errada nao da' erro, so' fica sem
       # efeito -- ja' aconteceu, e o APK saiu sem INTERNET.
       - name: Exportar o APK
         env:
-          VERSION_CODE: ${{ inputs.version_code }}
-          VERSION_NAME: ${{ inputs.version_name }}
+          VERSION_CODE: ${{ env.CODE }}
+          VERSION_NAME: ${{ env.NAME }}
         run: tools/exportar_apk_dev.sh "$PWD/Godot_v4.6.2-stable_linux.x86_64"
 
       - name: Publicar na Release
@@ -83,14 +117,21 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -e
-          TAG="dev-${{ inputs.version_name }}"
-          gh release create "$TAG" \
-            --title "Cyron DEV ${{ inputs.version_name }}" \
-            --notes "App de desenvolvedor. Instala AO LADO do jogo de verdade (pacote com.tiagofernando.cyrondev).
+          cat > /tmp/notas.md <<'NOTAS'
+          App de **desenvolvedor**. Instala AO LADO do jogo de verdade — o pacote é
+          `com.tiagofernando.cyrondev`, então ele não substitui nem apaga nada.
 
-          Baixe o CyronDEV.apk aqui embaixo e instale no celular.
-          O painel de manutencao abre com cinco toques no canto superior esquerdo." \
-            "dev/CyronDEV.apk#CyronDEV.apk" \
-            || gh release upload "$TAG" "dev/CyronDEV.apk#CyronDEV.apk" --clobber
-          echo "Link direto:"
+          Baixe o `CyronDEV.apk` aqui embaixo e instale no celular.
+
+          O painel de manutenção abre com **cinco toques no canto superior esquerdo**
+          (dentro de três segundos). Ele mostra os pacotes aplicados, os módulos
+          carregados e os últimos erros — e tem o botão de descartar pacotes.
+          NOTAS
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" "dev/CyronDEV.apk#CyronDEV.apk" --clobber
+          else
+            gh release create "$TAG" --title "Cyron DEV $NAME" \
+              --notes-file /tmp/notas.md "dev/CyronDEV.apk#CyronDEV.apk"
+          fi
+          echo "Link direto para baixar:"
           gh release view "$TAG" --json assets --jq '.assets[].url'
