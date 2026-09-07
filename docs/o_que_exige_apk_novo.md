@@ -86,31 +86,53 @@ qualquer 4G.
 **Coberto agora:** 600 s no app de desenvolvedor, 45 s no público (onde pacote é
 ajuste pequeno de propósito).
 
-### 5. Permissões do Android e o link `cyron://`
+### 5. Permissões do Android
 
-Moram no `AndroidManifest.xml`, gerado na exportação. **Não estão cobertos pelo
-repositório**, porque `export_presets.cfg` não é versionado (guarda a senha da
-keystore).
+Moram no `AndroidManifest.xml`, gerado na exportação a partir do
+`export_presets.cfg` — que **não é versionado** (guarda a senha da keystore).
+Então elas não vêm do repositório: dependem do preset de quem exporta.
 
-O APK de desenvolvedor de hoje tem só `INTERNET` e `DUMP`. Conferido abrindo o
-manifesto do `dev/CyronDEV.apk`: não há `scheme`, nem `VIEW`, nem `BROWSABLE` —
-ou seja, **não existe intent-filter de deep link**, apesar de o
-`auth_supabase.gd` declarar uma constante `cyron://auth`. O que aparece no
-manifesto com a palavra "cyron" é só o nome do pacote,
-`com.tiagofernando.cyrondev`.
+O padrão do Godot é pior do que parece. Um preset vazio gera um APK **sem
+`INTERNET`** e com o pacote `com.example.cyrondefense` — conferido exportando.
+O preset é tudo.
 
-Ao exportar o APK de desenvolvedor, marcar também:
+O APK de desenvolvedor atual foi exportado com:
 
-- `POST_NOTIFICATIONS` — obrigatório no Android 13+ para qualquer notificação
-- `ACCESS_NETWORK_STATE` — distinguir "sem internet" de "servidor fora"
-- `VIBRATE` — retorno tátil
-- `WAKE_LOCK` — tela acesa em partida longa
+| permissão | para quê |
+|---|---|
+| `INTERNET` | sem ela não há login, ranking nem pacote |
+| `ACCESS_NETWORK_STATE` | distinguir "sem internet" de "servidor fora" |
+| `POST_NOTIFICATIONS` | obrigatória no Android 13+ para qualquer notificação |
+| `VIBRATE` | retorno tátil |
+| `WAKE_LOCK` | tela acesa em partida longa |
 
-E, para o login voltar sozinho ao app no Android, um intent-filter com
-`scheme="cyron"`. Sem isso o retorno continua sendo na mão.
+(`DUMP` entra sozinha em build de depuração.)
 
-> Só marque o que tem uso previsto. Permissão pedida "por via das dúvidas" é
-> permissão que aparece para o usuário e não faz nada.
+> Só marque o que tem uso previsto. Permissão pedida "por via das dúvidas"
+> aparece para o usuário e não faz nada.
+
+### 5b. O deep link `cyron://` — e por que NÃO foi adicionado
+
+O `auth_supabase.gd` declara uma constante `_SCHEME_AND = "cyron://auth"` que
+não está ligada a nada. A tentação é "só" adicionar o intent-filter no
+manifesto. **Não adiante: não resolveria.**
+
+Conferido, não suposto:
+
+- o template Android do Godot 4.6.2 não trata `onNewIntent` nem `ACTION_VIEW`
+  em lugar nenhum;
+- o motor não expõe nenhuma API de intent ao GDScript.
+
+Ou seja, com o intent-filter o Android abriria o app — e o `code` do login
+morreria no caminho, porque nenhum script conseguiria lê-lo. Seria linha morta
+no manifesto dando falsa sensação de recurso pronto.
+
+O login hoje volta por **loopback**: o app sobe um `TCPServer` em `127.0.0.1` e
+o navegador redireciona para lá. Isso funciona no Android também; o que falta é
+só o app voltar sozinho para a frente, e a pessoa faz isso na mão.
+
+Fazer de verdade exige um plugin Android (Kotlin) que intercepte o intent e
+repasse ao GDScript — o que é uma funcionalidade, não um ajuste de exportação.
 
 ### 6. O resto, que não tem jeito
 
