@@ -1,0 +1,4 @@
+{
+  "_leia": "Lista de modulos que o Modulos carrega no arranque. Vazia no APK de proposito: um pacote substitui ESTE arquivo e manda os .gd junto, e o sistema novo passa a existir sem APK novo. Formato: {\"nome\": \"loja\", \"script\": \"res://modulos/loja.gd\"}. Use com Modulos.pegar(\"loja\").",
+  "modulos": []
+}

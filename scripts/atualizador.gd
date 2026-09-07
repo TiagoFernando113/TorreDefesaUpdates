@@ -14,6 +14,13 @@ const URL_CONTEUDO_DEV : String = "https://raw.githubusercontent.com/TiagoFernan
 const CONTENT_STATE_PATH : String = "user://content_updates_state.json"
 const CONTENT_PACK_DIR   : String = "user://content_packs"
 
+## Tempo maximo de um download de pacote. Ver o comentario em
+## _baixar_proximo_pack: o app publico recebe ajuste pequeno, o de
+## desenvolvedor recebe coisa grande (audio), e o numero nao da' para mudar
+## depois sem APK novo.
+const TEMPO_DOWNLOAD     : float = 45.0
+const TEMPO_DOWNLOAD_DEV : float = 600.0
+
 var _http     : HTTPRequest = null
 var _http_conteudo : HTTPRequest = null
 var _http_download : HTTPRequest = null
@@ -258,7 +265,13 @@ func _baixar_proximo_pack() -> void:
 	_garantir_dir_conteudo()
 	_http_download = HTTPRequest.new()
 	_http_download.use_threads = true
-	_http_download.timeout = 45.0
+	# 45s da' conta de um pacote de codigo (kilobytes), mas nao de audio: os
+	# ~96 MB da trilha estouram isso em qualquer 4G e o download morre pela
+	# metade, sempre. E o numero mora num autoload -- ou seja, aumentar depois
+	# custaria APK novo. Fica largo aqui, no app de desenvolvedor, onde pacote
+	# grande e' o caso normal; no app publico segue apertado de proposito,
+	# porque la' pacote e' ajuste pequeno.
+	_http_download.timeout = TEMPO_DOWNLOAD_DEV if BuildConfig.is_dev_build() else TEMPO_DOWNLOAD
 	add_child(_http_download)
 	_http_download.request_completed.connect(_on_content_pack_resp.bind(destino))
 	var err := _http_download.request(url)

@@ -41,6 +41,19 @@ AppConfig="*res://addons/maaacks_menus_template/base/nodes/autoloads/app_config/
 SceneLoader="*res://addons/maaacks_menus_template/base/nodes/autoloads/scene_loader/scene_loader.tscn"
 ProjectMusicController="*res://addons/maaacks_menus_template/base/nodes/autoloads/music_controller/project_music_controller.tscn"
 ProjectUISoundController="*res://addons/maaacks_menus_template/base/nodes/autoloads/ui_sound_controller/project_ui_sound_controller.tscn"
+Modulos="*res://scripts/modulos.gd"
+DevPainel="*res://scripts/dev_painel.gd"
+Reserva1="*res://scripts/reserva.gd"
+Reserva2="*res://scripts/reserva.gd"
+Reserva3="*res://scripts/reserva.gd"
+
+[debug]
+
+; Liga o log em arquivo (user://logs/godot.log). No Android vem DESLIGADO de
+; fabrica, e este ajuste e' lido no arranque -- ou seja, so' vale se estiver no
+; APK. Sem ele o DevPainel nao tem erro nenhum para mostrar, e um defeito no
+; celular volta a ser invisivel daqui.
+file_logging/enable_file_logging=true
 
 [display]
 
