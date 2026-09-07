@@ -73,6 +73,33 @@ jobs:
             -storepass android -validity 10000 \
             -dname 'CN=Android Debug,O=Android,C=US' -noprompt
 
+      # O Godot descobre o SDK sozinho pelo ANDROID_HOME e grava nas proprias
+      # configuracoes -- conferido apagando as configuracoes e exportando so'
+      # com a variavel: o APK saiu inteiro.
+      #
+      # Mas se o runner mudar de layout, a exportacao falharia la' na frente,
+      # depois de dez minutos baixando e importando, com erro de assinatura --
+      # que nao diz nada sobre a causa. Melhor reprovar aqui, em dois segundos,
+      # dizendo o que faltou.
+      - name: Conferir o SDK do Android
+        run: |
+          set -e
+          SDK="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-}}"
+          if [ -z "$SDK" ] || [ ! -d "$SDK" ]; then
+            echo "ANDROID_HOME/ANDROID_SDK_ROOT nao aponta para um SDK (veio: '$SDK')."
+            echo "Sem SDK nao ha apksigner, e o APK sai sem assinatura -- o Android recusa instalar."
+            exit 1
+          fi
+          APKSIGNER="$(ls -d "$SDK"/build-tools/*/apksigner 2>/dev/null | sort -V | tail -1)"
+          if [ -z "$APKSIGNER" ]; then
+            echo "Nao achei apksigner em $SDK/build-tools/*/"
+            ls "$SDK/build-tools" 2>/dev/null || echo "  (nem a pasta build-tools existe)"
+            exit 1
+          fi
+          echo "SDK:       $SDK"
+          echo "apksigner: $APKSIGNER"
+          echo "java:      $(java -version 2>&1 | head -1)"
+
       - name: Importar o projeto
         run: |
           timeout 900 ./Godot_v4.6.2-stable_linux.x86_64 --headless --path . --import \
