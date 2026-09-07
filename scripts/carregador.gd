@@ -96,6 +96,14 @@ func _ler_estado() -> Dictionary:
 	return pacotes as Dictionary if pacotes is Dictionary else {}
 
 
+## Porta publica do descarte, para o painel de manutencao. O descarte automatico
+## so' acontece depois de uma abertura que travou; um pacote que apenas deixa o
+## jogo ERRADO (tela torta, sistema mudo) nao trava nada e ficaria grudado ate'
+## reinstalar. Esta e' a saida manual.
+func descartar_pacotes() -> void:
+	_descartar_pacotes()
+
+
 ## Apaga os pacotes E o estado. Apagar so' os arquivos deixaria o Atualizador
 ## achando que a versao ja' esta instalada, e ele nunca baixaria de novo -- o
 ## app ficaria preso na versao do APK sem ninguem entender por que.
