@@ -54,3 +54,8 @@ scripts/google_oauth.gd.uid
 
 *.apk
 !dev/CyronDEV.apk
+
+# APK do app de desenvolvedor: ~200 MB com o audio junto, acima do limite
+# de 100 MiB do GitHub. Passou a ser publicado em Releases pelo workflow
+# .github/workflows/apk-dev.yml.
+dev/*.apk

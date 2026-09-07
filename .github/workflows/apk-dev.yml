@@ -1,0 +1,96 @@
+# Monta o APK do app de DESENVOLVEDOR e publica em Releases.
+#
+# POR QUE NAO E' UM ARQUIVO NO REPOSITORIO
+#
+# O APK de desenvolvedor passou a levar o audio junto (~100 MB de trilha), e o
+# total ficou em ~200 MB. O GitHub recusa arquivo acima de 100 MiB num push --
+# entao o jeito antigo, commitar em dev/ e baixar pelo raw.githubusercontent,
+# deixou de caber. Release aceita ate' 2 GB por arquivo.
+#
+# De quebra resolve o motivo de tudo isto existir: gerar um APK novo deixa de
+# depender de alguem com o ambiente montado na maquina. E um botao.
+#
+# COMO RODAR: aba Actions -> "APK de desenvolvedor" -> Run workflow.
+
+name: APK de desenvolvedor
+
+on:
+  workflow_dispatch:
+    inputs:
+      version_code:
+        description: "versionCode (tem que subir a cada APK, senao o Android recusa instalar por cima)"
+        required: true
+        default: "15"
+      version_name:
+        description: "nome da versao mostrado ao usuario"
+        required: true
+        default: "0.12.0-dev15"
+
+permissions:
+  contents: write   # necessario para criar/atualizar a Release
+
+jobs:
+  apk:
+    name: montar e publicar
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # A versao esta presa de proposito: os templates de exportacao TEM que
+      # ser exatamente da mesma versao do editor, senao a exportacao falha.
+      - name: Baixar o Godot 4.6.2 e os templates
+        run: |
+          set -e
+          BASE=https://github.com/godotengine/godot/releases/download/4.6.2-stable
+          curl -sSL -o godot.zip "$BASE/Godot_v4.6.2-stable_linux.x86_64.zip"
+          curl -sSL -o tpz.zip   "$BASE/Godot_v4.6.2-stable_export_templates.tpz"
+          unzip -q godot.zip && chmod +x Godot_v4.6.2-stable_linux.x86_64
+          mkdir -p ~/.local/share/godot/export_templates
+          unzip -q tpz.zip -d /tmp/tpl
+          mv /tmp/tpl/templates ~/.local/share/godot/export_templates/4.6.2.stable
+          ./Godot_v4.6.2-stable_linux.x86_64 --version
+
+      # A keystore de DEPURACAO nao e' segredo: senha publica e fixa, igual em
+      # qualquer instalacao do Android. Gerar na hora evita guardar arquivo
+      # binario no repositorio -- e a de RELEASE nao entra aqui, nem deve.
+      - name: Gerar a keystore de depuracao
+        run: |
+          mkdir -p ~/.local/share/godot/keystores
+          keytool -keyalg RSA -genkeypair -alias androiddebugkey \
+            -keypass android -keystore ~/.local/share/godot/keystores/debug.keystore \
+            -storepass android -validity 10000 \
+            -dname 'CN=Android Debug,O=Android,C=US' -noprompt
+
+      - name: Importar o projeto
+        run: |
+          timeout 900 ./Godot_v4.6.2-stable_linux.x86_64 --headless --path . --import \
+            > /tmp/import.log 2>&1 || true
+          tail -3 /tmp/import.log
+
+      # O script confere o APK QUE SAIU e reprova se faltar permissao, audio ou
+      # a lista de modulos. Preset com chave errada nao da' erro, so' fica sem
+      # efeito -- ja' aconteceu, e o APK saiu sem INTERNET.
+      - name: Exportar o APK
+        env:
+          VERSION_CODE: ${{ inputs.version_code }}
+          VERSION_NAME: ${{ inputs.version_name }}
+        run: tools/exportar_apk_dev.sh "$PWD/Godot_v4.6.2-stable_linux.x86_64"
+
+      - name: Publicar na Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -e
+          TAG="dev-${{ inputs.version_name }}"
+          gh release create "$TAG" \
+            --title "Cyron DEV ${{ inputs.version_name }}" \
+            --notes "App de desenvolvedor. Instala AO LADO do jogo de verdade (pacote com.tiagofernando.cyrondev).
+
+          Baixe o CyronDEV.apk aqui embaixo e instale no celular.
+          O painel de manutencao abre com cinco toques no canto superior esquerdo." \
+            "dev/CyronDEV.apk#CyronDEV.apk" \
+            || gh release upload "$TAG" "dev/CyronDEV.apk#CyronDEV.apk" --clobber
+          echo "Link direto:"
+          gh release view "$TAG" --json assets --jq '.assets[].url'
