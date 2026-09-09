@@ -3,9 +3,9 @@
   "packs": [
     {
       "id": "jogo",
-      "version": 2,
-      "url": "https://github.com/TiagoFernando113/TorreDefesaUpdates/releases/download/pacote-dev-2/jogo_v2.pck",
-      "sha256": "1abb5a8b061d82aa23ca26066553b17b5eb42edea96537d9d4c62c5416b1cb24",
+      "version": 3,
+      "url": "https://github.com/TiagoFernando113/TorreDefesaUpdates/releases/download/pacote-dev-3/jogo_v3.pck",
+      "sha256": "8e4c7eb945f5a23462cae14ca6f1dee47e6a7de5e1074017129e9bd52e9c4ee6",
       "kind": "script",
       "requer_autoloads": ["Acessibilidade", "AppConfig", "ArenaOnline", "Atualizador", "Auth", "BuildConfig", "Carregador", "ChaveTTS", "DevPainel", "Modulos", "Notificacoes", "ProjectMusicController", "ProjectUISoundController", "RankingOnline", "Reserva1", "Reserva2", "Reserva3", "Salvar", "SceneLoader", "Som"]
     }
