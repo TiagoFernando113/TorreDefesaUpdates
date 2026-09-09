@@ -23,8 +23,8 @@ extends Node
 ## o app congela em segundo plano e nunca responde. Repetido com o app
 ## acordado e o login ativo: a conexao nao chega ate' ele de qualquer jeito.
 ##
-## Hoje o Google volta para uma pagina do portal, que guarda o codigo numa
-## ponte no Supabase; o jogo pergunta pela ponte de dois em dois segundos.
+## Hoje o Google volta para uma funcao deste mesmo projeto Supabase, que guarda
+## o codigo numa ponte; o jogo pergunta pela ponte de dois em dois segundos.
 ## Funciona igual no PC e no celular, e sobrevive ao Android matar o jogo no
 ## meio do caminho.
 ##
@@ -44,9 +44,14 @@ const _AUTHORIZE   : String = _BASE + "/auth/v1/authorize"
 const _TOKEN       : String = _BASE + "/auth/v1/token"
 const _LOGOUT      : String = _BASE + "/auth/v1/logout"
 const _URL_PROFILES: String = _BASE + "/rest/v1/profiles"
-## Para onde o Google devolve. Uma pagina do proprio portal, e nao mais um
-## servidor dentro do jogo -- ver o cabecalho do arquivo.
-const _PAGINA_RETORNO : String = "https://portal-alianca.github.io/cyron/entrar.html"
+## Para onde o Google devolve: uma funcao DESTE MESMO projeto Supabase.
+##
+## Chegou a morar numa pagina do portal da Alianca, e estava errado. O Cyron
+## Defense e' projeto proprio -- pendurar o login dele no site de outro projeto
+## cria uma dependencia invisivel: um dia alguem mexe la', ou troca o dominio,
+## e derruba o login daqui sem desconfiar. Aqui o retorno mora junto com a
+## autenticacao que ele serve.
+const _PAGINA_RETORNO : String = _BASE + "/functions/v1/entrar"
 const _RPC_PEGAR      : String = _BASE + "/rest/v1/rpc/login_ponte_pegar"
 
 ## 10 minutos. Eram 3, e nao davam: escolher conta, digitar senha e passar pela
@@ -147,11 +152,11 @@ func sair() -> void:
 # plano e nunca responde. Testado tambem com o app acordado e o fluxo ativo: a
 # conexao simplesmente nao chega ate' ele.
 #
-# AGORA: o Google volta para uma pagina do portal, que guarda o codigo numa
-# ponte no Supabase. O jogo pergunta pela ponte de dois em dois segundos. Nao
-# depende de o app estar acordado na hora certa, e sobrevive ate' se o Android
-# matar o jogo -- o verifier fica salvo em disco e a busca recomeca sozinha na
-# proxima abertura.
+# AGORA: o Google volta para uma funcao deste mesmo projeto Supabase (a
+# `entrar`), que guarda o codigo numa ponte. O jogo pergunta pela ponte de dois
+# em dois segundos. Nao depende de o app estar acordado na hora certa, e
+# sobrevive ate' se o Android matar o jogo -- o verifier fica salvo em disco e a
+# busca recomeca sozinha na proxima abertura.
 #
 # O codigo guardado na ponte nao entra em conta nenhuma: a troca exige o
 # code_verifier do PKCE, que nasce aqui dentro e nunca sai. A leitura na ponte

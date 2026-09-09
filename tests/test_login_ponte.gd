@@ -105,6 +105,17 @@ func _o_loopback_nao_voltou() -> void:
 		"prazo curto demais (%.0fs): login de celular passa disso com facilidade"
 			% Auth._TIMEOUT_S)
 
+	# O retorno tem que morar no projeto DO JOGO.
+	#
+	# Isto ja' foi violado: a pagina de retorno chegou a ser hospedada no site
+	# do portal da Alianca, que e' outro projeto. Um dia alguem mexe la', ou
+	# troca o dominio, e derruba o login daqui sem desconfiar do estrago -- e o
+	# defeito apareceria como "o login parou", sem nenhuma pista apontando para
+	# um repositorio que ninguem associa a este jogo.
+	_esperar(Auth._PAGINA_RETORNO.begins_with(Auth._BASE),
+		"o retorno saiu do projeto do jogo (foi para '%s') -- nao dependa de outro projeto"
+			% Auth._PAGINA_RETORNO)
+
 
 func _esperar(condicao: bool, msg: String) -> void:
 	if not condicao:
