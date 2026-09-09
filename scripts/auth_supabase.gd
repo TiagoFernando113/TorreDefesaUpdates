@@ -15,13 +15,23 @@ extends Node
 ##   Auth.sair()
 ##   sinais: login_ok(uid), login_falhou(erro), logout_feito
 ##
-## PC: redirect via loopback 127.0.0.1:porta fixa (allowlist estável).
-## Android: HOJE usa o mesmo loopback do PC, e o jogador precisa voltar ao app
-## na mao -- o navegador nao traz de volta sozinho. O deep link `cyron://auth`
-## esta declarado em _SCHEME_AND e NAO esta ligado a nada: nao ha intent-filter
-## declarado no Android nem quem trate o retorno. Fica escrito aqui porque o
-## comentario antigo dizia que o deep link era o caminho, e quem lesse iria
-## procurar um bug onde nao ha' codigo.
+## COMO O CODIGO VOLTA (mudou, e o motivo importa)
+##
+## Ate' aqui o jogo abria um servidor em 127.0.0.1 e esperava o navegador
+## voltar nele. Isso NAO funciona no Android, e foi conferido no aparelho:
+## o navegador conecta -- nao da recusa -- e fica girando para sempre, porque
+## o app congela em segundo plano e nunca responde. Repetido com o app
+## acordado e o login ativo: a conexao nao chega ate' ele de qualquer jeito.
+##
+## Hoje o Google volta para uma pagina do portal, que guarda o codigo numa
+## ponte no Supabase; o jogo pergunta pela ponte de dois em dois segundos.
+## Funciona igual no PC e no celular, e sobrevive ao Android matar o jogo no
+## meio do caminho.
+##
+## Nao existe deep link `cyron://`. Conferido no manifesto do APK: nao ha
+## scheme, VIEW nem BROWSABLE. E nao adiantaria so' declarar -- o Godot 4.6.2
+## nao entrega intents ao GDScript, entao o codigo se perderia no caminho.
+## Fazer de verdade pede um plugin em Kotlin.
 
 signal login_ok(uid: String)
 signal login_falhou(erro: String)
@@ -34,10 +44,19 @@ const _AUTHORIZE   : String = _BASE + "/auth/v1/authorize"
 const _TOKEN       : String = _BASE + "/auth/v1/token"
 const _LOGOUT      : String = _BASE + "/auth/v1/logout"
 const _URL_PROFILES: String = _BASE + "/rest/v1/profiles"
-const _PORTA_PC    : int    = 49190                      # fixa → allowlist estável
-const _SCHEME_AND  : String = "cyron://auth"             # deep link Android
-const _TIMEOUT_S   : float  = 180.0
+## Para onde o Google devolve. Uma pagina do proprio portal, e nao mais um
+## servidor dentro do jogo -- ver o cabecalho do arquivo.
+const _PAGINA_RETORNO : String = "https://portal-alianca.github.io/cyron/entrar.html"
+const _RPC_PEGAR      : String = _BASE + "/rest/v1/rpc/login_ponte_pegar"
+
+## 10 minutos. Eram 3, e nao davam: escolher conta, digitar senha e passar pela
+## verificacao em duas etapas leva mais que isso com facilidade, e ao estourar o
+## prazo o login morria em silencio.
+const _TIMEOUT_S      : float  = 600.0
+const _INTERVALO_BUSCA: float  = 2.0
+
 const _ARQ_SESSAO  : String = "user://sessao.dat"
+const _ARQ_PENDENTE: String = "user://login_pendente.dat"
 const _CHAVE_SESSAO: String = "cyron_sessao_v1"          # ofuscação local do token
 
 var _access     : String = ""
@@ -48,14 +67,21 @@ var _nome_google: String = ""                            # nome vindo do Google 
 var _apelido    : String = ""                            # apelido do perfil (nome no ranking)
 
 # Estado do fluxo OAuth em andamento
-var _server   : TCPServer = null
-var _verifier : String    = ""
-var _restante : float     = 0.0
-var _ativo    : bool      = false
+var _verifier   : String = ""
+var _estado     : String = ""    # identifica ESTE login na ponte
+var _restante   : float  = 0.0
+var _ate_buscar : float  = 0.0
+var _ativo      : bool   = false
+var _http_busca : HTTPRequest = null
 
 
 func _ready() -> void:
 	_carregar_sessao()
+	if _access == "":
+		# O app pode ter sido fechado (ou morto pelo Android) enquanto a pessoa
+		# estava no navegador. O login continua valendo: o codigo esta esperando
+		# na ponte e o verifier ficou salvo em disco.
+		_retomar_pendente()
 
 
 # ── API pública ──────────────────────────────────────────────────────────────
@@ -83,11 +109,12 @@ func entrar_google() -> void:
 	ctx.update(_verifier.to_utf8_buffer())
 	var challenge := _b64url(ctx.finish())
 
-	var redirect := _redirect_uri()
-	if redirect == "":
-		login_falhou.emit("Não consegui preparar o retorno do login neste aparelho.")
-		return
+	# Identifica ESTE login na ponte. Aleatorio e longo: quem nao tem o valor
+	# nao consegue pedir o codigo de outra pessoa, e adivinhar e' inviavel.
+	_estado = _b64url(Crypto.new().generate_random_bytes(24))
+	_salvar_pendente()
 
+	var redirect := "%s?s=%s" % [_PAGINA_RETORNO, _estado]
 	var url := _AUTHORIZE + "?" + "&".join(PackedStringArray([
 		"provider=google",
 		"redirect_to=" + redirect.uri_encode(),
@@ -96,6 +123,8 @@ func entrar_google() -> void:
 	]))
 	_ativo = true
 	_restante = _TIMEOUT_S
+	_ate_buscar = 1.0
+	print("AUTH: login iniciado; esperando a ponte (estado ", _estado.left(6), "…)")
 	OS.shell_open(url)
 
 
@@ -110,54 +139,130 @@ func sair() -> void:
 	logout_feito.emit()
 
 
-# ── Fluxo OAuth (PC loopback) ────────────────────────────────────────────────
-
-func _redirect_uri() -> String:
-	# Loopback funciona em PC e (geralmente) Android: o navegador redireciona pra
-	# 127.0.0.1:porta e o app captura. No Android o jogador volta pro app na mão
-	# (o navegador não traz de volta sozinho). Se falhar no device, fallback é
-	# deep link via plugin nativo.
-	_server = TCPServer.new()
-	if _server.listen(_PORTA_PC, "127.0.0.1") != OK:
-		_server = null
-		return ""
-	return "http://127.0.0.1:%d" % _PORTA_PC
+# ── Fluxo OAuth: o retorno passa por uma ponte ───────────────────────────────
+#
+# ANTES: o jogo abria um servidor em 127.0.0.1 e esperava o navegador voltar
+# nele. Conferido no aparelho e NAO funciona no Android -- o navegador conecta
+# (nao da recusa) e fica girando para sempre, porque o app congela em segundo
+# plano e nunca responde. Testado tambem com o app acordado e o fluxo ativo: a
+# conexao simplesmente nao chega ate' ele.
+#
+# AGORA: o Google volta para uma pagina do portal, que guarda o codigo numa
+# ponte no Supabase. O jogo pergunta pela ponte de dois em dois segundos. Nao
+# depende de o app estar acordado na hora certa, e sobrevive ate' se o Android
+# matar o jogo -- o verifier fica salvo em disco e a busca recomeca sozinha na
+# proxima abertura.
+#
+# O codigo guardado na ponte nao entra em conta nenhuma: a troca exige o
+# code_verifier do PKCE, que nasce aqui dentro e nunca sai. A leitura na ponte
+# e' de uso unico e tudo expira em 10 minutos.
 
 
 func _process(delta: float) -> void:
-	if not _ativo or _server == null:
+	if not _ativo:
 		return
 	_restante -= delta
 	if _restante <= 0.0:
-		_cancelar("Tempo esgotado — tente de novo.")
+		_esquecer_pendente()
+		_cancelar("O login demorou demais. Toque em entrar de novo.")
 		return
-	if not _server.is_connection_available():
+	_ate_buscar -= delta
+	if _ate_buscar > 0.0:
 		return
-	var conn := _server.take_connection()
-	if conn == null:
+	_ate_buscar = _INTERVALO_BUSCA
+	_buscar_na_ponte()
+
+
+func _buscar_na_ponte() -> void:
+	# Uma pergunta por vez: sem isto, uma resposta lenta empilharia requisicoes.
+	if _http_busca != null and is_instance_valid(_http_busca):
 		return
-	var espera := 0
-	while conn.get_available_bytes() <= 0 and espera < 100:
-		OS.delay_msec(10)
-		espera += 1
-	var raw := conn.get_utf8_string(conn.get_available_bytes())
-	var code := ""
-	var m := RegEx.create_from_string("[?&]code=([^&\\s]+)").search(raw)
-	if m:
-		code = m.get_string(1).uri_decode()
-	var ok_html : String = "Login confirmado ✔" if code != "" else "Login cancelado"
-	var corpo := "<html><body style='background:#0a0a12;color:#dde;font-family:sans-serif;text-align:center;padding-top:120px'><h2>%s</h2><p>Pronto! O jogo já voltou pra frente. Pode fechar esta aba.</p></body></html>" % ok_html
-	conn.put_data(("HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nConnection: close\r\nContent-Length: %d\r\n\r\n%s" % [corpo.to_utf8_buffer().size(), corpo]).to_utf8_buffer())
-	conn.disconnect_from_host()
-	_fechar_server()
+	_http_busca = HTTPRequest.new()
+	_http_busca.timeout = 10.0
+	add_child(_http_busca)
+	_http_busca.request_completed.connect(_on_busca)
+	var err := _http_busca.request(_RPC_PEGAR, _headers(false), HTTPClient.METHOD_POST,
+		JSON.stringify({"p_estado": _estado}))
+	if err != OK:
+		_http_busca.queue_free()
+		_http_busca = null
+
+
+func _on_busca(resultado: int, status: int, _h: PackedStringArray, corpo: PackedByteArray) -> void:
+	if _http_busca != null and is_instance_valid(_http_busca):
+		_http_busca.queue_free()
+	_http_busca = null
+	if not _ativo:
+		return
+
+	# Sem resposta ou servidor com problema: nao e' motivo para desistir do
+	# login. A pessoa pode estar trocando de rede no meio do caminho.
+	if sem_resposta(resultado, status) or status >= 500:
+		return
+	if status != 200:
+		print("AUTH: a ponte recusou a consulta status=", status,
+			" corpo=", corpo.get_string_from_utf8().left(200))
+		return
+
+	var txt := corpo.get_string_from_utf8().strip_edges()
+	if txt == "" or txt == "null":
+		return                                  # ainda nao chegou; pergunta de novo
+	var code: Variant = JSON.parse_string(txt)
+	if not (code is String) or (code as String).is_empty():
+		return
+
 	_ativo = false
-	if code == "":
-		_cancelar("Login cancelado no navegador.")
+	_esquecer_pendente()
+	print("AUTH: codigo recebido pela ponte; trocando por sessao")
+	_trocar_codigo(code as String)
+
+
+## Guarda o login em andamento. Existe para o caso do Android matar o jogo
+## enquanto a pessoa esta no navegador: sem isto o verifier morreria junto e o
+## codigo que ja' esta na ponte viraria lixo.
+func _salvar_pendente() -> void:
+	var f := FileAccess.open_encrypted_with_pass(_ARQ_PENDENTE, FileAccess.WRITE, _CHAVE_SESSAO)
+	if f == null:
 		return
-	# Traz o jogo de volta pra frente automaticamente (sem alt-tab manual).
-	DisplayServer.window_move_to_foreground()
-	DisplayServer.window_request_attention()
-	_trocar_codigo(code)
+	f.store_string(JSON.stringify({
+		"estado": _estado,
+		"verifier": _verifier,
+		"em": Time.get_unix_time_from_system(),
+	}))
+	f.close()
+
+
+func _esquecer_pendente() -> void:
+	if FileAccess.file_exists(_ARQ_PENDENTE):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(_ARQ_PENDENTE))
+
+
+func _retomar_pendente() -> void:
+	if not FileAccess.file_exists(_ARQ_PENDENTE):
+		return
+	var f := FileAccess.open_encrypted_with_pass(_ARQ_PENDENTE, FileAccess.READ, _CHAVE_SESSAO)
+	if f == null:
+		_esquecer_pendente()
+		return
+	var d: Variant = JSON.parse_string(f.get_as_text())
+	f.close()
+	if not (d is Dictionary):
+		_esquecer_pendente()
+		return
+	var dd := d as Dictionary
+	# Mais velho que o prazo: a ponte ja' apagou o codigo, nao ha' o que buscar.
+	if Time.get_unix_time_from_system() - float(dd.get("em", 0.0)) > _TIMEOUT_S:
+		_esquecer_pendente()
+		return
+	_estado = str(dd.get("estado", ""))
+	_verifier = str(dd.get("verifier", ""))
+	if _estado.is_empty() or _verifier.is_empty():
+		_esquecer_pendente()
+		return
+	_ativo = true
+	_restante = _TIMEOUT_S
+	_ate_buscar = 0.5
+	print("AUTH: retomando um login que ficou pela metade")
 
 
 ## Nao chegou resposta nenhuma? (ao contrario de "o servidor respondeu, e disse
@@ -365,15 +470,8 @@ func _headers(com_bearer: bool) -> PackedStringArray:
 
 
 func _cancelar(msg: String) -> void:
-	_fechar_server()
 	_ativo = false
 	login_falhou.emit(msg)
-
-
-func _fechar_server() -> void:
-	if _server:
-		_server.stop()
-		_server = null
 
 
 static func _b64url(bytes: PackedByteArray) -> String:
