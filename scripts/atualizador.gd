@@ -33,7 +33,10 @@ var _content_current : Dictionary = {}
 
 func _ready() -> void:
 	_carregar_content_state()
-	_carregar_packs_salvos()
+	# Nao ha' _carregar_packs_salvos aqui: quem aplica pacote e' o Carregador, no
+	# _init(), antes de todos os autoloads. Aplicar de novo neste ponto seria
+	# tarde demais para servir de alguma coisa (os autoloads ja' subiram) e so'
+	# criaria a mistura de versoes descrita em _on_content_pack_resp.
 	_iniciar_check_conteudo()
 	if not BuildConfig.allow_external_apk_update():
 		return
@@ -300,11 +303,30 @@ func _on_content_pack_resp(result: int, code: int, _h: PackedStringArray, body: 
 			DirAccess.remove_absolute(ProjectSettings.globalize_path(destino))
 		_baixar_proximo_pack()
 		return
-	if ProjectSettings.load_resource_pack(destino, true):
-		var packs: Dictionary = _content_state.get("packs", {}) as Dictionary
-		packs[str(_content_current.get("id", ""))] = int(_content_current.get("version", 0))
-		_content_state["packs"] = packs
-		_salvar_content_state()
+	# O PACOTE NAO E' APLICADO NESTA ABERTURA. De proposito.
+	#
+	# Aplicar aqui parece adiantar a atualizacao, mas nao adianta: os autoloads
+	# ja' subiram com o codigo do APK e continuam com ele ate' o app fechar. O
+	# que muda e' so' o que for carregado DEPOIS -- as telas. Ou seja, o jogo
+	# passaria a rodar metade novo e metade velho.
+	#
+	# Isso quebra de um jeito especifico: uma tela do pacote chama um metodo que
+	# so' existe no autoload novo, e o autoload em memoria e' o antigo. Erro em
+	# tempo de execucao, tela torta -- e o descarte automatico do Carregador NAO
+	# salva, porque ele so' dispara quando a abertura nao chega ao primeiro
+	# quadro, e essa chegou.
+	#
+	# Enquanto pacote era coisa rara e manual, a janela quase nunca abria. Agora
+	# que sai um a cada mudanca, ela abriria toda vez. Entao o pacote fica
+	# guardado e quem aplica e' o Carregador, no _init() da proxima abertura, com
+	# tudo da mesma versao e com a rede de seguranca ligada.
+	#
+	# O sha256 acima ja' garantiu que o arquivo esta inteiro; se ainda assim ele
+	# nao abrir, o Carregador descarta e o app volta ao que veio no APK.
+	var packs: Dictionary = _content_state.get("packs", {}) as Dictionary
+	packs[str(_content_current.get("id", ""))] = int(_content_current.get("version", 0))
+	_content_state["packs"] = packs
+	_salvar_content_state()
 	_baixar_proximo_pack()
 
 
@@ -488,18 +510,6 @@ func _salvar_content_state() -> void:
 		return
 	f.store_string(JSON.stringify(_content_state, "\t"))
 	f.close()
-
-
-func _carregar_packs_salvos() -> void:
-	var packs: Dictionary = _content_state.get("packs", {}) as Dictionary
-	for id in packs.keys():
-		var version := int(packs.get(id, 0))
-		if version <= 0:
-			continue
-		for ext in ["pck", "zip"]:
-			var path := "%s/%s_v%d.%s" % [CONTENT_PACK_DIR, str(id), version, ext]
-			if FileAccess.file_exists(path):
-				ProjectSettings.load_resource_pack(path, true)
 
 
 func _garantir_dir_conteudo() -> void:
