@@ -268,6 +268,54 @@ função `entrar` só precisa passar a redirecionar para lá depois de guardar o
 código na ponte (redirecionamento saindo da função não passa pela lista de
 endereços do Auth, então nada muda na configuração do login).
 
+### 5e. O botão existe, é tocado, e mesmo assim não abre o app
+
+A página com o botão foi publicada e o toque acontece — o `intent://` dispara,
+falha, e cai no plano B (a página recarrega). *"Carrega e não vai."*
+
+Duas causas eram possíveis, com consertos muito diferentes, então em vez de
+adivinhar foi ao ar uma página com três links. **Os três falharam**, incluindo
+o terceiro, que era o que fechava a conta:
+
+| # | link | resultado |
+|---|---|---|
+| 1 | a forma com dados (`scheme=https` + `MAIN`/`LAUNCHER`) | não abriu |
+| 2 | a mesma coisa **sem dados** (`intent:#Intent;package=…`) | não abriu |
+| 3 | **Configurações do Android**, sem dados | **não abriu** |
+
+O 3 é decisivo: as Configurações existem em todo aparelho e também só têm tela
+de abertura. Se nem elas abrem, **o problema não é do Cyron nem da forma do
+link**.
+
+A causa é o Chrome: ele acrescenta `CATEGORY_BROWSABLE` a todo `intent://` que
+dispara. Um app cujo único filtro é `MAIN`/`LAUNCHER` não declara `BROWSABLE`,
+então nada casa e o navegador vai para o endereço de reserva.
+
+**Consequência:** para o jogo poder ser aberto pelo navegador, ele precisa
+declarar um endereço próprio no `AndroidManifest.xml` — um `<intent-filter>`
+com `VIEW` + `DEFAULT` + `BROWSABLE`.
+
+### 5f. O que trava o endereço próprio (e as notificações junto)
+
+O `AndroidManifest.xml` do modelo padrão do Godot **não aceita intent-filter
+novo**. Para mexer nele é preciso a *build customizada*: instalar o modelo de
+compilação (`--install-android-build-template`), ligar `use_gradle_build` no
+preset e compilar com Gradle.
+
+O mesmo bloqueio segura outra coisa: o `Notificacoes` fala com um plugin nativo
+`CyronPush` que **não existe no APK montado pela esteira** — plugin nativo
+também só entra por build customizada. Por isso `plugin_disponivel()` é falso
+no app de desenvolvedor, e a saída "avisar por notificação para a pessoa tocar
+e voltar" está fechada pelo mesmo motivo.
+
+Ou seja: **uma mudança destrava as duas.** Mas ela troca a exportação simples
+por uma compilação Gradle completa — mais lenta, com mais o que dar errado, num
+caminho que hoje funciona. Não é uma decisão para tomar sozinho no fim de uma
+sessão longa.
+
+Enquanto isso não for feito, o login funciona assim: escolher a conta, tocar em
+◁ (voltar), e o jogo já está logado. A página diz exatamente isso.
+
 ### 6. O resto, que não tem jeito
 
 Motor (Godot 4.6), método de renderização (`mobile`), nome do pacote, ícone,
