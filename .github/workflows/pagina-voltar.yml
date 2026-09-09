@@ -88,6 +88,12 @@ jobs:
             || { echo "voltar-dev.html perdeu o nome do pacote do app de dev"; exit 1; }
           grep -q "package=com.tiago.cyrondefense" _site/voltar.html \
             || { echo "voltar.html perdeu o nome do pacote do jogo publico"; exit 1; }
+          # Sem o plano B, um Android que nao consiga abrir o app deixa o Chrome
+          # numa tela de erro -- e o login PARECE quebrado quando ja' esta feito.
+          for f in _site/voltar-dev.html _site/voltar.html; do
+            grep -q "S.browser_fallback_url=" "$f" \
+              || { echo "$f perdeu o plano B do intent://"; exit 1; }
+          done
 
       # Falhar dizendo o que fazer vale mais do que falhar dizendo
       # "Resource not accessible by integration".
