@@ -2,36 +2,22 @@
 <html lang="pt-BR"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
-<title>Teste do intent</title>
+<title>Teste do endereco</title>
 <style>
  body{background:#080a14;color:#c8dcea;font-family:system-ui,sans-serif;
-      margin:0;padding:20px;text-align:center}
+      margin:0;padding:28px;text-align:center}
  h1{color:#00d9ff;font-size:19px;letter-spacing:.1em}
- .aviso{color:#5b7a95;font-size:13px;line-height:1.6;margin-bottom:26px}
- section{border-top:1px solid #1b2740;padding:20px 0}
- h2{font-size:16px;color:#fff;margin:0 0 6px}
- .exp{color:#5b7a95;font-size:13px;line-height:1.5;margin:0 0 14px}
- .botao{display:block;color:#04121a;font-weight:700;font-size:17px;
-        text-decoration:none;padding:16px;border-radius:999px}
+ p{color:#5b7a95;font-size:14px;line-height:1.65}
+ .botao{display:block;background:#00d9ff;color:#04121a;font-weight:700;
+        font-size:19px;text-decoration:none;padding:20px;border-radius:999px;
+        margin:30px 0}
+ code{color:#7fe08a;font-size:13px}
 </style></head><body>
-<h1>TESTE DO INTENT</h1>
-<p class="aviso">Nao faz login e nao muda nada.<br>
-Toque nos tres, um de cada vez, e diga quais abriram algo.<br>
-Depois de cada um, volte para esta pagina.</p>
-  <section>
-    <h2>1 &mdash; a forma de hoje</h2>
-    <p class="exp">E' exatamente o link do botao atual. Se este abrir o jogo, o defeito esta noutro lugar.</p>
-    <a class="botao" style="background:#00d9ff" href="intent://cyron-login/#Intent;scheme=https;package=com.tiagofernando.cyrondev;action=android.intent.action.MAIN;category=android.intent.category.LAUNCHER;end">TOCAR AQUI</a>
-  </section>
-  <section>
-    <h2>2 &mdash; a mesma coisa, sem dados</h2>
-    <p class="exp">Igual ao 1, mas sem carregar endereco junto. Se SO' este abrir, o conserto e' de graca: e' trocar uma linha da pagina.</p>
-    <a class="botao" style="background:#7fe08a" href="intent:#Intent;package=com.tiagofernando.cyrondev;action=android.intent.action.MAIN;category=android.intent.category.LAUNCHER;end">TOCAR AQUI</a>
-  </section>
-  <section>
-    <h2>3 &mdash; controle: Configuracoes do Android</h2>
-    <p class="exp">Abre as Configuracoes do proprio celular, que tambem so' tem tela de abertura. Se nem este abrir, nenhum app pode ser aberto assim pelo navegador &mdash; e ai' o jogo precisa de APK novo.</p>
-    <a class="botao" style="background:#e0c56a" href="intent:#Intent;package=com.android.settings;action=android.intent.action.MAIN;category=android.intent.category.LAUNCHER;end">TOCAR AQUI</a>
-  </section>
-
+<h1>TESTE DO ENDERECO PROPRIO</h1>
+<p>Isto testa <code>cyron://voltar</code>, o endereco que o APK novo declara.<br>
+Nao faz login e nao muda nada.</p>
+<a class="botao" href="intent://voltar/#Intent;scheme=cyron;package=com.tiagofernando.cyrondev;end">ABRIR O CYRON DEV</a>
+<p><b>So' funciona depois de instalar o APK novo.</b><br>
+Com o APK antigo, nada acontece &mdash; e isso ja' e' a resposta.</p>
+<p>Se abrir o jogo, o caminho de volta do login esta resolvido.</p>
 </body></html>

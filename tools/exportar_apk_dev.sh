@@ -79,7 +79,16 @@ encrypt_directory=false
 
 [preset.0.options]
 
-gradle_build/use_gradle_build=false
+; COMPILACAO GRADLE, e nao a exportacao simples.
+;
+; Custa mais tempo e tem mais o que dar errado, e mesmo assim e' o unico
+; caminho: o manifesto do modelo padrao nao aceita intent-filter novo, e sem
+; intent-filter proprio NENHUM app pode ser aberto pelo navegador -- medido no
+; aparelho, incluindo as Configuracoes do Android como controle.
+;
+; De quebra e' o que permite plugin nativo, entao o CyronPush (notificacoes)
+; deixa de ser letra morta neste APK.
+gradle_build/use_gradle_build=true
 package/unique_name="com.tiagofernando.cyrondev"
 ; Nome diferente de proposito: este APK instala AO LADO do jogo de verdade.
 package/name="Cyron DEV"
@@ -108,8 +117,38 @@ permissions/wake_lock=true
 permissions/post_notifications=true
 EOF
 
+# ---------------------------------------------------------------------------
+# O MODELO DE COMPILACAO
+#
+# A compilacao Gradle roda sobre uma copia do projeto Android do Godot, em
+# android/build/. Ela sai de dentro dos proprios modelos de exportacao
+# (android_source.zip), entao nao ha' o que baixar alem do que ja' se baixa.
+#
+# Extrair na mao, em vez de usar --install-android-build-template, evita uma
+# exportacao inteira so' para instalar o modelo -- seriam ~200 MB montados e
+# jogados fora antes da montagem que vale.
+# ---------------------------------------------------------------------------
+FONTE_ANDROID="$(ls -d "$HOME"/.local/share/godot/export_templates/*/android_source.zip 2>/dev/null | head -1)"
+if [ -z "$FONTE_ANDROID" ]; then
+  echo "nao achei o android_source.zip nos modelos de exportacao."
+  echo "sem ele nao ha' compilacao Gradle, e sem Gradle o APK sai sem o"
+  echo "endereco proprio do jogo -- que e' a razao de tudo isto existir."
+  ls -la "$HOME"/.local/share/godot/export_templates/*/ 2>/dev/null | head -20
+  exit 1
+fi
+
+echo "Instalando o modelo de compilacao a partir de $FONTE_ANDROID"
+rm -rf android/build
+mkdir -p android/build
+unzip -q "$FONTE_ANDROID" -d android/build
+echo "4.6.2.stable" > android/.build_version
+
+MANIFESTO="android/build/AndroidManifest.xml"
+[ -f "$MANIFESTO" ] || { echo "o modelo veio sem $MANIFESTO"; find android/build -name 'AndroidManifest.xml' | head; exit 1; }
+python3 tools/endereco_proprio_android.py "$MANIFESTO" || exit 1
+
 mkdir -p "$(dirname "$SAIDA")"
-echo "Exportando (demora: o audio sozinho tem ~100 MB)..."
+echo "Exportando (demora: Gradle + o audio, que sozinho tem ~100 MB)..."
 "$GODOT" --headless --path . --export-debug "dev" "$SAIDA" >/tmp/exportar_apk_dev.log 2>&1 || {
   echo "a exportacao falhou:"; tail -15 /tmp/exportar_apk_dev.log; exit 1; }
 
@@ -149,6 +188,16 @@ if "com.example" in m:
     problemas.append("saiu com com.example -- o preset nao foi aplicado")
 if "com.tiagofernando.cyrondev" not in m:
     problemas.append("o nome do pacote nao e' com.tiagofernando.cyrondev")
+
+# O ENDERECO PROPRIO. E' a razao de este APK ser compilado com Gradle.
+#
+# Sem ele o botao "VOLTAR AO JOGO" da pagina de login nao abre o app -- e nao
+# avisa: o navegador simplesmente vai para o endereco de reserva. Um APK sem
+# isto parece perfeito e falha exatamente onde ninguem olha.
+if "cyron" not in m:
+    problemas.append("o endereco cyron:// nao entrou no manifesto -- o botao de voltar nao vai abrir o app")
+if "android.intent.category.BROWSABLE" not in m:
+    problemas.append("falta BROWSABLE no manifesto -- e' a categoria que o navegador acrescenta; sem ela nada casa")
 
 aud = sum(i.file_size for i in z.infolist() if re.search(r"\.(ogg|mp3|wav)", i.filename))
 print("Audio embarcado: %.1f MB" % (aud / 1e6))
