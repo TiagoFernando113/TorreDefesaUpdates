@@ -173,12 +173,47 @@ segundo plano — a conexão é aceita e nunca atendida. Conferido no aparelho.
 
 Hoje o login volta por uma **ponte**: a página de retorno guarda o `code` numa
 tabela de uso único no Supabase do próprio jogo, e o app pergunta por ele.
-Sobrevive até o app ser morto. O app volta para a frente sozinho por um
-`intent://` disparado pelo navegador — que abre o pacote pelo nome, sem
-intent-filter e sem plugin.
+Sobrevive até o app ser morto.
 
 Um plugin Android (Kotlin) continua sendo o único jeito de ler um intent de
 dentro do GDScript, mas o login não precisa mais disso.
+
+### 5c. Por que o app NÃO volta sozinho — e por que não é falta de APK
+
+Aqui estava escrito que o app voltava para a frente sozinho por um `intent://`
+disparado pelo navegador. **Não volta.** Isso foi afirmado sem prova e a prova,
+quando veio, disse o contrário.
+
+Os registros do servidor, de um login real no aparelho:
+
+```
+19:23:21.167   ?code=98d3c0ee…&d=1&s=J_KU…   → 302   servidor mandou o intent://
+19:23:21.559   ?s=J_KU…&t=1                  → 200   0,4 s depois: o navegador
+                                                     pediu o endereço de reserva
+```
+
+O servidor faz a parte dele. O Chrome recebe o `intent://`, **recusa abrir o
+app e vai direto para o `S.browser_fallback_url`**. Repetido em três logins
+diferentes (16:45, 17:03, 19:23), sempre o mesmo desenho.
+
+O motivo é política do Chrome: ele não abre outro aplicativo a partir de um
+**redirecionamento**, só a partir de um **toque** na página. O gesto que
+existiu lá atrás — escolher a conta do Google — não atravessa a cadeia de
+redirecionamentos entre domínios.
+
+Duas conclusões, para não se repetir a tentativa:
+
+1. **Não adianta trocar o esquema.** `cyron://` com intent-filter no manifesto
+   esbarra na mesma política: o bloqueio é do redirecionamento, não do
+   esquema. Isso continua não sendo motivo para APK novo.
+2. **Voltar sozinho, sem ninguém tocar em nada, não é alcançável por este
+   caminho.** O que dá para fazer é um **botão** — e botão exige HTML, que a
+   Edge Function não serve: a plataforma devolve `text/plain` com `nosniff`,
+   conferido. Então a página de retorno precisa sair de lá para algum lugar
+   que sirva HTML de verdade, dentro do próprio projeto do jogo.
+
+Enquanto isso não for feito, a página deve dizer a verdade — pedir o toque em
+voltar —, e não "ele já entrou sozinho".
 
 ### 6. O resto, que não tem jeito
 
