@@ -116,6 +116,16 @@ func _o_loopback_nao_voltou() -> void:
 		"o retorno saiu do projeto do jogo (foi para '%s') -- nao dependa de outro projeto"
 			% Auth._PAGINA_RETORNO)
 
+	# O `d` manda o retorno abrir o app de volta. Ele entra num intent:// do
+	# Android do outro lado, entao aqui so' pode sair um ROTULO curto -- quem
+	# decide o nome do pacote e' uma lista fechada no servidor. Mandar o pacote
+	# direto daqui transformaria a URL num jeito de fazer o Android abrir
+	# qualquer aplicativo.
+	_esperar(codigo.contains("qual_app"),
+		"o retorno precisa dizer qual app reabrir (o parametro d)")
+	_esperar(not codigo.contains("com.tiagofernando") and not codigo.contains("com.tiago."),
+		"nome de pacote nao pode sair do jogo na URL -- mande so' o rotulo")
+
 
 func _esperar(condicao: bool, msg: String) -> void:
 	if not condicao:

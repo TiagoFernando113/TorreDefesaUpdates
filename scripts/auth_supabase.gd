@@ -119,7 +119,12 @@ func entrar_google() -> void:
 	_estado = _b64url(Crypto.new().generate_random_bytes(24))
 	_salvar_pendente()
 
-	var redirect := "%s?s=%s" % [_PAGINA_RETORNO, _estado]
+	# O `d` diz ao retorno QUAL app abrir de volta. Vai como rotulo curto, e nao
+	# como nome de pacote: o valor entra num intent:// do Android, e o que decide
+	# o pacote e' uma lista fechada do outro lado. Assim nada que venha pela URL
+	# consegue mandar o Android abrir um app qualquer.
+	var qual_app := "1" if BuildConfig.is_dev_build() else "2"
+	var redirect := "%s?s=%s&d=%s" % [_PAGINA_RETORNO, _estado, qual_app]
 	var url := _AUTHORIZE + "?" + "&".join(PackedStringArray([
 		"provider=google",
 		"redirect_to=" + redirect.uri_encode(),
