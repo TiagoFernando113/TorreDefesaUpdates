@@ -149,6 +149,31 @@ do
   [ "$achou" = 1 ] || falhas+=("faltou $obrigatorio no pacote")
 done
 
+# A OUTRA armadilha, irma da do autoload -- e mais silenciosa.
+#
+# `class_name` registra um nome global, e esse registro mora no
+# .godot/global_script_class_cache.cfg, lido no arranque, antes de qualquer
+# pacote. Igual ao autoload: pacote nao cria nome global, e qualquer script que
+# use o nome novo morre na leitura com "Identifier ... not declared". Como o
+# pacote e' aplicado no arranque, o jogo para de abrir.
+#
+# A diferenca e' que ninguem lembra desta. O projeto hoje nao usa `class_name`
+# em lugar nenhum -- entao esta trava nao custa nada agora, e evita que o
+# primeiro uso vire um brick que aparece semanas depois, sem pista.
+#
+# Diferente do autoload, aqui NAO da' para o jogo se defender: o nome global nao
+# aparece em lista nenhuma que o pacote possa declarar. A defesa e' so' esta, e
+# e' por isso que ela reprova em vez de avisar. Para acrescentar um `class_name`
+# de proposito: e' APK novo, e o pacote fica para o push seguinte.
+# PACK_PERMITIR_CLASS_NAME=1 solta a trava, para quem sabe o que esta fazendo.
+if [ "${PACK_PERMITIR_CLASS_NAME:-0}" != "1" ]; then
+  COM_CLASSE=$(grep -rlE '^[[:space:]]*class_name[[:space:]]' scripts ui 2>/dev/null || true)
+  if [ -n "$COM_CLASSE" ]; then
+    falhas+=("tem 'class_name' em: $(echo "$COM_CLASSE" | tr '\n' ' ')")
+    falhas+=("nome global nao chega por pacote -- so' por APK novo (veja o comentario no topo deste bloco)")
+  fi
+fi
+
 BYTES=$(stat -c %s "$SAIDA")
 LIMITE=$((30 * 1024 * 1024))
 MINIMO=$((200 * 1024))

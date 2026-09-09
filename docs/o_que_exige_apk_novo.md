@@ -37,6 +37,14 @@ verdade — o item 1 aqui embaixo — e agora ela é checada por máquina, antes
 download, em vez de depender de alguém lembrar. Quem não pode receber o pacote
 fica na versão do APK, funcionando, até instalar um APK novo.
 
+**A irmã silenciosa: `class_name`.** Nome global também é registrado no
+arranque (no `global_script_class_cache.cfg`), e também não chega por pacote —
+mesma quebra, mesmo sintoma. Só que aqui o jogo não tem como se defender: o
+nome não aparece em lista nenhuma que o pacote possa declarar. Então a defesa
+está na montagem: `tools/exportar_pacote_dev.sh` **reprova** o pacote se achar
+um `class_name`. O projeto hoje não usa nenhum, então isso não custa nada — e
+evita que o primeiro uso vire um defeito que aparece semanas depois, sem pista.
+
 Se ainda assim um pacote deixar o jogo sem abrir, o `Carregador` descarta os
 pacotes na abertura seguinte e o app volta ao que veio no APK. Um toque, sem
 reinstalar.
