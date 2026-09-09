@@ -177,6 +177,30 @@ find android/build -name 'AndroidManifest.xml' 2>/dev/null | while read -r mf; d
   fi
 done
 echo
+
+# O filtro sobrevive em src/main e some na fusao. Quem mais fala da atividade
+# de abertura e' o manifesto de variante que o Godot GERA na exportacao -- e' de
+# la' que vem o nome do pacote e as permissoes. Se ele redeclarar a atividade
+# com tools:node="replace", a fusao joga fora os filhos vindos do src/main,
+# inclusive o nosso intent-filter.
+#
+# Em vez de supor, olhar. Sao poucas linhas.
+for VAR in debug release; do
+  MF="android/build/src/$VAR/AndroidManifest.xml"
+  [ -f "$MF" ] || continue
+  echo "----- $MF -----"
+  cat "$MF"
+  echo
+done
+echo "----- o que a fusao guardou sobre a atividade de abertura -----"
+MERGED="$(find android/build/build/intermediates -name 'AndroidManifest.xml' -path '*merged_manifest*' 2>/dev/null | head -1)"
+if [ -n "$MERGED" ]; then
+  grep -oE '<(activity|activity-alias)[^>]*|<intent-filter>|</intent-filter>|<(action|category|data)[^>]*' "$MERGED" \
+    | sed 's/^/  /' | head -40
+else
+  echo "  (nao achei manifesto fundido)"
+fi
+echo
 # Conferir o APK QUE SAIU, e nao o preset que entrou.
 #
 # Isto nao e' zelo: uma chave escrita errada no preset nao da' erro nenhum, so'
