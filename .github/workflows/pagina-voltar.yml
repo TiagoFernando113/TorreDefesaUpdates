@@ -1,0 +1,102 @@
+# Publica a pagina de "voltar ao jogo" no GitHub Pages DESTE repositorio.
+#
+# POR QUE PRECISA SER FORA DO SUPABASE
+#
+# O jogador termina o login no navegador e precisa voltar ao jogo. Nao acontece
+# sozinho, e a razao esta medida:
+#
+#   - o Chrome nao abre outro aplicativo a partir de um REDIRECIONAMENTO, so' a
+#     partir de um TOQUE. Nos registros do servidor, o 302 para intent:// saia
+#     e 0,4s depois o navegador ja' estava no endereco de reserva -- tres
+#     logins, sempre igual;
+#   - logo, precisa de um botao, e botao precisa de HTML de verdade;
+#   - e HTML de verdade NAO sai de *.supabase.co: o gateway forca text/plain no
+#     HTML e, no SVG, injeta content-disposition: attachment mais um CSP
+#     sandbox, sobrescrevendo o que a funcao mandar. O Storage do mesmo projeto
+#     faz igual. E' o dominio inteiro.
+#
+# POR QUE AQUI, E NAO NO SITE DO PORTAL
+#
+# O Cyron Defense e' projeto proprio. Pendurar o login dele no site do portal
+# da Alianca ja' foi feito uma vez e foi desfeito: cria uma dependencia
+# invisivel, e o dia em que alguem mexer la' derruba o login daqui sem nenhuma
+# pista apontando para ca'.
+#
+# O PAGES LIGA SOZINHO
+#
+# `actions/configure-pages` com enablement: true liga o GitHub Pages pela API.
+# Sem isso, alguem teria que achar a opcao certa no menu de configuracoes --
+# exatamente o tipo de passo manual que esta esteira existe para eliminar.
+
+name: Pagina de voltar ao jogo
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "site/**"
+      - ".github/workflows/pagina-voltar.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Duas publicacoes ao mesmo tempo se atropelariam. A da frente termina.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  publicar:
+    name: publicar no Pages
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: github-pages
+      url: ${{ steps.publicacao.outputs.page_url }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # O LEIA-ME.md fica de fora: ele explica a pasta para quem mexe no
+      # repositorio, e nao tem por que virar pagina publica.
+      - name: Separar o que vai para o ar
+        run: |
+          set -e
+          mkdir -p _site
+          cp site/*.html _site/
+          echo "vai para o ar:"
+          ls -la _site/
+          for f in _site/voltar-dev.html _site/voltar.html; do
+            [ -s "$f" ] || { echo "faltou $f"; exit 1; }
+          done
+          # O nome do pacote e' o que faz o Android abrir o app certo. Se ele
+          # sumir num copiar-e-colar, a pagina vira um botao que nao faz nada.
+          grep -q "package=com.tiagofernando.cyrondev" _site/voltar-dev.html \
+            || { echo "voltar-dev.html perdeu o nome do pacote do app de dev"; exit 1; }
+          grep -q "package=com.tiago.cyrondefense" _site/voltar.html \
+            || { echo "voltar.html perdeu o nome do pacote do jogo publico"; exit 1; }
+
+      - name: Ligar o Pages
+        uses: actions/configure-pages@v5
+        with:
+          enablement: true
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+      - name: Publicar
+        id: publicacao
+        uses: actions/deploy-pages@v4
+
+      - name: Resumo
+        run: |
+          {
+            echo "### Página de voltar ao jogo publicada"
+            echo
+            echo "- ${{ steps.publicacao.outputs.page_url }}voltar-dev.html"
+            echo "- ${{ steps.publicacao.outputs.page_url }}voltar.html"
+          } >> "$GITHUB_STEP_SUMMARY"
