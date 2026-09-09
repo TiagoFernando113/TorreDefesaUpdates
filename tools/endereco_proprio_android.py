@@ -44,16 +44,24 @@ def attr(nome: str) -> str:
 
 
 def achar_atividade_de_abertura(raiz: ET.Element):
-    """A atividade que o Android abre ao tocar no ícone.
+    """O componente que o Android abre ao tocar no ícone.
 
-    É nela que o filtro novo tem de entrar: é a que já existe, já é exportada e
-    já é a cara do app. Criar outra atividade exigiria código Java.
+    Cuidado com o que ele NÃO é. No Godot 4.6.2 a `.GodotApp` está declarada
+    com `android:exported="false"` — ela não pode ser aberta de fora. Quem leva
+    MAIN/LAUNCHER é um `<activity-alias>` chamado `.GodotAppLauncher`, e é ele
+    que é exportado.
+
+    A primeira versão disto procurava só por `<activity>` e não teria achado
+    nada. Por isso a busca cobre os dois, e por isso a checagem de `exported`
+    logo abaixo existe: pendurar o endereço num componente não exportado daria
+    um APK que parece certo e não abre.
     """
-    for atividade in raiz.iter("activity"):
-        for filtro in atividade.findall("intent-filter"):
-            for cat in filtro.findall("category"):
-                if cat.get(attr("name")) == "android.intent.category.LAUNCHER":
-                    return atividade
+    for tag in ("activity", "activity-alias"):
+        for comp in raiz.iter(tag):
+            for filtro in comp.findall("intent-filter"):
+                for cat in filtro.findall("category"):
+                    if cat.get(attr("name")) == "android.intent.category.LAUNCHER":
+                        return comp
     return None
 
 
@@ -89,6 +97,17 @@ def main() -> int:
         return 1
 
     nome = atividade.get(attr("name"), "(sem nome)")
+
+    # Componente nao exportado nao pode ser aberto por outro app -- e o
+    # navegador e' outro app. Sem esta conferencia, o endereco entraria no
+    # manifesto, a esteira ficaria verde, e o botao continuaria sem abrir nada.
+    if atividade.get(attr("exported")) != "true":
+        print("%s tem android:exported=%r -- nao pode ser aberto de fora."
+              % (nome, atividade.get(attr("exported"))))
+        print("por um endereco num componente assim, o APK sai parecendo certo")
+        print("e o botao de voltar continua sem abrir o jogo.")
+        return 1
+
     if ja_tem_o_endereco(atividade):
         print("a atividade %s ja' tem %s:// -- nada a fazer" % (nome, ESQUEMA))
         return 0

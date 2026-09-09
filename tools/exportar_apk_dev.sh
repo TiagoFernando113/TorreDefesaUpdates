@@ -143,8 +143,16 @@ mkdir -p android/build
 unzip -q "$FONTE_ANDROID" -d android/build
 echo "4.6.2.stable" > android/.build_version
 
-MANIFESTO="android/build/AndroidManifest.xml"
-[ -f "$MANIFESTO" ] || { echo "o modelo veio sem $MANIFESTO"; find android/build -name 'AndroidManifest.xml' | head; exit 1; }
+# src/main/ e' o layout padrao do Gradle. Eu tinha chutado a raiz de
+# android/build/, e a esteira reprovou na primeira tentativa dizendo onde o
+# arquivo estava de verdade -- que e' exatamente o servico que esta linha presta.
+MANIFESTO="android/build/src/main/AndroidManifest.xml"
+if [ ! -f "$MANIFESTO" ]; then
+  echo "o modelo de compilacao veio sem $MANIFESTO."
+  echo "os manifestos que vieram, para o caso de o layout ter mudado:"
+  find android/build -name 'AndroidManifest.xml' | sed 's/^/  /'
+  exit 1
+fi
 python3 tools/endereco_proprio_android.py "$MANIFESTO" || exit 1
 
 mkdir -p "$(dirname "$SAIDA")"
