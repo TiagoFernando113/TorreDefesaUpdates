@@ -93,6 +93,11 @@ jobs:
           for f in _site/voltar-dev.html _site/voltar.html; do
             grep -q "S.browser_fallback_url=" "$f" \
               || { echo "$f perdeu o plano B do intent://"; exit 1; }
+            # scheme=cyron e' o endereco proprio que o APK declara. Com o
+            # scheme=https antigo o botao nao abre nada -- medido no aparelho,
+            # nem as Configuracoes do Android abriam assim.
+            grep -q "scheme=cyron" "$f" \
+              || { echo "$f voltou ao esquema antigo, que nao abre o app"; exit 1; }
           done
 
       # Falhar dizendo o que fazer vale mais do que falhar dizendo

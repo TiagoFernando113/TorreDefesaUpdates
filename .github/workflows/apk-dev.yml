@@ -67,7 +67,7 @@ jobs:
   apk:
     name: montar e publicar
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 90
 
     steps:
       - uses: actions/checkout@v4
@@ -124,6 +124,15 @@ jobs:
           echo "apksigner: $APKSIGNER"
           echo "java:      $(java -version 2>&1 | head -1)"
 
+      # A compilacao Gradle do Godot exige JDK 17. O runner traz varias versoes
+      # e a padrao muda com o tempo -- fixar aqui evita um erro de Gradle que
+      # nao diz "faltou Java 17", diz outra coisa.
+      - name: Fixar o JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
       - name: Importar o projeto
         run: |
           timeout 900 ./Godot_v4.6.2-stable_linux.x86_64 --headless --path . --import \
@@ -171,8 +180,8 @@ jobs:
           echo "NAME=$NAME" >> "$GITHUB_ENV"
           echo "tag=$TAG  versionCode=$CODE  nome=$NAME"
 
-      # O script confere o APK QUE SAIU e reprova se faltar permissao, audio ou
-      # a lista de modulos. Preset com chave errada nao da' erro, so' fica sem
+      # O script confere o APK QUE SAIU e reprova se faltar permissao, audio,
+      # a lista de modulos ou o endereco cyron:// do jogo. Preset com chave errada nao da' erro, so' fica sem
       # efeito -- ja' aconteceu, e o APK saiu sem INTERNET.
       - name: Exportar o APK
         env:

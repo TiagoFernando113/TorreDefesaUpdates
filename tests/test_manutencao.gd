@@ -34,6 +34,7 @@ func _ready() -> void:
 	_os_autoloads_de_manutencao()
 	_log_em_arquivo()
 	_a_lista_de_modulos_existe()
+	_o_endereco_proprio_do_jogo()
 	_finalizar()
 
 
@@ -118,3 +119,45 @@ func _finalizar() -> void:
 		for falha in _falhas:
 			push_error(falha)
 		get_tree().quit(1)
+
+
+## O ENDERECO PROPRIO DO JOGO, cyron://voltar.
+##
+## Sem ele, o botao "VOLTAR AO JOGO" da pagina de login nao abre o app -- e nao
+## avisa: o navegador so' vai para o endereco de reserva. Esta medido no
+## aparelho, com as Configuracoes do Android como controle: nenhum app abre
+## pelo navegador sem um intent-filter proprio, porque o Chrome acrescenta
+## CATEGORY_BROWSABLE e a tela de abertura nao declara essa categoria.
+##
+## Isso so' cabe no manifesto com COMPILACAO GRADLE. As duas pontas ficam aqui
+## porque a esteira do APK so' roda quando muda assets/, addons/ ou o
+## project.godot -- uma mudanca que desligue o Gradle passaria meses sem
+## aparecer. A bateria de testes roda em todo PR.
+func _o_endereco_proprio_do_jogo() -> void:
+	var f := FileAccess.open("res://tools/exportar_apk_dev.sh", FileAccess.READ)
+	if f == null:
+		_falhas.append("sumiu o tools/exportar_apk_dev.sh")
+		return
+	var script := f.get_as_text()
+	f.close()
+
+	_esperar(script.contains("gradle_build/use_gradle_build=true"),
+		"a compilacao Gradle foi desligada — sem ela o manifesto nao aceita o "
+		+ "endereco proprio, e o botao de voltar para de abrir o jogo")
+	_esperar(script.contains("endereco_proprio_android.py"),
+		"o remendo do manifesto saiu do exportar_apk_dev.sh")
+	_esperar(script.contains("android_source.zip"),
+		"sumiu a instalacao do modelo de compilacao — o Gradle nao teria o que compilar")
+	_esperar(FileAccess.file_exists("res://tools/endereco_proprio_android.py"),
+		"sumiu o tools/endereco_proprio_android.py")
+
+	# A pagina e o manifesto tem que falar do MESMO endereco. Se um mudar
+	# sozinho, o botao vira um link para lugar nenhum -- e em silencio.
+	var g := FileAccess.open("res://site/voltar-dev.html", FileAccess.READ)
+	if g == null:
+		_falhas.append("sumiu o site/voltar-dev.html")
+		return
+	var pagina := g.get_as_text()
+	g.close()
+	_esperar(pagina.contains("scheme=cyron"),
+		"a pagina de voltar nao aponta mais para cyron:// — o botao nao abre o app")

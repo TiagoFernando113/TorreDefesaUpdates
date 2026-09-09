@@ -308,13 +308,33 @@ também só entra por build customizada. Por isso `plugin_disponivel()` é falso
 no app de desenvolvedor, e a saída "avisar por notificação para a pessoa tocar
 e voltar" está fechada pelo mesmo motivo.
 
-Ou seja: **uma mudança destrava as duas.** Mas ela troca a exportação simples
-por uma compilação Gradle completa — mais lenta, com mais o que dar errado, num
-caminho que hoje funciona. Não é uma decisão para tomar sozinho no fim de uma
-sessão longa.
+Ou seja: **uma mudança destrava as duas.** Ela troca a exportação simples por
+uma compilação Gradle completa — mais lenta e com mais o que dar errado.
 
-Enquanto isso não for feito, o login funciona assim: escolher a conta, tocar em
-◁ (voltar), e o jogo já está logado. A página diz exatamente isso.
+**Foi feita.** O `exportar_apk_dev.sh` agora:
+
+1. extrai o modelo de compilação do `android_source.zip` que já vem nos modelos
+   de exportação (não há download novo, e evita gastar uma exportação inteira
+   só para instalar o modelo);
+2. roda `tools/endereco_proprio_android.py`, que **lê o XML de verdade** em vez
+   de procurar uma linha de texto — se a atividade de abertura não for
+   encontrada, ele reprova em vez de sair sem efeito;
+3. compila com `use_gradle_build=true`;
+4. e confere o esquema `cyron` e a categoria `BROWSABLE` **dentro do APK que
+   saiu**, não no preset que entrou.
+
+O endereço é `cyron://voltar`, e a página do botão passou a apontar para ele.
+
+`tests/test_manutencao.gd` guarda as duas pontas — a compilação Gradle e o
+esquema na página. Elas ficam ali, e não só na esteira do APK, porque aquela
+esteira só roda quando muda `assets/`, `addons/` ou o `project.godot`: uma
+mudança que desligasse o Gradle passaria meses sem aparecer.
+
+**O que ainda não está provado:** que o Android abre o jogo ao tocar no botão.
+Isso só o aparelho responde, com o APK novo instalado. Até lá, o login continua
+funcionando do jeito de sempre — escolher a conta, tocar em ◁, e o jogo já está
+logado. A página diz exatamente isso, e o plano B garante que uma falha do
+botão vire uma recarga em vez de tela de erro.
 
 ### 6. O resto, que não tem jeito
 
