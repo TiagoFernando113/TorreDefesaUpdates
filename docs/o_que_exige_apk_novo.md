@@ -207,13 +207,38 @@ Duas conclusões, para não se repetir a tentativa:
    esbarra na mesma política: o bloqueio é do redirecionamento, não do
    esquema. Isso continua não sendo motivo para APK novo.
 2. **Voltar sozinho, sem ninguém tocar em nada, não é alcançável por este
-   caminho.** O que dá para fazer é um **botão** — e botão exige HTML, que a
-   Edge Function não serve: a plataforma devolve `text/plain` com `nosniff`,
-   conferido. Então a página de retorno precisa sair de lá para algum lugar
-   que sirva HTML de verdade, dentro do próprio projeto do jogo.
+   caminho.** O que dá para fazer é um **botão**.
 
-Enquanto isso não for feito, a página deve dizer a verdade — pedir o toque em
-voltar —, e não "ele já entrou sozinho".
+**O 302 foi removido** (função `entrar` v4). Ele só gastava um salto e chegava
+no mesmo lugar.
+
+**O texto passou a dizer a verdade.** Antes: *"Pode fechar esta aba e voltar
+para o jogo — ele já entrou sozinho."* Fechar a aba não traz o jogo para a
+frente, e a pessoa ficava olhando a tela esperando algo que nunca vinha. Agora
+pede o que funciona: voltar pelo botão do celular. O login em si continua
+automático — o código está na ponte e o jogo o busca sozinho.
+
+### 5d. O buraco por onde cabe um botão: SVG
+
+`text/html`, `text/html; charset=utf-8` e `application/xhtml+xml` saem todos
+como `text/plain` — re-conferido, é a plataforma que força.
+
+**`image/svg+xml` passa intacto.** E SVG tem `<a href>`.
+
+```
+pedi: text/html               -> content-type: text/plain
+pedi: application/xhtml+xml   -> content-type: text/plain
+pedi: image/svg+xml           -> content-type: image/svg+xml   ← passa
+```
+
+Então é possível servir uma página desenhada, com um botão de verdade, sem
+sair do projeto do jogo e sem hospedagem nova. Um toque nesse link é gesto do
+usuário — que é exatamente o que faltava para o Chrome aceitar abrir o app.
+
+Falta a única coisa que só o aparelho responde: **o Chrome abre o app a partir
+de um toque dentro de um SVG?** Enquanto isso não for medido no celular, o
+botão não entra no caminho do login — a função `teste_html_descartavel` existe
+só para esse toque, e deve ser apagada depois.
 
 ### 6. O resto, que não tem jeito
 
