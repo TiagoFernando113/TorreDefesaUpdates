@@ -20,6 +20,31 @@ Um app cujo único intent-filter é MAIN/LAUNCHER não declara BROWSABLE, então
 nada casa. Por isso o jogo precisa declarar um filtro próprio — e é isso que
 este arquivo acrescenta ao manifesto.
 
+POR QUE UM ALIAS NOVO, E NAO UM FILTRO NO QUE JA EXISTE
+
+A primeira versao pendurava o intent-filter no `.GodotAppLauncher`, que e' o
+alias de abertura do Godot. O filtro entrava no arquivo e sumia do APK. O
+diagnostico na esteira mostrou por que: o manifesto de variante que o Godot
+gera na exportacao declara
+
+    <activity-alias tools:node="mergeOnlyAttributes"
+                    android:name=".GodotAppLauncher" ...>
+
+`mergeOnlyAttributes` manda o Gradle fundir SO' OS ATRIBUTOS desse no' e
+DESCARTAR os filhos vindos dos manifestos de menor prioridade -- que e'
+exatamente onde o nosso filtro estava.
+
+Entao nao se disputa esse no'. Cria-se um alias PROPRIO. O Godot nao sabe que
+ele existe, nao poe marca nenhuma nele, e a fusao o mantem inteiro.
+
+Alias nao precisa de codigo Java: ele so' aponta para uma atividade que ja'
+existe. E como a `.GodotApp` usa launchMode="singleInstancePerTask", abrir o
+endereco traz a instancia que JA' ESTA ABERTA para a frente, em vez de comecar
+outra -- o jogo volta com o login pendente intacto.
+
+Ele tambem NAO leva a categoria LAUNCHER, entao nao aparece um segundo icone
+na gaveta de aplicativos.
+
 POR QUE MEXER NO XML EM VEZ DE PROCURAR TEXTO
 
 O manifesto vem do modelo do Godot e muda entre versões. Um sed procurando uma
@@ -37,6 +62,7 @@ import xml.etree.ElementTree as ET
 AND = "http://schemas.android.com/apk/res/android"
 ESQUEMA = "cyron"
 HOST = "voltar"
+NOME_DO_ALIAS = ".CyronVoltar"
 
 
 def attr(nome: str) -> str:
@@ -65,12 +91,26 @@ def achar_atividade_de_abertura(raiz: ET.Element):
     return None
 
 
-def ja_tem_o_endereco(atividade: ET.Element) -> bool:
-    for filtro in atividade.findall("intent-filter"):
-        for dado in filtro.findall("data"):
-            if dado.get(attr("scheme")) == ESQUEMA:
-                return True
+def achar_aplicacao(raiz: ET.Element):
+    return raiz.find("application")
+
+
+def ja_tem_o_alias(aplicacao: ET.Element) -> bool:
+    for alias in aplicacao.findall("activity-alias"):
+        if alias.get(attr("name")) == NOME_DO_ALIAS:
+            return True
     return False
+
+
+def alvo_do_alias(abertura: ET.Element) -> str:
+    """Para onde o alias novo aponta.
+
+    Se a abertura ja' e' um alias, o alvo dela e' a atividade de verdade -- e e'
+    para essa que se aponta, nao para o alias (alias de alias nao existe).
+    """
+    if abertura.tag == "activity-alias":
+        return abertura.get(attr("targetActivity"), "")
+    return abertura.get(attr("name"), "")
 
 
 def main() -> int:
@@ -89,47 +129,53 @@ def main() -> int:
         return 1
 
     raiz = arvore.getroot()
-    atividade = achar_atividade_de_abertura(raiz)
-    if atividade is None:
+    aplicacao = achar_aplicacao(raiz)
+    if aplicacao is None:
+        print("nao achei <application> no manifesto.")
+        return 1
+
+    abertura = achar_atividade_de_abertura(raiz)
+    if abertura is None:
         print("nao achei a atividade de abertura (MAIN/LAUNCHER) no manifesto.")
-        print("o modelo do Godot deve ter mudado de formato -- sem isso o jogo")
-        print("nao ganha endereco proprio, e o botao de voltar nao abre o app.")
+        print("o modelo do Godot deve ter mudado de formato -- sem ela nao da'")
+        print("para saber para onde o alias novo aponta.")
         return 1
 
-    nome = atividade.get(attr("name"), "(sem nome)")
-
-    # Componente nao exportado nao pode ser aberto por outro app -- e o
-    # navegador e' outro app. Sem esta conferencia, o endereco entraria no
-    # manifesto, a esteira ficaria verde, e o botao continuaria sem abrir nada.
-    if atividade.get(attr("exported")) != "true":
-        print("%s tem android:exported=%r -- nao pode ser aberto de fora."
-              % (nome, atividade.get(attr("exported"))))
-        print("por um endereco num componente assim, o APK sai parecendo certo")
-        print("e o botao de voltar continua sem abrir o jogo.")
+    alvo = alvo_do_alias(abertura)
+    if not alvo:
+        print("a abertura (%s) nao diz para qual atividade aponta." % abertura.tag)
         return 1
 
-    if ja_tem_o_endereco(atividade):
-        print("a atividade %s ja' tem %s:// -- nada a fazer" % (nome, ESQUEMA))
+    if ja_tem_o_alias(aplicacao):
+        print("o alias %s ja' existe -- nada a fazer" % NOME_DO_ALIAS)
         return 0
 
-    filtro = ET.SubElement(atividade, "intent-filter")
+    alias = ET.SubElement(aplicacao, "activity-alias", {
+        attr("name"): NOME_DO_ALIAS,
+        attr("targetActivity"): alvo,
+        # Sem exported=true nenhum outro app pode abrir -- e o navegador e'
+        # outro app. E' a linha que faz a coisa toda funcionar.
+        attr("exported"): "true",
+    })
+    filtro = ET.SubElement(alias, "intent-filter")
     ET.SubElement(filtro, "action", {attr("name"): "android.intent.action.VIEW"})
     # DEFAULT porque o intent chega sem componente definido; BROWSABLE porque e'
     # exatamente a categoria que o navegador acrescenta -- sem ela nada casa, que
-    # e' o defeito inteiro.
+    # e' o defeito inteiro. Nada de LAUNCHER: isso poria um segundo icone na
+    # gaveta de aplicativos.
     ET.SubElement(filtro, "category", {attr("name"): "android.intent.category.DEFAULT"})
     ET.SubElement(filtro, "category", {attr("name"): "android.intent.category.BROWSABLE"})
     ET.SubElement(filtro, "data", {attr("scheme"): ESQUEMA, attr("host"): HOST})
 
     arvore.write(caminho, encoding="utf-8", xml_declaration=True)
-    print("endereco %s://%s acrescentado a atividade %s" % (ESQUEMA, HOST, nome))
+    print("alias %s -> %s com %s://%s" % (NOME_DO_ALIAS, alvo, ESQUEMA, HOST))
 
     # Ler de volta o que foi gravado. Escrever e supor que deu certo e' como o
     # preset com a chave errada: nao da' erro, so' fica sem efeito.
     conferencia = ET.parse(caminho)
-    de_volta = achar_atividade_de_abertura(conferencia.getroot())
-    if de_volta is None or not ja_tem_o_endereco(de_volta):
-        print("gravei o manifesto mas o endereco nao esta la' na releitura.")
+    de_volta = achar_aplicacao(conferencia.getroot())
+    if de_volta is None or not ja_tem_o_alias(de_volta):
+        print("gravei o manifesto mas o alias nao esta la' na releitura.")
         return 1
     print("conferido na releitura do arquivo.")
     return 0
