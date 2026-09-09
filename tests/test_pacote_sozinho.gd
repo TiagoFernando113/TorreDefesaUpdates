@@ -25,8 +25,51 @@ func _ready() -> void:
 	_manifesto_velho_continua_valendo(atualizador)
 	_pacote_que_pede_autoload_ausente_e_recusado(atualizador)
 	_o_manifesto_publicado_declara_os_autoloads()
+	_quem_aplica_pacote_e_so_o_carregador()
 	_a_esteira_existe()
 	_finalizar()
+
+
+## Meia atualizacao e' pior que nenhuma.
+##
+## Se o Atualizador aplicar o pacote na mesma abertura em que baixou, os
+## autoloads continuam sendo os do APK (ja' subiram) e so' as telas passam a vir
+## do pacote. O jogo roda metade novo, metade velho -- e uma tela nova chamando
+## um metodo que so' existe no autoload novo da' erro em tempo de execucao, com
+## o agravante de que o descarte automatico do Carregador nao dispara: ele so'
+## age quando a abertura nao chega ao primeiro quadro, e essa chegou.
+##
+## Enquanto pacote era raro e manual, a janela quase nunca abria. Publicando um
+## a cada mudanca, ela abriria toda vez.
+func _quem_aplica_pacote_e_so_o_carregador() -> void:
+	var f := FileAccess.open("res://scripts/atualizador.gd", FileAccess.READ)
+	if f == null:
+		_falhas.append("nao consegui ler o atualizador.gd")
+		return
+	var fonte := f.get_as_text()
+	f.close()
+
+	# Sem os comentarios: o texto acima EXPLICA por que nao se aplica aqui, e
+	# cita o nome da funcao de proposito.
+	var codigo := ""
+	for linha in fonte.split("\n"):
+		if linha.strip_edges().begins_with("#"):
+			continue
+		codigo += linha + "\n"
+
+	_esperar(not codigo.contains("load_resource_pack"),
+		"o atualizador voltou a aplicar pacote — isso mistura versao nova com "
+		+ "autoload velho na mesma abertura; quem aplica e' o Carregador")
+
+	var g := FileAccess.open("res://scripts/carregador.gd", FileAccess.READ)
+	if g == null:
+		_falhas.append("nao consegui ler o carregador.gd")
+		return
+	var fonte_c := g.get_as_text()
+	g.close()
+	_esperar(fonte_c.contains("load_resource_pack"),
+		"o Carregador parou de aplicar pacote — ninguem mais aplica, e o app "
+		+ "ficaria preso na versao do APK para sempre")
 
 
 ## Os autoloads citados aqui sao os que o proprio projeto tem. Se algum for
