@@ -218,12 +218,12 @@ frente, e a pessoa ficava olhando a tela esperando algo que nunca vinha. Agora
 pede o que funciona: voltar pelo botão do celular. O login em si continua
 automático — o código está na ponte e o jogo o busca sozinho.
 
-### 5d. O buraco por onde cabe um botão: SVG
+### 5d. Nenhuma página com botão sai de `*.supabase.co`
 
-`text/html`, `text/html; charset=utf-8` e `application/xhtml+xml` saem todos
-como `text/plain` — re-conferido, é a plataforma que força.
+Achei um caminho promissor e ele **morreu no teste**. Fica registrado inteiro,
+porque parece uma boa ideia até a hora de medir.
 
-**`image/svg+xml` passa intacto.** E SVG tem `<a href>`.
+O `content-type` do SVG passa, ao contrário do HTML:
 
 ```
 pedi: text/html               -> content-type: text/plain
@@ -231,14 +231,42 @@ pedi: application/xhtml+xml   -> content-type: text/plain
 pedi: image/svg+xml           -> content-type: image/svg+xml   ← passa
 ```
 
-Então é possível servir uma página desenhada, com um botão de verdade, sem
-sair do projeto do jogo e sem hospedagem nova. Um toque nesse link é gesto do
-usuário — que é exatamente o que faltava para o Chrome aceitar abrir o app.
+Como SVG tem `<a href>`, parecia caber um botão. Mas no aparelho o Chrome
+**baixou o arquivo** em vez de mostrar a página — o print veio com o endereço
+`content://media/external/...`, ou seja, uma cópia salva. E de um arquivo local
+nenhum `intent://` funciona.
 
-Falta a única coisa que só o aparelho responde: **o Chrome abre o app a partir
-de um toque dentro de um SVG?** Enquanto isso não for medido no celular, o
-botão não entra no caminho do login — a função `teste_html_descartavel` existe
-só para esse toque, e deve ser apagada depois.
+O motivo apareceu nos cabeçalhos completos, que eu não tinha olhado:
+
+```
+content-disposition: attachment
+content-security-policy: default-src 'none'; sandbox
+```
+
+O gateway **injeta os dois**. E não dá para contornar: mandei
+`Content-Disposition: inline` e um CSP frouxo da função, e voltou `attachment`
+e `sandbox` do mesmo jeito — ele **sobrescreve**, não completa.
+
+Também não é só das Edge Functions. Subi um HTML para o Storage do mesmo
+projeto (o upload é feito pela própria função, com a chave de serviço que já
+mora no ambiente dela — a chave nunca sai do servidor) e a resposta foi
+idêntica: `text/plain` mais o mesmo CSP `sandbox`.
+
+**É o domínio `*.supabase.co` inteiro**, medida anti-phishing da plataforma.
+Nenhuma página interativa sai de lá, por nenhum serviço. O bucket e o arquivo
+de teste foram removidos; a função `teste_html_descartavel` ficou inerte
+(não há como apagar Edge Function por ferramenta, dá para remover pelo painel).
+
+Isso também fecha os **App Links** (o link `https` verificado que o Android
+abre sozinho, sem toque e sem passar pela política do Chrome): eles exigem um
+`assetlinks.json` servido como `application/json`, e aqui sairia `text/plain`.
+
+**Conclusão:** o botão — e qualquer chance de voltar sozinho — depende de **uma
+página em outro domínio**, dentro do projeto do próprio jogo. O caminho barato
+é o GitHub Pages deste repositório: é grátis, não é o site do portal, e a
+função `entrar` só precisa passar a redirecionar para lá depois de guardar o
+código na ponte (redirecionamento saindo da função não passa pela lista de
+endereços do Auth, então nada muda na configuração do login).
 
 ### 6. O resto, que não tem jeito
 
