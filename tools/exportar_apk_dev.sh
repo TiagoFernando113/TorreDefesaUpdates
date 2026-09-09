@@ -163,6 +163,20 @@ echo "Exportando (demora: Gradle + o audio, que sozinho tem ~100 MB)..."
 echo
 echo "$SAIDA  ($(du -h "$SAIDA" | cut -f1))"
 echo
+
+# O remendo entrou antes da exportacao. Se o Godot reescreve o manifesto no
+# meio do caminho, ele sai -- e o APK fica sem endereco com a esteira achando
+# que fez tudo certo. Esta linha responde qual dos dois aconteceu, em vez de
+# deixar adivinhando.
+echo "Manifestos depois da exportacao (procurando o BROWSABLE):"
+find android/build -name 'AndroidManifest.xml' 2>/dev/null | while read -r mf; do
+  if grep -q "BROWSABLE" "$mf" 2>/dev/null; then
+    echo "  TEM   $mf"
+  else
+    echo "  sem   $mf"
+  fi
+done
+echo
 # Conferir o APK QUE SAIU, e nao o preset que entrou.
 #
 # Isto nao e' zelo: uma chave escrita errada no preset nao da' erro nenhum, so'
@@ -202,10 +216,17 @@ if "com.tiagofernando.cyrondev" not in m:
 # Sem ele o botao "VOLTAR AO JOGO" da pagina de login nao abre o app -- e nao
 # avisa: o navegador simplesmente vai para o endereco de reserva. Um APK sem
 # isto parece perfeito e falha exatamente onde ninguem olha.
-if "cyron" not in m:
-    problemas.append("o endereco cyron:// nao entrou no manifesto -- o botao de voltar nao vai abrir o app")
+# CUIDADO COM O QUE SE PROCURA: "cyron" sozinho NAO serve, porque o nome do
+# pacote e' com.tiagofernando.cyrondev e casaria sempre. Foi assim que esta
+# conferencia deu um "passou" falso na primeira montagem com Gradle -- so' a
+# linha do BROWSABLE reprovou, e ela e' que estava certa.
+#
+# O host "voltar" e a categoria BROWSABLE so' existem no manifesto por causa do
+# intent-filter novo. Sao esses que valem.
 if "android.intent.category.BROWSABLE" not in m:
     problemas.append("falta BROWSABLE no manifesto -- e' a categoria que o navegador acrescenta; sem ela nada casa")
+if "voltar" not in m:
+    problemas.append("o host 'voltar' nao esta no manifesto -- o endereco cyron://voltar nao entrou")
 
 aud = sum(i.file_size for i in z.infolist() if re.search(r"\.(ogg|mp3|wav)", i.filename))
 print("Audio embarcado: %.1f MB" % (aud / 1e6))
