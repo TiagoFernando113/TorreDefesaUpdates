@@ -115,7 +115,7 @@ jobs:
           echo "ultimo publicado: $ULTIMO  ->  proximo: $N"
           echo "N=$N" >> "$GITHUB_ENV"
           echo "TAG=pacote-dev-$N" >> "$GITHUB_ENV"
-          echo "URL=https://github.com/${{ github.repository }}/releases/download/pacote-dev-$N/jogo.pck" >> "$GITHUB_ENV"
+          echo "URL=https://github.com/${{ github.repository }}/releases/download/pacote-dev-$N/jogo_v$N.pck" >> "$GITHUB_ENV"
 
       # O script confere O PACOTE QUE SAIU: se faltar um script, se vier vazio,
       # ou se alguem tiver arrastado a biblioteca de audio junto por um preload()
@@ -141,8 +141,43 @@ jobs:
           Se o app tiver ficado numa versão antiga, é porque o pacote pede um
           autoload que aquele APK não tem — nesse caso é APK novo mesmo.
           NOTAS
+          # SEM `#rotulo` no fim do caminho: no gh, o que vem depois do `#` e' o
+          # ROTULO exibido, nao o nome do arquivo. Com "...#jogo.pck" o pacote
+          # subiu como jogo_v1.pck e o endereco do manifesto apontava para
+          # jogo.pck -- 404, e o app buscaria o nada, em silencio. O nome do
+          # arquivo e' o do disco, e o passo seguinte confere isso.
           gh release create "$TAG" --title "Pacote dev $N" \
-            --notes-file /tmp/notas.md "/tmp/pacote/jogo_v${N}.pck#jogo.pck"
+            --notes-file /tmp/notas.md "/tmp/pacote/jogo_v${N}.pck"
+
+      # BAIXAR O QUE O APP VAI BAIXAR.
+      #
+      # Publicar nao e' a mesma coisa que estar no ar no endereco certo, e a
+      # diferenca entre as duas coisas nao aparece em lugar nenhum: o app pede,
+      # leva 404 e nao faz nada -- sem erro, sem tela, sem pista. Foi exatamente
+      # o que aconteceu no primeiro pacote.
+      #
+      # Entao o endereco e' exercitado aqui, e o sha256 do que voltou e'
+      # comparado com o que o manifesto vai prometer. Se nao bater, o manifesto
+      # nao e' commitado, e nenhum aparelho fica esperando um arquivo que nao
+      # existe.
+      - name: Conferir que o pacote esta no ar, no endereco do manifesto
+        run: |
+          set -e
+          echo "pedindo: $URL"
+          codigo=$(curl -sSL -o /tmp/baixado.pck -w '%{http_code}' "$URL")
+          if [ "$codigo" != "200" ]; then
+            echo "o endereco do manifesto respondeu $codigo -- o app receberia isso."
+            gh release view "$TAG" --json assets --jq '.assets[] | "publicado como: \(.name)"'
+            exit 1
+          fi
+          esperado=$(python3 -c "import json;print(json.load(open('content_manifest_dev.json'))['packs'][0]['sha256'])")
+          veio=$(sha256sum /tmp/baixado.pck | cut -d' ' -f1)
+          echo "manifesto promete: $esperado"
+          echo "voltou do ar:      $veio"
+          [ "$esperado" = "$veio" ] || { echo "o arquivo no ar nao e' o que o manifesto descreve"; exit 1; }
+          echo "conferido: $(stat -c %s /tmp/baixado.pck) bytes"
+        env:
+          GH_TOKEN: ${{ github.token }}
 
       # E' esta linha que o jogo instalado le'. Enquanto ela nao mudar, o pacote
       # publicado acima nao chega a aparelho nenhum -- entao ela vem por ultimo,
