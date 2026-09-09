@@ -22,11 +22,21 @@
 # invisivel, e o dia em que alguem mexer la' derruba o login daqui sem nenhuma
 # pista apontando para ca'.
 #
-# O PAGES LIGA SOZINHO
+# O PAGES PRECISA SER LIGADO UMA VEZ, NA MAO
 #
-# `actions/configure-pages` com enablement: true liga o GitHub Pages pela API.
-# Sem isso, alguem teria que achar a opcao certa no menu de configuracoes --
-# exatamente o tipo de passo manual que esta esteira existe para eliminar.
+# Tentei ligar sozinho com `actions/configure-pages` e enablement: true. Nao
+# funciona, e a esteira mostrou:
+#
+#   Create Pages site failed.
+#   Error: Resource not accessible by integration
+#
+# O GITHUB_TOKEN do Actions PUBLICA num Pages que ja' existe, mas nao CRIA o
+# site -- criar exige permissao de administracao do repositorio, que ele nao
+# tem. E' uma vez so', e depois nunca mais.
+#
+# Por isso o primeiro passo pergunta a' API se o Pages existe e, quando nao
+# existe, para com a instrucao exata em vez do erro acima, que nao diz a quem
+# esta lendo o que fazer.
 
 name: Pagina de voltar ao jogo
 
@@ -79,10 +89,32 @@ jobs:
           grep -q "package=com.tiago.cyrondefense" _site/voltar.html \
             || { echo "voltar.html perdeu o nome do pacote do jogo publico"; exit 1; }
 
-      - name: Ligar o Pages
+      # Falhar dizendo o que fazer vale mais do que falhar dizendo
+      # "Resource not accessible by integration".
+      - name: Conferir se o Pages ja' foi ligado
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -e
+          if gh api "repos/${{ github.repository }}/pages" >/dev/null 2>&1; then
+            echo "Pages ligado. Seguindo."
+            exit 0
+          fi
+          echo "O GitHub Pages deste repositorio ainda nao foi ligado."
+          echo
+          echo "E' uma vez so', e o Actions nao consegue fazer sozinho: criar o"
+          echo "site exige permissao de administracao, que o GITHUB_TOKEN nao tem."
+          echo
+          echo "  Settings -> Pages -> Build and deployment -> Source: GitHub Actions"
+          echo
+          echo "  https://github.com/${{ github.repository }}/settings/pages"
+          echo
+          echo "Depois disso, rode este workflow de novo (Actions -> Pagina de"
+          echo "voltar ao jogo -> Run workflow) e nunca mais precisa mexer nisso."
+          exit 1
+
+      - name: Preparar o Pages
         uses: actions/configure-pages@v5
-        with:
-          enablement: true
 
       - uses: actions/upload-pages-artifact@v3
         with:
