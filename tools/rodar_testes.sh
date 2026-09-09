@@ -3,14 +3,14 @@
 #
 #   tools/rodar_testes.sh [caminho-do-godot]
 #
-# Por que existe: os 19 testes sao cenas separadas. Rodar todos exigia abrir 19
-# cenas na mao, uma por uma, e ler a saida de cada uma. Ninguem faz isso -- na
-# pratica os testes nao rodavam, e um teste que nao roda e' so' um arquivo.
+# Por que existe: os testes sao cenas separadas, uma por arquivo. Rodar todos
+# exigia abrir cada cena na mao e ler a saida. Ninguem faz isso -- na pratica os
+# testes nao rodavam, e um teste que nao roda e' so' um arquivo.
 #
 # Cada teste roda no PROPRIO processo do Godot, e nao todos juntos num so'. Nao
 # e' capricho: cada teste termina com `get_tree().quit(codigo)`, que derruba a
-# aplicacao inteira. Num processo unico, o primeiro teste mataria os outros
-# dezoito. Processo separado tambem isola crash: um teste que quebra o motor
+# aplicacao inteira. Num processo unico, o primeiro teste mataria todos os
+# outros. Processo separado tambem isola crash: um teste que quebra o motor
 # nao leva a bateria junto.
 #
 # O veredito de cada teste e' o CODIGO DE SAIDA -- 0 passou, resto falhou --,

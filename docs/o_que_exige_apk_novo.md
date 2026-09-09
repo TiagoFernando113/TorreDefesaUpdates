@@ -15,6 +15,45 @@ sobrou.
 
 ---
 
+## Como a atualização chega hoje (ninguém baixa nada)
+
+> "quando vamos parar com esse negócio de baixar e instalar por cima? a ideia
+> era ele sempre baixar sozinho"
+
+Parou. Toda mudança em `scripts/`, `ui/`, `scenes/`, `modulos/` e `data/` que
+chega na `main` vira um **pacote de ~2 MB**, publicado sozinho por
+`.github/workflows/pacote-dev.yml`. O app instalado busca o
+`content_manifest_dev.json` ao abrir, baixa o pacote, confere o `sha256` e
+aplica **na abertura seguinte**. Abrir duas vezes é tudo.
+
+O APK de 208 MB continua existindo, mas só é montado quando é a única saída —
+`project.godot`, `assets/`, `addons/`, permissão do Android. É a lista deste
+documento.
+
+**A trava que deixa isso rodar sozinho.** O pacote declara de quais autoloads
+ele precisa (`requer_autoloads` no manifesto), e o jogo **recusa baixar** se a
+build instalada não tiver todos. É a única armadilha que quebra o app de
+verdade — o item 1 aqui embaixo — e agora ela é checada por máquina, antes do
+download, em vez de depender de alguém lembrar. Quem não pode receber o pacote
+fica na versão do APK, funcionando, até instalar um APK novo.
+
+**A irmã silenciosa: `class_name`.** Nome global também é registrado no
+arranque (no `global_script_class_cache.cfg`), e também não chega por pacote —
+mesma quebra, mesmo sintoma. Só que aqui o jogo não tem como se defender: o
+nome não aparece em lista nenhuma que o pacote possa declarar. Então a defesa
+está na montagem: `tools/exportar_pacote_dev.sh` **reprova** o pacote se achar
+um `class_name`. O projeto hoje não usa nenhum, então isso não custa nada — e
+evita que o primeiro uso vire um defeito que aparece semanas depois, sem pista.
+
+Se ainda assim um pacote deixar o jogo sem abrir, o `Carregador` descarta os
+pacotes na abertura seguinte e o app volta ao que veio no APK. Um toque, sem
+reinstalar.
+
+As duas esteiras usam a **mesma versão do Godot**, e isso é conferido: o pacote
+leva bytecode (`.gdc`), que não vale entre versões do motor.
+
+---
+
 ## O que um pacote CONSEGUE fazer
 
 Tudo aqui foi conferido rodando, com o jogo empacotado de verdade — não é
@@ -127,12 +166,19 @@ Ou seja, com o intent-filter o Android abriria o app — e o `code` do login
 morreria no caminho, porque nenhum script conseguiria lê-lo. Seria linha morta
 no manifesto dando falsa sensação de recurso pronto.
 
-O login hoje volta por **loopback**: o app sobe um `TCPServer` em `127.0.0.1` e
-o navegador redireciona para lá. Isso funciona no Android também; o que falta é
-só o app voltar sozinho para a frente, e a pessoa faz isso na mão.
+O loopback que existia aqui **foi removido**, e o parágrafo que o descrevia
+estava errado: no Android ele nunca funcionou. O navegador conecta em
+`127.0.0.1` e fica girando para sempre, porque o Android congela o app em
+segundo plano — a conexão é aceita e nunca atendida. Conferido no aparelho.
 
-Fazer de verdade exige um plugin Android (Kotlin) que intercepte o intent e
-repasse ao GDScript — o que é uma funcionalidade, não um ajuste de exportação.
+Hoje o login volta por uma **ponte**: a página de retorno guarda o `code` numa
+tabela de uso único no Supabase do próprio jogo, e o app pergunta por ele.
+Sobrevive até o app ser morto. O app volta para a frente sozinho por um
+`intent://` disparado pelo navegador — que abre o pacote pelo nome, sem
+intent-filter e sem plugin.
+
+Um plugin Android (Kotlin) continua sendo o único jeito de ler um intent de
+dentro do GDScript, mas o login não precisa mais disso.
 
 ### 6. O resto, que não tem jeito
 
@@ -143,13 +189,21 @@ plugins nativos. Mudar qualquer um é APK novo, e ponto.
 
 ## Regra prática
 
-Antes de publicar um pacote, a pergunta é sempre a mesma:
+A pergunta continua sendo a mesma — só que agora quem responde é a máquina:
 
-> **Ele menciona algum autoload que a build instalada não tem?**
+> **O pacote menciona algum autoload que a build instalada não tem?**
 
-Se menciona, o script não compila lá — e não é um erro barulhento, é um sistema
-que simplesmente não sobe. Use `Modulos.pegar()` em vez do nome global, ou gaste
-uma `Reserva`.
+Se menciona, o script não compila lá, e como o pacote é aplicado no arranque, o
+jogo para de abrir. Por isso o campo `requer_autoloads` existe e o
+`_tem_todos_autoloads` do `atualizador.gd` recusa o download.
+`tests/test_pacote_sozinho.gd` reprova se alguém tirar qualquer uma das duas
+pontas.
 
-E teste contra a build instalada antes de mandar. `tools/foto_de_cena.gd` serve
-para isso.
+Ainda assim, ao **escrever** o código a regra de sempre vale: prefira
+`Modulos.pegar()` ao nome global de um autoload, ou gaste uma `Reserva`. Assim
+a mesma mudança serve para quem está no APK antigo, em vez de ficar esperando
+um APK novo.
+
+Se acrescentar um autoload for inevitável, o APK sai sozinho no mesmo push
+(`project.godot` está no filtro do `apk-dev.yml`) — e aí sim é instalar por
+cima, uma vez.

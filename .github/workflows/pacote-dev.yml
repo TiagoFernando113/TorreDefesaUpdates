@@ -1,0 +1,181 @@
+# Publica o PACOTE de atualizacao do app de desenvolvedor.
+#
+# O QUE MUDA COM ISTO
+#
+# Antes, mudar uma linha de codigo custava um APK de 208 MB: baixar no celular e
+# instalar por cima, toda vez. Agora a mudanca vira um pacote de ~2 MB que o
+# jogo instalado baixa sozinho na abertura seguinte -- sem ninguem baixar nada,
+# sem instalar por cima, sem tocar em nada.
+#
+# O canal de pacotes ja' existia e ja' tinha sido provado trocando codigo no
+# aparelho. O que faltava era isto: alguem montando o pacote a cada mudanca.
+# Enquanto isso dependia de lembrar, nao acontecia.
+#
+# POR QUE E' SEGURO DEIXAR RODAR SOZINHO
+#
+# A unica coisa que quebra o app de verdade e' um pacote que cite um autoload
+# que a build instalada nao tem: o script nao compila, e como o pacote e'
+# aplicado no arranque, o jogo para de abrir. O pacote agora declara de quais
+# autoloads precisa, e o jogo recusa baixar quando falta algum (ver
+# _tem_todos_autoloads em scripts/atualizador.gd). Nesse caso o aparelho fica na
+# versao do APK, funcionando, ate' instalar um APK novo.
+#
+# E se mesmo assim um pacote deixar o jogo sem abrir, o Carregador descarta os
+# pacotes na abertura seguinte e o app volta ao que veio no APK.
+#
+# O QUE ESTE CANAL NAO ALCANCA: autoload novo, project.godot, permissao do
+# Android, motor, arte e audio de assets/, addons/. Isso continua pedindo APK
+# novo -- ver docs/o_que_exige_apk_novo.md e o workflow apk-dev.yml.
+
+name: Pacote de atualizacao (dev)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "scripts/**"
+      - "ui/**"
+      - "scenes/**"
+      - "modulos/**"
+      - "data/**"
+      - "tools/exportar_pacote_dev.sh"
+      - ".github/workflows/pacote-dev.yml"
+
+  workflow_dispatch:
+
+# O manifesto volta commitado para a main -- e' o endereco que o jogo instalado
+# le'. Ele NAO esta na lista de caminhos acima, entao esse commit nao dispara
+# este workflow de novo.
+permissions:
+  contents: write
+
+# Dois pacotes ao mesmo tempo se atropelariam no numero da versao e no commit do
+# manifesto. Melhor enfileirar: o push seguinte espera o anterior terminar.
+concurrency:
+  group: pacote-dev
+  cancel-in-progress: false
+
+jobs:
+  pacote:
+    name: montar e publicar
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # O pacote nao leva .gd: leva .gdc, bytecode do GDScript. Bytecode de uma
+      # versao do motor nao vale noutra. Se um dia alguem subir o Godot so' de um
+      # lado, o pacote sairia verde e o app pararia de abrir no aparelho -- um
+      # defeito que aparece longe daqui e nao aponta para a causa. Dois segundos
+      # de conferencia evitam isso.
+      - name: Conferir que o Godot e' o mesmo que monta o APK
+        run: |
+          set -e
+          aqui=$(grep -oE 'Godot_v[0-9]+\.[0-9]+(\.[0-9]+)?-stable' .github/workflows/pacote-dev.yml | head -1)
+          apk=$(grep -oE 'Godot_v[0-9]+\.[0-9]+(\.[0-9]+)?-stable' .github/workflows/apk-dev.yml | head -1)
+          echo "pacote: $aqui   apk: $apk"
+          if [ -z "$aqui" ] || [ -z "$apk" ] || [ "$aqui" != "$apk" ]; then
+            echo "As duas esteiras precisam usar a MESMA versao do Godot."
+            echo "O pacote leva bytecode (.gdc); versao diferente da APK nao carrega no aparelho."
+            exit 1
+          fi
+
+      # So' o editor. --export-pack NAO precisa dos templates de exportacao --
+      # conferido rodando a exportacao inteira sem eles, e o .pck saiu completo.
+      # Sao 1,1 GB que nao se baixa a cada mudanca.
+      - name: Baixar o Godot 4.6.2
+        run: |
+          set -e
+          curl -sSL -o godot.zip \
+            "https://github.com/godotengine/godot/releases/download/4.6.2-stable/Godot_v4.6.2-stable_linux.x86_64.zip"
+          unzip -q godot.zip && chmod +x Godot_v4.6.2-stable_linux.x86_64
+          ./Godot_v4.6.2-stable_linux.x86_64 --version
+
+      - name: Importar o projeto
+        run: |
+          timeout 900 ./Godot_v4.6.2-stable_linux.x86_64 --headless --path . --import \
+            > /tmp/import.log 2>&1 || true
+          tail -3 /tmp/import.log
+
+      # O numero vem do que ja' existe em Releases: maior `pacote-dev-N` mais um.
+      # Nunca repete e nao depende de alguem lembrar qual foi o ultimo -- se
+      # repetisse, o jogo veria a mesma versao e nunca baixaria a correcao.
+      - name: Decidir o numero do pacote
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -e
+          ULTIMO="$(gh release list --limit 100 --json tagName --jq \
+            '[.[] | select(.tagName | test("^pacote-dev-[0-9]+$")) | (.tagName | ltrimstr("pacote-dev-") | tonumber)] | max // 0' \
+            2>/dev/null || echo 0)"
+          ULTIMO="${ULTIMO:-0}"
+          [ "$ULTIMO" = "null" ] && ULTIMO=0
+          N=$((ULTIMO + 1))
+          echo "ultimo publicado: $ULTIMO  ->  proximo: $N"
+          echo "N=$N" >> "$GITHUB_ENV"
+          echo "TAG=pacote-dev-$N" >> "$GITHUB_ENV"
+          echo "URL=https://github.com/${{ github.repository }}/releases/download/pacote-dev-$N/jogo.pck" >> "$GITHUB_ENV"
+
+      # O script confere O PACOTE QUE SAIU: se faltar um script, se vier vazio,
+      # ou se alguem tiver arrastado a biblioteca de audio junto por um preload()
+      # novo, ele reprova aqui em vez de mandar 100 MB para o celular de alguem.
+      - name: Montar o pacote
+        env:
+          PACK_VERSION: ${{ env.N }}
+          PACK_URL: ${{ env.URL }}
+          PACK_DIR: /tmp/pacote
+        run: tools/exportar_pacote_dev.sh "$PWD/Godot_v4.6.2-stable_linux.x86_64"
+
+      - name: Publicar o pacote na Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -e
+          cat > /tmp/notas.md <<'NOTAS'
+          Pacote de atualização do app de **desenvolvedor**.
+
+          Não precisa baixar nada daqui: o app instalado busca este arquivo
+          sozinho ao abrir, confere o sha256 e aplica na abertura seguinte.
+
+          Se o app tiver ficado numa versão antiga, é porque o pacote pede um
+          autoload que aquele APK não tem — nesse caso é APK novo mesmo.
+          NOTAS
+          gh release create "$TAG" --title "Pacote dev $N" \
+            --notes-file /tmp/notas.md "/tmp/pacote/jogo_v${N}.pck#jogo.pck"
+
+      # E' esta linha que o jogo instalado le'. Enquanto ela nao mudar, o pacote
+      # publicado acima nao chega a aparelho nenhum -- entao ela vem por ultimo,
+      # depois de o arquivo estar realmente publicado.
+      - name: Apontar o manifesto para o pacote novo
+        run: |
+          set -e
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if git diff --quiet -- content_manifest_dev.json; then
+            echo "o manifesto nao mudou -- nada a commitar"
+            exit 0
+          fi
+          git add content_manifest_dev.json
+          git commit -m "Pacote dev $N: o app baixa esta versao sozinho"
+          # Alguem pode ter empurrado na main enquanto isto rodava. Rebase e'
+          # seguro aqui: o commit mexe num arquivo so', escrito por esta esteira.
+          for tentativa in 1 2 3 4; do
+            if git push origin HEAD:main; then exit 0; fi
+            echo "push recusado; trazendo a main e repetindo ($tentativa/4)"
+            git pull --rebase origin main || true
+            sleep $((2 ** tentativa))
+          done
+          echo "nao consegui atualizar o manifesto na main."
+          echo "o pacote $TAG esta publicado, mas nenhum aparelho vai busca-lo ate' isto entrar."
+          exit 1
+
+      - name: Resumo
+        run: |
+          {
+            echo "### Pacote dev $N publicado"
+            echo
+            echo "Tamanho: $(du -h /tmp/pacote/jogo_v${N}.pck | cut -f1)"
+            echo
+            echo "Ninguém precisa baixar nada: o app busca sozinho na próxima abertura."
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -10,9 +10,11 @@
 # De quebra resolve o motivo de tudo isto existir: gerar um APK novo deixa de
 # depender de alguem com o ambiente montado na maquina. E um botao.
 #
-# COMO RODA: sozinho, a cada mudanca no jogo que chega na main. Da' para
-# forcar pela aba Actions -> "APK de desenvolvedor" -> Run workflow, com os
-# campos vazios (numero automatico) ou preenchidos (numero forcado).
+# COMO RODA: sozinho, quando chega na main uma mudanca que SO' um APK resolve
+# (ver o filtro de caminhos abaixo). Mudanca de codigo nao passa mais por aqui:
+# ela sai pelo pacote, e o app baixa sozinho. Da' para forcar pela aba
+# Actions -> "APK de desenvolvedor" -> Run workflow, com os campos vazios
+# (numero automatico) ou preenchidos (numero forcado).
 #
 # ATENCAO AO ACUMULO: cada build publica uma Release de ~200 MB e nada e'
 # apagado automaticamente. Isso e' de proposito -- apagar release e' destrutivo
@@ -22,24 +24,25 @@
 name: APK de desenvolvedor
 
 on:
-  # AUTOMATICO: toda mudanca no jogo que chega na main gera APK novo sozinho.
+  # AUTOMATICO, mas so' para o que APK novo e' a UNICA saida.
   #
-  # Antes era so' manual, e a cada correcao alguem tinha que abrir a aba
-  # Actions e digitar o numero da versao na mao. Isso e' trabalho de maquina,
-  # nao de pessoa -- e digitar numero e' onde justamente se erra: repetir um
-  # numero faz o Android recusar a instalacao, sem explicar por que.
+  # Codigo, telas e listas (scripts/, ui/, scenes/, modulos/, data/) saem pelo
+  # PACOTE agora -- ver .github/workflows/pacote-dev.yml. O app instalado baixa
+  # sozinho, na abertura seguinte, uns 2 MB. Enquanto uma mudanca de uma linha
+  # disparava aqui, cada correcao virava 208 MB para baixar no celular e
+  # instalar por cima. Era esse o incomodo, e ele nao era necessario.
   #
-  # O filtro de caminhos evita montar 200 MB por causa de um README.
+  # O que sobrou nesta lista e' o que nenhum pacote alcanca:
+  #   project.godot -- autoload novo, e qualquer ajuste de projeto; a lista de
+  #     autoloads mora no project.binary, lido antes de qualquer pacote
+  #   assets/ e addons/ -- arte, audio e plugins; sao o peso do APK
+  #   o proprio script de exportacao e este arquivo
+  # Ver docs/o_que_exige_apk_novo.md.
   push:
     branches: [main]
     paths:
-      - "scripts/**"
-      - "scenes/**"
-      - "ui/**"
-      - "modulos/**"
       - "addons/**"
       - "assets/**"
-      - "data/**"
       - "project.godot"
       - "tools/exportar_apk_dev.sh"
       - ".github/workflows/apk-dev.yml"
