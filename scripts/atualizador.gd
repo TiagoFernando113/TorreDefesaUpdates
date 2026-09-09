@@ -354,8 +354,53 @@ func _should_download_content_pack(pack: Dictionary, local_versions: Dictionary)
 	# jogo, e nao um programa novo para instalar.
 	if kind in ["executable", "exe", "apk"]:
 		return false
+	# A UNICA armadilha que quebra o app de verdade: autoload que nao existe.
+	#
+	# A lista de autoloads mora no project.binary, lido pelo motor ANTES de
+	# qualquer pacote. Pacote nao cria autoload -- e todo script do pacote que
+	# mencione um autoload que a build instalada nao tem morre na leitura com
+	# "Identifier X not declared in the current scope". Como o pacote e' aplicado
+	# no arranque, isso deixa o jogo sem abrir.
+	#
+	# Ja' aconteceu, com o `Auth` numa build de junho. Enquanto publicar pacote
+	# era ato manual, dava para lembrar. Agora que sai sozinho a cada mudanca,
+	# lembrar nao e' plano: o pacote diz de quais autoloads ele precisa, e quem
+	# nao os tem simplesmente NAO baixa. Fica na versao do APK, funcionando, ate'
+	# instalar um APK novo -- que e' o desfecho certo.
+	if not _tem_todos_autoloads(pack.get("requer_autoloads", [])):
+		return false
 	var ext := _content_ext_from_url(url)
 	return ext == "pck" or ext == "zip"
+
+
+## Manifesto antigo (sem o campo) continua valendo: lista vazia = nada exigido.
+## Isso importa porque o campo nasceu depois de haver APK instalado por ai'.
+func _tem_todos_autoloads(nomes: Variant) -> bool:
+	if not nomes is Array:
+		return true
+	for n in (nomes as Array):
+		var nome := str(n).strip_edges()
+		if nome.is_empty():
+			continue
+		if not _tem_autoload(nome):
+			return false
+	return true
+
+
+## Duas perguntas para o mesmo fato, porque cada uma tem um ponto cego.
+##
+## ProjectSettings enxerga a lista inteira, inclusive os autoloads que ainda nao
+## subiram -- mas depende de como o project.binary foi gravado na exportacao. A
+## arvore e' o fato observavel, sem intermediario, e aqui ela ja' esta completa:
+## esta funcao so' roda quando a resposta do manifesto chega, dezenas de quadros
+## depois do arranque. Bastar UMA dizer que sim evita recusar pacote bom.
+func _tem_autoload(nome: String) -> bool:
+	if ProjectSettings.has_setting("autoload/" + nome):
+		return true
+	var arvore := get_tree()
+	if arvore == null or arvore.root == null:
+		return false
+	return arvore.root.get_node_or_null(NodePath(nome)) != null
 
 
 func _content_local_path(pack: Dictionary) -> String:
