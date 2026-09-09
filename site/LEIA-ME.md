@@ -46,9 +46,23 @@ dele diz o que fazer, e o login se completa do mesmo jeito.
 
 ## Como é publicada
 
-`.github/workflows/pagina-voltar.yml`, a cada mudança em `site/`. O workflow
-**liga o GitHub Pages sozinho** (`actions/configure-pages` com
-`enablement: true`), então não depende de ninguém achar a chave certa no menu
-de configurações.
+`.github/workflows/pagina-voltar.yml`, a cada mudança em `site/`.
+
+**O Pages precisa ser ligado uma vez, na mão.** Tentei fazer a esteira ligar
+sozinha (`actions/configure-pages` com `enablement: true`) e não dá:
+
+```
+Create Pages site failed.
+Error: Resource not accessible by integration
+```
+
+O `GITHUB_TOKEN` do Actions **publica** num Pages que já existe, mas não
+**cria** o site — criar exige permissão de administração do repositório. É uma
+vez só:
+
+> Settings → Pages → Build and deployment → **Source: GitHub Actions**
+
+Enquanto isso não for feito, o primeiro passo do workflow para com essa
+instrução impressa, em vez do erro acima, que não diz nada a quem está lendo.
 
 Endereço: `https://tiagofernando113.github.io/TorreDefesaUpdates/voltar-dev.html`
