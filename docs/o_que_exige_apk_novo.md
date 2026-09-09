@@ -150,21 +150,24 @@ O APK de desenvolvedor atual foi exportado com:
 > Só marque o que tem uso previsto. Permissão pedida "por via das dúvidas"
 > aparece para o usuário e não faz nada.
 
-### 5b. O deep link `cyron://` — e por que NÃO foi adicionado
+### 5b. O deep link `cyron://` — recusado por um motivo, aceito por outro
 
-O `auth_supabase.gd` declara uma constante `_SCHEME_AND = "cyron://auth"` que
-não está ligada a nada. A tentação é "só" adicionar o intent-filter no
-manifesto. **Não adiante: não resolveria.**
+Esta seção dizia "por que NÃO foi adicionado". O motivo era este, e continua
+verdadeiro:
 
-Conferido, não suposto:
-
-- o template Android do Godot 4.6.2 não trata `onNewIntent` nem `ACTION_VIEW`
-  em lugar nenhum;
+- o template Android do Godot 4.6.2 não trata `onNewIntent` nem `ACTION_VIEW`;
 - o motor não expõe nenhuma API de intent ao GDScript.
 
-Ou seja, com o intent-filter o Android abriria o app — e o `code` do login
-morreria no caminho, porque nenhum script conseguiria lê-lo. Seria linha morta
-no manifesto dando falsa sensação de recurso pronto.
+Ou seja, **o `code` do login nunca poderia ser lido de dentro de um intent**.
+
+O que mudou é que ele não precisa ser. Com a ponte, o código já está guardado
+no servidor quando o navegador volta, e o jogo o busca sozinho. **O intent não
+precisa carregar nada** — o único trabalho dele é fazer o Android trazer o jogo
+para a frente.
+
+Por isso o endereço foi adicionado (`cyron://voltar`, ver 5f). A recusa antiga
+valia para um desenho em que o intent era o carteiro; no desenho de hoje ele é
+só a campainha.
 
 O loopback que existia aqui **foi removido**, e o parágrafo que o descrevia
 estava errado: no Android ele nunca funcionou. O navegador conecta em
