@@ -36,7 +36,7 @@ on:
   #   project.godot -- autoload novo, e qualquer ajuste de projeto; a lista de
   #     autoloads mora no project.binary, lido antes de qualquer pacote
   #   assets/ e addons/ -- arte, audio e plugins; sao o peso do APK
-  #   o proprio script de exportacao e este arquivo
+  #   as ferramentas que montam o APK e este arquivo
   # Ver docs/o_que_exige_apk_novo.md.
   push:
     branches: [main]
@@ -45,6 +45,11 @@ on:
       - "assets/**"
       - "project.godot"
       - "tools/exportar_apk_dev.sh"
+      # O remendo do manifesto decide se o endereco cyron:// entra no APK.
+      # Ele ficou de fora desta lista, e o resultado foi exatamente o que se
+      # espera: mudei o remendo, mesclei, e nenhum APK foi montado -- a correcao
+      # existia no repositorio e nao existia em lugar nenhum que importasse.
+      - "tools/endereco_proprio_android.py"
       - ".github/workflows/apk-dev.yml"
 
   # Manual, para forcar um numero especifico. Os dois campos sao OPCIONAIS:
