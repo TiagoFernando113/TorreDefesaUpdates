@@ -184,13 +184,28 @@ func limpar_ui() -> void:
 ## sem invadir o rodape. Sem esse limite, uma tela larga e baixa empurraria a
 ## ultima trilha para fora -- e o jogador perderia um upgrade sem saber que ele
 ## existe, que e' pior do que o painel pequeno.
+## O HUD e' um CanvasLayer (scenes/Main.tscn), e CanvasLayer estende Node, NAO
+## CanvasItem -- entao ele NAO TEM get_viewport_rect(). Chamar esse metodo aqui
+## derrubava criar_ui() na primeira linha e o painel inteiro sumia da tela.
+## CanvasLayer TEM get_viewport(); o tamanho da tela vem de la'.
+func _tamanho_da_tela(hud) -> Vector2:
+	if hud == null:
+		return Vector2.ZERO
+	var vp = hud.get_viewport() if hud.has_method("get_viewport") else null
+	if vp == null:
+		return Vector2.ZERO
+	return vp.get_visible_rect().size
+
 func _escala(hud) -> float:
-	var tela : Vector2 = hud.get_viewport_rect().size
+	var tela : Vector2 = _tamanho_da_tela(hud)
 	if tela.x <= 0.0 or tela.y <= 0.0:
 		return AUMENTO
 	var por_largura : float = clampf(tela.x / LARGURA_BASE, 0.85, 1.6) * AUMENTO
 	var altura_1x : float = Y0_BASE + float(TRILHAS.size()) * (H_BASE + GAP_BASE) + RODAPE
-	return minf(por_largura, tela.y / altura_1x)
+	# Piso: por menor que a tela seja, o painel nunca encolhe a ponto de virar um
+	# borrao ilegivel no canto. Melhor a ultima trilha ficar apertada do que oito
+	# botoes de 4 px que ninguem acerta com o dedo.
+	return maxf(minf(por_largura, tela.y / altura_1x), 0.75)
 
 
 func criar_ui() -> void:
