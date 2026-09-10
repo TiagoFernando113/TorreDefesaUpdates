@@ -333,11 +333,50 @@ esquema na página. Elas ficam ali, e não só na esteira do APK, porque aquela
 esteira só roda quando muda `assets/`, `addons/` ou o `project.godot`: uma
 mudança que desligasse o Gradle passaria meses sem aparecer.
 
+### O endereço não entrava, e o motivo não era nenhum dos meus palpites
+
+Entre a primeira versão e a que funcionou houve quatro voltas, todas por
+suposição minha:
+
+| suposição | realidade |
+|---|---|
+| manifesto em `android/build/` | está em `android/build/src/main/` |
+| `MAIN`/`LAUNCHER` num `<activity>` | está num `<activity-alias>` |
+| conferir `"cyron"` no APK basta | casa com `com.tiagofernando.cyron`**dev**; passaria sempre |
+| o Godot apaga o remendo | não apaga — o filtro some na **fusão** |
+
+O mecanismo real só apareceu quando a esteira passou a **imprimir** o manifesto
+de variante que o Godot gera:
+
+```xml
+<activity-alias tools:node="mergeOnlyAttributes"
+                android:name=".GodotAppLauncher" ...>
+```
+
+`mergeOnlyAttributes` manda o Gradle fundir **só os atributos** desse nó e
+**descartar os filhos** vindos dos manifestos de menor prioridade. O filtro
+entrava no arquivo, sobrevivia à exportação, e era jogado fora na fusão.
+Nenhuma das duas pontas mentia; o descarte acontecia entre elas.
+
+**A saída:** não disputar aquele nó. O remendo cria um alias próprio,
+`.CyronVoltar`, que o Godot não conhece e não marca. Alias não precisa de
+código Java, herda o `launchMode="singleInstancePerTask"` do alvo (então o
+endereço traz a instância **já aberta** para a frente, com o login pendente
+intacto) e, sem a categoria `LAUNCHER`, não põe um segundo ícone na gaveta.
+
+Uma última armadilha, dessa vez fora do manifesto: o
+`tools/endereco_proprio_android.py` **não estava** no filtro de caminhos que
+dispara o APK. A correção foi mesclada e nenhuma montagem aconteceu — ela
+existia no repositório e não existia em lugar nenhum que importasse.
+
+**Resultado:** `dev-19` publicado com o endereço dentro, conferido no APK que
+saiu (`BROWSABLE` e o host `voltar`, nenhum dos dois vindo do nome do pacote).
+
 **O que ainda não está provado:** que o Android abre o jogo ao tocar no botão.
-Isso só o aparelho responde, com o APK novo instalado. Até lá, o login continua
-funcionando do jeito de sempre — escolher a conta, tocar em ◁, e o jogo já está
-logado. A página diz exatamente isso, e o plano B garante que uma falha do
-botão vire uma recarga em vez de tela de erro.
+Isso só o aparelho responde. Até lá, o login continua funcionando do jeito de
+sempre — escolher a conta, tocar em ◁, e o jogo já está logado. A página diz
+exatamente isso, e o plano B garante que uma falha do botão vire uma recarga em
+vez de tela de erro.
 
 ### 6. O resto, que não tem jeito
 
