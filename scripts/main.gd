@@ -1608,9 +1608,12 @@ func _mostrar_escolha_arma() -> void:
 	# Lista: a arma atual primeiro (manter) + outras sorteadas (trocar).
 	# Comuns sempre; lendárias só a partir da wave LENDARIA_WAVE.
 	var pool_armas : Array = []
-	var lend_wave : int = 100
 	if torre and is_instance_valid(torre):
-		lend_wave = int(torre.LENDARIA_WAVE)
+		# O portão vem da torre, e SÓ de lá. Aqui existia um `var lend_wave = 100`
+		# que era sobrescrito na linha seguinte — dois lugares com o mesmo número
+		# e só um deles verdadeiro. Se a torre não existe, a lista de reserva
+		# abaixo já é toda comum, então não há portão a consultar.
+		var lend_wave : int = int(torre.LENDARIA_WAVE)
 		for aid in torre.ARMAS.keys():
 			var tier : String = str((torre.ARMAS[aid] as Dictionary).get("tier", "comum"))
 			if DEBUG_TODAS_ARMAS or tier == "comum" or wave >= lend_wave:
@@ -1660,7 +1663,7 @@ func _carta_de_arma(aid: String) -> Dictionary:
 		"gemea":        {"nome": "Canhão Gêmeo",  "desc": "2 balas paralelas\nretas. Acerta quem\ncruza o caminho.",  "cor": Color(0.45, 0.95, 0.85)},
 		"vortice":      {"nome": "Vórtice",       "desc": "Dispara em TODAS as\ndireções (360°).\nCobre todos os flancos.","cor": Color(0.80, 0.45, 1.0)},
 		"aniquilador":  {"nome": "Aniquilador",   "desc": "Feixe que atravessa\na tela inteira.\nDano massivo.",      "cor": Color(1.0, 0.30, 0.55)},
-		"bombardeio":   {"nome": "Bombardeio Orbital", "desc": "MANUAL: clique no ponto\n→ raio do céu explode\nem área. Super forte.", "cor": Color(0.45, 0.85, 1.0)},
+		"bombardeio":   {"nome": "Bombardeio Orbital", "desc": "Raio do céu explode\nem área. Mira sozinha —\nclique no ponto para\nmirar melhor (+dano).", "cor": Color(0.45, 0.85, 1.0)},
 		"lanca_chamas": {"nome": "Lança-Chamas", "desc": "Cone de fogo curto.\nQueima vários de perto\n(dano + queimadura).", "cor": Color(1.0, 0.50, 0.12)},
 	}
 	var m : Dictionary = meta.get(aid, meta["padrao"]) as Dictionary

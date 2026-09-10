@@ -140,7 +140,13 @@ const ARMAS : Dictionary = {
 	"aniquilador":  {"nome": "Aniquilador",  "cad": 0.80,"dano": 5.0,  "alcance": 1.8, "modo": "aniquilador","tier": "lendaria"},
 	"bombardeio":   {"nome": "Bombardeio Orbital","cad": 1.0,"dano": 7.0,"alcance": 1.0,"modo": "bombardeio","tier": "lendaria"},
 }
-const LENDARIA_WAVE : int = 100   # lendárias só aparecem na escolha a partir daqui
+# A escolha de arma acontece antes da wave 1 e depois de 20 em 20: waves 1, 20,
+# 40, 60, 80, 100. Com o portão em 100, NENHUMA dessas escolhas mostrava
+# lendária a não ser a última — metade do arsenal (6 das 12 armas) existia no
+# código e não existia na partida de quase ninguém.
+# Em 40 sobram três escolhas com lendária (40, 60, 80) antes da wave 100, e
+# chegar na 40 já é mérito. As comuns continuam desde a wave 1.
+const LENDARIA_WAVE : int = 40   # lendárias só aparecem na escolha a partir daqui
 var arma_ativa : String = "padrao"
 
 func definir_arma(id: String) -> void:
@@ -165,6 +171,19 @@ var bombardeio_cd : float = 0.0
 const BOMBARDEIO_CD  : float = 0.6
 const BOMBARDEIO_RAIO: float = 140.0
 const BOMBARDEIO_MIN_DIST : float = 150.0   # zona morta: não pode bombardear em cima da torre
+# A arma nasceu 100% MANUAL: sem toque na tela, a torre simplesmente não
+# atirava. Com cooldown de 0,6s isso é um toque a cada 0,6s durante a wave
+# inteira — e quem escolhia a arma sem perceber isso ficava sem torre.
+# Agora ela mira sozinha quando o jogador NÃO está mirando. O toque continua
+# valendo e vale MAIS (o automático sai por AUTO_FORCA do dano): quem mira
+# ganha, quem não mira não fica a pé.
+const BOMBARDEIO_AUTO_FORCA   : float = 0.6   # dano do tiro automático vs. o mirado
+const BOMBARDEIO_JANELA_MANUAL: float = 2.5   # s sem toque até a torre assumir
+# Teto do agrupamento: achar o melhor ponto é O(n²) nos alvos. Com a wave cheia
+# (34+ mobs) e um tiro a cada 0,6s isso pesaria no celular à toa — o melhor
+# ponto entre 32 candidatos já é bom o bastante.
+const BOMBARDEIO_MAX_CANDIDATOS : int = 32
+var _bombardeio_manual : float = 0.0   # tempo restante de "o jogador está mirando"
 const FOCUS_DUR : float   = 6.0            # duração em segundos
 var _manual_spin : float = 0.0   # 0→1: aquece enquanto segura mira manual (bônus cadência+projéteis)
 
@@ -231,6 +250,8 @@ func _process(delta: float) -> void:
 	shoot_timer      += delta
 	if bombardeio_cd > 0.0:
 		bombardeio_cd = max(0.0, bombardeio_cd - delta)
+	if _bombardeio_manual > 0.0:
+		_bombardeio_manual = max(0.0, _bombardeio_manual - delta)
 
 	# Focus de Ataque: expira após FOCUS_DUR
 	if focus_ativo:
@@ -417,7 +438,8 @@ func _atirar() -> void:
 		return
 	match _arma_modo():
 		"bombardeio":
-			return   # arma 100% manual: só dispara via lancar_bombardeio (clique)
+			_bombardeio_automatico()   # mira sozinha quando o jogador não está mirando
+			return
 		"escopeta":
 			_atirar_escopeta()
 			return
@@ -442,8 +464,52 @@ func _atirar() -> void:
 
 
 func lancar_bombardeio(alvo_world: Vector2) -> bool:
-	# Raio Orbital manual: feixe explode no ponto clicado. Respeita cooldown.
+	# Toque do jogador. Marca a janela manual: enquanto ela durar, a torre não
+	# rouba o tiro de quem está mirando.
 	if _arma_modo() != "bombardeio": return false
+	_bombardeio_manual = BOMBARDEIO_JANELA_MANUAL
+	return _soltar_raio(alvo_world, 1.0)
+
+
+func _bombardeio_automatico() -> void:
+	# Só assume quando o jogador não tocou na tela há BOMBARDEIO_JANELA_MANUAL.
+	if _bombardeio_manual > 0.0: return
+	if bombardeio_cd > 0.0: return
+	var alvo : Vector2 = _melhor_ponto_bombardeio()
+	if not alvo.is_finite(): return
+	_soltar_raio(alvo, BOMBARDEIO_AUTO_FORCA)
+
+
+func _melhor_ponto_bombardeio() -> Vector2:
+	# O ponto que pega MAIS gente. Fora da zona morta (lá o raio sai mini) e
+	# dentro do alcance da arma.
+	var pontos : Array = []
+	for mob in _alvos_validos():
+		if not is_instance_valid(mob): continue
+		if mob.get("imune_aoe") == true: continue
+		var p : Vector2 = _target_pos(mob)
+		var d : float = global_position.distance_to(p)
+		if d < BOMBARDEIO_MIN_DIST: continue
+		if d > _range_para_alvo(mob): continue
+		pontos.append(p)
+		if pontos.size() >= BOMBARDEIO_MAX_CANDIDATOS: break
+	if pontos.is_empty():
+		return Vector2.INF   # ninguém alcançável: não desperdiça o cooldown
+	var melhor : Vector2 = pontos[0]
+	var melhor_n : int = -1
+	for p in pontos:
+		var n : int = 0
+		for q in pontos:
+			if (p as Vector2).distance_to(q as Vector2) <= BOMBARDEIO_RAIO:
+				n += 1
+		if n > melhor_n:
+			melhor_n = n
+			melhor = p
+	return melhor
+
+
+func _soltar_raio(alvo_world: Vector2, forca: float) -> bool:
+	# Raio Orbital: feixe explode no ponto dado. Respeita cooldown.
 	if bombardeio_cd > 0.0: return false
 	var scr = load("res://scripts/partida/raio_orbital.gd")
 	if scr == null: return false
@@ -456,7 +522,7 @@ func lancar_bombardeio(alvo_world: Vector2) -> bool:
 	var raio_final : float = BOMBARDEIO_RAIO
 	var mini : bool = dist < BOMBARDEIO_MIN_DIST
 	# Pipeline: herda crit/b1/ia. Mini-raio (perto) tem dano/raio reduzidos.
-	var res : Array = _calc_dano_arma(null, 0.35 if mini else 1.0)
+	var res : Array = _calc_dano_arma(null, (0.35 if mini else 1.0) * forca)
 	if mini:
 		raio_final *= 0.65
 	var ro = scr.new()
@@ -607,6 +673,7 @@ func _disparar_de(alvo: Node, spawn_gp: Vector2, dmg_mult: float = 1.0) -> void:
 	var extras : Dictionary = {}
 	extras["mobs_group"] = mobs_group
 	extras["low_fx"] = _efeitos_leves_ativos()
+	extras["arma"] = arma_ativa   # so' o desenho le' isto; dano nao depende dele
 	if eh_missil:                       extras["is_missil"]     = true
 	if corrente_ativa:                  extras["chain"]        = 2
 	if ricochete_count > 0:             extras["ricochete"]    = ricochete_count
@@ -649,6 +716,7 @@ func _disparar_direcao(dir: Vector2, spawn_offset: Vector2 = Vector2.ZERO) -> vo
 	var extras : Dictionary = {}
 	extras["mobs_group"] = mobs_group
 	extras["low_fx"]     = _efeitos_leves_ativos()
+	extras["arma"]       = arma_ativa   # so' o desenho le' isto
 	if veneno_dps > 0.0:  extras["veneno_dps"] = veneno_dps; extras["veneno_dur"] = 4.0
 	if armadura_inv:      extras["armadura_inv"] = true
 	if fissura_ativa:     extras["fissura"]      = true
