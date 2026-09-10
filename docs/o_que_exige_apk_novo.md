@@ -372,11 +372,13 @@ existia no repositório e não existia em lugar nenhum que importasse.
 **Resultado:** `dev-19` publicado com o endereço dentro, conferido no APK que
 saiu (`BROWSABLE` e o host `voltar`, nenhum dos dois vindo do nome do pacote).
 
-**O que ainda não está provado:** que o Android abre o jogo ao tocar no botão.
-Isso só o aparelho responde. Até lá, o login continua funcionando do jeito de
-sempre — escolher a conta, tocar em ◁, e o jogo já está logado. A página diz
-exatamente isso, e o plano B garante que uma falha do botão vire uma recarga em
-vez de tela de erro.
+**Provado no aparelho:** o botão abre o jogo. O caminho de volta do login está
+fechado — escolher a conta, tocar em **VOLTAR AO JOGO**, e o jogo volta com o
+login feito.
+
+O plano B continua lá para o caso de um aparelho sem o app, ou um navegador que
+não entenda `intent://`: a falha vira uma recarga da própria página, com o texto
+dizendo o que fazer, em vez de uma tela de erro.
 
 ### 6. O resto, que não tem jeito
 
