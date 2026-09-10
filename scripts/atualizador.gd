@@ -62,8 +62,12 @@ func _iniciar_check_conteudo() -> void:
 
 
 ## Versao atual usada pelo menu para exibir no canto.
+##
+## Vem do carimbo do build, nao da constante: a constante ficou parada em 12
+## enquanto o APK ja' era 19, e este numero e' o que decide se o banner de
+## atualizacao aparece. Preso, ele esconderia o banner para sempre.
 func versao_efetiva() -> int:
-	return BuildConfig.APP_VERSION_CODE
+	return BuildConfig.codigo_versao()
 
 
 func _on_versao_resp(result: int, code: int, _h: PackedStringArray, body: PackedByteArray) -> void:
@@ -82,11 +86,22 @@ func _on_versao_resp(result: int, code: int, _h: PackedStringArray, body: Packed
 	var url_apk   : String     = str(d.get("apk_url", ""))
 	var notas     : String     = str(d.get("notes", ""))
 
-	if versao_sv <= BuildConfig.APP_VERSION_CODE or url_apk == "":
+	if versao_sv <= BuildConfig.codigo_versao() or url_apk == "":
 		return
 
 	_url_apk = url_apk
 	_mostrar_banner(versao_sv, notas)
+
+
+## O que ja' foi baixado e esta esperando a proxima abertura.
+##
+## O painel de manutencao mostrava so' "Pacotes aplicados: nenhum", que quer
+## dizer tres coisas diferentes: nao procurou, procurou e nao achou, ou achou e
+## baixou mas so' vale na proxima abertura. Sem separar isso, a unica resposta
+## possivel a "o pacote chegou?" era abrir o app de novo e torcer.
+func pacotes_baixados() -> Dictionary:
+	var packs: Variant = _content_state.get("packs", {})
+	return packs as Dictionary if packs is Dictionary else {}
 
 
 func _normalizar_manifest_apk(d: Dictionary) -> Dictionary:

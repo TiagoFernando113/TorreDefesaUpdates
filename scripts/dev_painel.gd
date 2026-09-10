@@ -154,8 +154,11 @@ func _atualizar() -> void:
 func _relatorio() -> String:
 	var p: Array[String] = []
 	var cfg := _autoload("BuildConfig")
+	# codigo_versao()/nome_versao(), nao as constantes: elas ficaram paradas em
+	# 12 enquanto o APK era 19, e esta tela mostrava "code 12" em qualquer
+	# aparelho -- a ferramenta de diagnostico mentindo sobre o diagnostico.
 	p.append("[b]Versão[/b]  %s (code %s)  ·  Godot %s" % [
-		cfg.APP_VERSION_NAME if cfg else "?", str(cfg.APP_VERSION_CODE) if cfg else "?",
+		cfg.nome_versao() if cfg else "?", str(cfg.codigo_versao()) if cfg else "?",
 		Engine.get_version_info().get("string", "?")])
 	p.append("[b]Aparelho[/b]  %s  ·  tela %s" % [
 		OS.get_name(), str(get_viewport().get_visible_rect().size)])
@@ -171,6 +174,21 @@ func _relatorio() -> String:
 	else:
 		for a in carr.aplicados:
 			p.append("  • %s" % a)
+
+	# "Aplicados: nenhum" queria dizer tres coisas ao mesmo tempo, e nenhuma
+	# delas dava para agir: nao procurou / nao achou / achou e vale na proxima
+	# abertura. Esta linha separa a terceira das outras duas.
+	var atu := _autoload("Atualizador")
+	if atu != null and atu.has_method("pacotes_baixados"):
+		var baixados: Dictionary = atu.pacotes_baixados()
+		if baixados.is_empty():
+			p.append("  [color=#8899aa]nada baixado ainda — se acabou de instalar, abra o app mais uma vez[/color]")
+		else:
+			for id in baixados.keys():
+				var v := int(baixados[id])
+				var ja := carr != null and carr.aplicados.any(func(a): return a.begins_with(str(id)))
+				if not ja:
+					p.append("  [color=#7fe08a]baixado: %s v%d — vale na próxima abertura[/color]" % [str(id), v])
 
 	p.append("\n[b]Módulos[/b]")
 	var mods := _autoload("Modulos")

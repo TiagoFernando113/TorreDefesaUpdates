@@ -155,6 +155,26 @@ if [ ! -f "$MANIFESTO" ]; then
 fi
 python3 tools/endereco_proprio_android.py "$MANIFESTO" || exit 1
 
+# ---------------------------------------------------------------------------
+# O CARIMBO DA VERSAO
+#
+# O jogo nao sabia qual APK era. BuildConfig.APP_VERSION_CODE era uma constante
+# fixa em 12 enquanto o APK ja' estava no 19 -- entao o painel de manutencao,
+# cuja unica funcao e' dizer o que esta rodando, mostrava "code 12" em qualquer
+# aparelho. E e' o mesmo numero que decide se o app publico mostra "atualizacao
+# disponivel": preso em 12, o banner ficaria escondido para sempre.
+#
+# Este arquivo NAO entra nos pacotes (o pacote leva scripts/, ui/, scenes/,
+# modulos/ e data/ -- nao a raiz). Assim um pacote nunca sobrescreve a versao
+# do APK em que esta rodando.
+# ---------------------------------------------------------------------------
+python3 - "$CODIGO" "$NOME" <<'PYSTAMP'
+import json, sys
+json.dump({"code": int(sys.argv[1]), "name": sys.argv[2]},
+          open("versao_build.json", "w"), ensure_ascii=False)
+PYSTAMP
+echo "Carimbo da versao: $(cat versao_build.json)"
+
 mkdir -p "$(dirname "$SAIDA")"
 echo "Exportando (demora: Gradle + o audio, que sozinho tem ~100 MB)..."
 "$GODOT" --headless --path . --export-debug "dev" "$SAIDA" >/tmp/exportar_apk_dev.log 2>&1 || {
@@ -260,6 +280,11 @@ if aud < 50e6:
 nomes = z.namelist()
 if not any("modulos" in n and "lista" in n for n in nomes):
     problemas.append("modulos/lista.json nao entrou -- pacote nao teria o que substituir")
+
+# O carimbo da versao. Sem ele o app volta a nao saber qual APK e' -- e o painel
+# de manutencao volta a mentir, que foi o defeito que motivou tudo isto.
+if not any("versao_build" in n for n in nomes):
+    problemas.append("versao_build.json nao entrou -- o app nao saberia qual APK esta rodando")
 
 if problemas:
     print("\nREPROVADO:")
