@@ -28,6 +28,10 @@ var queimadura   := false  # P5 Lenda do Canhão / Brasa: aplica queimadura no a
 var fogo_fusao   := false  # FUSÃO Bolas de Fogo: explode em área flamejante
 var is_missil    := false  # Lança-Mísseis: desenha como foguete com rastro
 var canhao_g_gelo := false  # Canhão Glacial: congela o alvo ao acertar
+# Qual ARMA disparou. So' muda o desenho -- nenhuma regra de dano le' este campo.
+# Antes o projetil nao sabia disso, e 7 das 12 armas cuspiam a mesma bolinha
+# amarela: a torre tinha silhueta propria (luneta, tambor, leque) e o TIRO nao.
+var arma         := "padrao"
 var mobs_group   := "mobs"
 var low_fx       := false
 var free_dir     : Vector2 = Vector2.ZERO  # disparo manual / perfuração: viaja nesta direção
@@ -72,6 +76,7 @@ func setup(alvo: Node, dano: float, pierce: int = 0, speed_bonus: float = 0.0,
 	fogo_fusao    = extras.get("fogo_fusao",     false) as bool
 	canhao_g_gelo = extras.get("canhao_g_gelo", false) as bool
 	is_missil     = extras.get("is_missil",      false) as bool
+	arma          = extras.get("arma",       "padrao") as String
 	mobs_group    = extras.get("mobs_group",    "mobs") as String
 	low_fx        = extras.get("low_fx",        false) as bool
 	origin_pos    = global_position
@@ -93,6 +98,7 @@ func setup_dir(dir: Vector2, dano: float, pierce: int = 0, speed_bonus: float = 
 	is_critico    = extras.get("is_critico",    false) as bool
 	queimadura    = extras.get("queimadura",    false) as bool
 	canhao_g_gelo = extras.get("canhao_g_gelo", false) as bool
+	arma          = extras.get("arma",      "padrao") as String
 	mobs_group    = extras.get("mobs_group",   "mobs") as String
 	low_fx        = extras.get("low_fx",        false) as bool
 	origin_pos    = global_position
@@ -321,6 +327,10 @@ func _achar_proximo_alvo() -> Node:
 
 func _draw() -> void:
 	var p := sin(pulse) * 0.3 + 0.7
+	# Cor/raio da arma UMA vez: o laço do rastro roda até 9x por projétil por
+	# quadro, e com a tela cheia de tiros isso vira busca em dicionário à toa.
+	var cor_arma : Color = _COR_ARMA.get(arma, _COR_PADRAO) as Color
+	var raio_rastro : float = _RAIO_RASTRO.get(arma, 3.5) as float
 	# Trail
 	for i in range(trail.size()):
 		var tp : Vector2 = to_local(trail[i])
@@ -336,7 +346,11 @@ func _draw() -> void:
 		elif is_critico:
 			draw_circle(tp, 4.0 * t, Color(1.0, 0.45, 0.05,  t * 0.55))
 		else:
-			draw_circle(tp, 3.5 * t, Color(1.0, 0.88, 0.25,  t * 0.45))
+			# Sem efeito de carta: o rastro toma a cor da ARMA. Os ramos acima
+			# vem primeiro de proposito -- veneno/critico/fogo sao informacao de
+			# jogo, e ler a arma nao pode custar a leitura do efeito.
+			draw_circle(tp, raio_rastro * t,
+					Color(cor_arma.r, cor_arma.g, cor_arma.b, t * 0.45))
 
 	# Núcleo
 	if is_missil:
@@ -371,5 +385,90 @@ func _draw() -> void:
 		draw_circle(Vector2.ZERO,  7.0, Color(1.0, 1.0,  0.5, 0.85 * p))
 		draw_circle(Vector2.ZERO,  3.5, Color(1.0, 1.0,  1.0, 1.0))
 	else:
-		draw_circle(Vector2.ZERO, 5.5, Color(1.0, 0.95, 0.4, 0.3 * p))
-		draw_circle(Vector2.ZERO, 3.5, Color(1.0, 1.0,  0.9, 1.0))
+		_desenhar_por_arma(p, cor_arma)
+
+
+# ── Desenho por arma ─────────────────────────────────────────────────────────
+# So' vale quando NENHUM efeito de carta pintou o projetil (missil, bola de
+# fogo e bencao mandam mais, porque sao informacao de jogo). Cada arma ganha uma
+# silhueta de tiro que combina com a silhueta que a torre ja' tinha.
+const _COR_PADRAO : Color = Color(1.0, 0.95, 0.40)
+const _COR_ARMA : Dictionary = {
+	"sniper":       Color(0.60, 0.85, 1.00),   # bala fria e rapida
+	"escopeta":     Color(1.00, 0.60, 0.18),   # chumbo quente
+	"metralhadora": Color(1.00, 0.88, 0.30),   # tracante
+	"ricochete":    Color(0.35, 1.00, 0.80),   # verde-agua: quica
+	"gemea":        Color(0.45, 0.95, 0.85),
+	"vortice":      Color(0.80, 0.45, 1.00),
+}
+const _RAIO_RASTRO : Dictionary = {
+	"sniper":       2.2,   # risco fino: le-se velocidade
+	"escopeta":     2.0,   # sao 6 de uma vez -- rastro gordo virava borrao
+	"metralhadora": 2.4,
+	"ricochete":    3.2,
+	"gemea":        3.0,
+	"vortice":      3.0,
+}
+
+
+func _dir_visual() -> Vector2:
+	# Direcao de viagem, para as formas alongadas. Teleguiado usa a ultima
+	# direcao real; tiro reto usa a direcao fixa; sem nenhuma das duas, aponta
+	# para a direita (nunca deixa a forma colapsar num ponto).
+	var d : Vector2 = _ultima_dir
+	if d == Vector2.ZERO: d = free_dir
+	if d == Vector2.ZERO: return Vector2.RIGHT
+	return d.normalized()
+
+
+func _capsula(fwd: Vector2, perp: Vector2, comp: float, larg: float, cor: Color) -> void:
+	var forma := PackedVector2Array([
+		fwd * comp, fwd * (comp * 0.35) + perp * larg,
+		-fwd * (comp * 0.6) + perp * larg,
+		-fwd * (comp * 0.6) - perp * larg, fwd * (comp * 0.35) - perp * larg,
+	])
+	var fill := PackedColorArray(); fill.resize(forma.size()); fill.fill(cor)
+	draw_polygon(forma, fill)
+
+
+func _desenhar_por_arma(p: float, cor: Color) -> void:
+	var fwd : Vector2 = _dir_visual()
+	var perp : Vector2 = Vector2(-fwd.y, fwd.x)
+	match arma:
+		"sniper":
+			# Dardo longo e fino: a arma de tiro unico e caro tem que PARECER
+			# cara. Brilho na ponta pra ler o sentido da viagem.
+			draw_line(-fwd * 9.0, fwd * 11.0, Color(cor.r, cor.g, cor.b, 0.35 * p), 5.0)
+			_capsula(fwd, perp, 11.0, 1.9, cor)
+			draw_circle(fwd * 9.0, 2.0, Color(1.0, 1.0, 1.0, 1.0))
+		"escopeta":
+			# Pelota pequena. Sao 6 por disparo: qualquer coisa maior vira massa.
+			draw_circle(Vector2.ZERO, 4.0, Color(cor.r, cor.g, cor.b, 0.30 * p))
+			draw_circle(Vector2.ZERO, 2.3, Color(1.0, 0.88, 0.62, 1.0))
+		"metralhadora":
+			# Tracante curto: muitos tiros, cada um discreto.
+			draw_line(-fwd * 5.0, fwd * 4.0, Color(cor.r, cor.g, cor.b, 0.55 * p), 3.4)
+			draw_circle(fwd * 3.0, 2.1, Color(1.0, 1.0, 0.85, 1.0))
+		"ricochete":
+			# Anel ao redor da bola = "isto quica". A unica arma comum cuja
+			# regra e' invisivel sem um sinal desses.
+			draw_circle(Vector2.ZERO, 6.0, Color(cor.r, cor.g, cor.b, 0.25 * p))
+			draw_arc(Vector2.ZERO, 5.4, pulse * 3.0, pulse * 3.0 + TAU * 0.72, 14,
+					Color(cor.r, cor.g, cor.b, 0.95), 1.6)
+			draw_circle(Vector2.ZERO, 3.0, Color(0.90, 1.0, 0.97, 1.0))
+		"gemea":
+			_capsula(fwd, perp, 8.0, 2.7, cor)
+			draw_circle(fwd * 5.0, 1.8, Color(1.0, 1.0, 1.0, 0.95))
+		"vortice":
+			# Losango girando: combina com o hub de 6 portas radiais da torre.
+			var g : float = pulse * 4.0
+			var gd : Vector2 = Vector2(cos(g), sin(g))
+			var gp : Vector2 = Vector2(-gd.y, gd.x)
+			var losango := PackedVector2Array([gd * 5.4, gp * 3.2, -gd * 5.4, -gp * 3.2])
+			var fl := PackedColorArray(); fl.resize(4); fl.fill(cor)
+			draw_circle(Vector2.ZERO, 6.0, Color(cor.r, cor.g, cor.b, 0.22 * p))
+			draw_polygon(losango, fl)
+		_:
+			# Padrao (e qualquer arma sem desenho proprio): a bolinha de sempre.
+			draw_circle(Vector2.ZERO, 5.5, Color(1.0, 0.95, 0.4, 0.3 * p))
+			draw_circle(Vector2.ZERO, 3.5, Color(1.0, 1.0,  0.9, 1.0))
