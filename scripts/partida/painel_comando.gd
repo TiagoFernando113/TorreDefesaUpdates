@@ -6,6 +6,30 @@ extends RefCounted
 
 const ICONE_SCENE = preload("res://scripts/icone_upgrade.gd")
 
+# ---------------------------------------------------------------------------
+# TAMANHO DO PAINEL
+#
+# Era tudo pixel fixo -- 172x42, fonte 13, icone 28 -- desenhado uma vez para
+# uma tela e nunca mais tocado. Numa tela de 1560x720 a coluna ficava com 11%
+# da largura, e a reclamacao foi direta: "o painel esta muito pequeno".
+#
+# Pior que pequeno: era pequeno DO MESMO JEITO em qualquer aparelho. Num tablet
+# ficaria minusculo; num celular estreito, apertado.
+#
+# Agora tudo sai de UMA escala, presa a' largura da tela. Os numeros abaixo sao
+# o desenho antigo (escala 1.0); AUMENTO diz o quanto crescer alem dele. Mudar
+# o tamanho do painel virou mudar um numero so'.
+# ---------------------------------------------------------------------------
+const LARGURA_BASE : float = 1560.0   # a tela onde os numeros antigos foram medidos
+const W_BASE   : float = 172.0
+const H_BASE   : float = 42.0
+const GAP_BASE : float = 4.0
+const X_BASE   : float = 12.0
+const Y0_BASE  : float = 112.0        # comeca abaixo de Wave/Score/Kills
+const RODAPE   : float = 16.0         # respiro no pe' da tela
+## 1.0 = como era antes. Este e' o botao de volume do painel.
+const AUMENTO  : float = 1.32
+
 var jogo = null  # ref ao main.gd
 
 const TRILHAS : Array = ["dano", "cadencia", "vida", "regen", "alcance", "crit", "critdano", "energia"]
@@ -154,21 +178,37 @@ func limpar_ui() -> void:
 				(nodo as Node).queue_free()
 		(d as Dictionary).clear()
 
+## Quanto o painel cresce nesta tela.
+##
+## Sai da largura, mas a ALTURA tem voto de veto: oito cartoes precisam caber
+## sem invadir o rodape. Sem esse limite, uma tela larga e baixa empurraria a
+## ultima trilha para fora -- e o jogador perderia um upgrade sem saber que ele
+## existe, que e' pior do que o painel pequeno.
+func _escala(hud) -> float:
+	var tela : Vector2 = hud.get_viewport_rect().size
+	if tela.x <= 0.0 or tela.y <= 0.0:
+		return AUMENTO
+	var por_largura : float = clampf(tela.x / LARGURA_BASE, 0.85, 1.6) * AUMENTO
+	var altura_1x : float = Y0_BASE + float(TRILHAS.size()) * (H_BASE + GAP_BASE) + RODAPE
+	return minf(por_largura, tela.y / altura_1x)
+
+
 func criar_ui() -> void:
 	var hud = _hud_parent()
 	if hud == null: return
 	limpar_ui()
-	var w : float = 172.0
-	var h : float = 42.0
-	var gap : float = 4.0
-	var x : float = 12.0
-	var y0 : float = 112.0
+	var esc : float = _escala(hud)
+	var w : float = W_BASE * esc
+	var h : float = H_BASE * esc
+	var gap : float = GAP_BASE * esc
+	var x : float = X_BASE * esc
+	var y0 : float = Y0_BASE * esc
 
 	var tit := Label.new()
 	tit.text = "NÚCLEO"
-	tit.position = Vector2(x + 2.0, y0 - 22.0)
-	tit.size     = Vector2(w + 40.0, 18.0)
-	tit.add_theme_font_size_override("font_size", 13)
+	tit.position = Vector2(x + 2.0 * esc, y0 - 22.0 * esc)
+	tit.size     = Vector2(w + 40.0 * esc, 18.0 * esc)
+	tit.add_theme_font_size_override("font_size", int(13.0 * esc))
 	tit.add_theme_color_override("font_color", Color(0.62, 0.72, 0.88, 0.92))
 	tit.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	hud.add_child(tit)
@@ -187,7 +227,7 @@ func criar_ui() -> void:
 		var sty := StyleBoxFlat.new()
 		sty.bg_color = Color(cor.r * 0.13, cor.g * 0.13, cor.b * 0.15, 0.94)
 		sty.border_color = Color(cor.r, cor.g, cor.b, 0.78)
-		sty.set("border_width_left", 4)
+		sty.set("border_width_left", int(maxf(4.0 * esc, 4.0)))
 		for s in ["right","top","bottom"]: sty.set("border_width_" + s, 1)
 		for c in ["top_left","top_right","bottom_left","bottom_right"]: sty.set("corner_radius_" + c, 8)
 		btn.add_theme_stylebox_override("normal", sty)
@@ -208,26 +248,26 @@ func criar_ui() -> void:
 		var ico := ICONE_SCENE.new()
 		ico.tipo = str(cfg.get("icone", "dano"))
 		ico.cor  = Color(cor.r + 0.15, cor.g + 0.15, cor.b + 0.15, 1.0)
-		ico.position = Vector2(8.0, 9.0)
-		ico.size     = Vector2(28.0, 28.0)
+		ico.position = Vector2(8.0 * esc, 9.0 * esc)
+		ico.size     = Vector2(28.0 * esc, 28.0 * esc)
 		ico.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		btn.add_child(ico)
 
 		# Nome
 		var lnome := Label.new()
 		lnome.text = str(cfg.get("nome", trilha)).to_upper()
-		lnome.position = Vector2(44.0, 5.0)
-		lnome.size     = Vector2(w - 50.0, 18.0)
-		lnome.add_theme_font_size_override("font_size", 13)
+		lnome.position = Vector2(44.0 * esc, 5.0 * esc)
+		lnome.size     = Vector2(w - 50.0 * esc, 18.0 * esc)
+		lnome.add_theme_font_size_override("font_size", int(13.0 * esc))
 		lnome.add_theme_color_override("font_color", Color(cor.r + 0.28, cor.g + 0.28, cor.b + 0.28, 1.0))
 		lnome.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		btn.add_child(lnome)
 
 		# Valor atual (+inc)  ·  custo
 		var lval := Label.new()
-		lval.position = Vector2(44.0, 24.0)
-		lval.size     = Vector2(w - 50.0, 18.0)
-		lval.add_theme_font_size_override("font_size", 12)
+		lval.position = Vector2(44.0 * esc, 24.0 * esc)
+		lval.size     = Vector2(w - 50.0 * esc, 18.0 * esc)
+		lval.add_theme_font_size_override("font_size", int(12.0 * esc))
 		lval.add_theme_color_override("font_color", Color(0.86, 0.91, 0.80))
 		lval.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		btn.add_child(lval)

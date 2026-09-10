@@ -35,6 +35,7 @@ func _ready() -> void:
 	_log_em_arquivo()
 	_a_lista_de_modulos_existe()
 	_o_endereco_proprio_do_jogo()
+	_o_app_sabe_qual_apk_e()
 	_finalizar()
 
 
@@ -161,3 +162,55 @@ func _o_endereco_proprio_do_jogo() -> void:
 	g.close()
 	_esperar(pagina.contains("scheme=cyron"),
 		"a pagina de voltar nao aponta mais para cyron:// — o botao nao abre o app")
+
+
+## O APP TEM QUE SABER QUAL APK ELE E'.
+##
+## BuildConfig.APP_VERSION_CODE era uma constante fixa em 12 enquanto o APK ja'
+## estava no 19. O painel de manutencao -- cuja unica funcao e' dizer o que esta
+## rodando -- mostrava "code 12" em qualquer aparelho, e ninguem percebeu por
+## semanas, porque um numero errado nao parece errado.
+##
+## Pior: e' esse numero que decide se o app publico mostra "atualizacao
+## disponivel". Preso, o banner some para sempre.
+##
+## A verdade vem de res://versao_build.json, carimbado pela esteira. Quem voltar
+## a ler a constante direto reintroduz o defeito -- daí estas travas.
+func _o_app_sabe_qual_apk_e() -> void:
+	var cfg := get_node_or_null("/root/BuildConfig")
+	if cfg == null:
+		_falhas.append("sem BuildConfig — nada a conferir")
+		return
+	_esperar(cfg.has_method("codigo_versao"),
+		"BuildConfig perdeu codigo_versao() — o app volta a não saber qual APK é")
+	_esperar(cfg.has_method("nome_versao"), "BuildConfig perdeu nome_versao()")
+	if cfg.has_method("codigo_versao"):
+		# Sem carimbo (editor/teste) tem que cair na constante, não em zero.
+		_esperar(int(cfg.codigo_versao()) > 0,
+			"codigo_versao() devolveu %d sem o carimbo — a reserva não funcionou"
+				% int(cfg.codigo_versao()))
+
+	for caminho in ["res://scripts/atualizador.gd", "res://scripts/dev_painel.gd"]:
+		var f := FileAccess.open(caminho, FileAccess.READ)
+		if f == null:
+			_falhas.append("não consegui ler o %s" % caminho)
+			continue
+		var fonte := f.get_as_text()
+		f.close()
+		var codigo := ""
+		for linha in fonte.split("\n"):
+			if linha.strip_edges().begins_with("#"):
+				continue
+			codigo += linha + "\n"
+		_esperar(not codigo.contains("APP_VERSION_CODE"),
+			"%s voltou a ler a constante em vez do carimbo — o número volta a mentir"
+				% caminho)
+
+	var g := FileAccess.open("res://tools/exportar_apk_dev.sh", FileAccess.READ)
+	if g == null:
+		_falhas.append("sumiu o exportar_apk_dev.sh")
+		return
+	var script := g.get_as_text()
+	g.close()
+	_esperar(script.contains("versao_build.json"),
+		"a esteira parou de carimbar a versão — o app volta a não saber qual APK é")

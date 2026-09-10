@@ -59,3 +59,7 @@ scripts/google_oauth.gd.uid
 # de 100 MiB do GitHub. Passou a ser publicado em Releases pelo workflow
 # .github/workflows/apk-dev.yml.
 dev/*.apk
+
+# Carimbo da versao, escrito pela esteira na hora de montar o APK.
+# Nao e versionado: ele descreve UM build, nao o repositorio.
+versao_build.json

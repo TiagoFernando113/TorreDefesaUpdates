@@ -1,7 +1,52 @@
 extends Node
 
+## ATENCAO: estes dois sao a RESERVA, nao a verdade.
+##
+## Eles ficaram parados em 12 enquanto o APK ja' estava no 19, e o painel de
+## manutencao -- cuja unica funcao e' dizer o que esta rodando -- mostrava
+## "code 12" em qualquer aparelho. A ferramenta de diagnostico mentia.
+##
+## Pior: e' este numero que decide se o app publico mostra "atualizacao
+## disponivel". Preso em 12, o banner ficaria escondido para sempre.
+##
+## A verdade agora vem de res://versao_build.json, carimbado pela esteira na
+## hora de montar o APK (ver tools/exportar_apk_dev.sh). Use codigo_versao() e
+## nome_versao(); estas constantes so' valem no editor e nos testes, onde
+## arquivo nenhum foi carimbado.
 const APP_VERSION_CODE: int = 12
 const APP_VERSION_NAME: String = "0.12.0"
+
+const ARQ_VERSAO: String = "res://versao_build.json"
+
+var _codigo_do_build: int = 0
+var _nome_do_build: String = ""
+
+
+## O numero que o Android instalou. Cai na constante quando o arquivo nao
+## existe -- editor, testes, ou um APK montado antes deste carimbo existir.
+func codigo_versao() -> int:
+	_ler_versao_do_build()
+	return _codigo_do_build if _codigo_do_build > 0 else APP_VERSION_CODE
+
+
+func nome_versao() -> String:
+	_ler_versao_do_build()
+	return _nome_do_build if not _nome_do_build.is_empty() else APP_VERSION_NAME
+
+
+func _ler_versao_do_build() -> void:
+	if _codigo_do_build > 0 or not _nome_do_build.is_empty():
+		return
+	var f := FileAccess.open(ARQ_VERSAO, FileAccess.READ)
+	if f == null:
+		return
+	var txt := f.get_as_text()
+	f.close()
+	var d: Variant = JSON.parse_string(txt)
+	if not d is Dictionary:
+		return
+	_codigo_do_build = int((d as Dictionary).get("code", 0))
+	_nome_do_build = str((d as Dictionary).get("name", ""))
 const STORE_BUILD_FEATURE: String = "store_build"
 const DEV_BUILD_FEATURE: String = "dev_build"
 const FORCE_RELEASE_MODE: bool = false
