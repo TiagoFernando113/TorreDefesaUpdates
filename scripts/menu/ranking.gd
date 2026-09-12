@@ -524,8 +524,25 @@ func _render_campeoes_temporada_anterior(temporada: int, entradas: Array) -> voi
 	cont.add_child(titulo)
 
 	if temporada < 0 or entradas.is_empty():
+		## TRES casos, e nao um.
+		##
+		## A condicao juntava dois estados que nao querem dizer a mesma coisa e
+		## dava a ambos a frase "Nenhuma temporada encerrada ainda". Resultado
+		## na mesma linha da tela:
+		##
+		##   "CAMPEOES TEMP. 4"   "Nenhuma temporada encerrada ainda."
+		##
+		## A temporada 4 encerrou. O que nao houve foi GENTE nela -- tres
+		## temporadas seguidas sem uma entrada. As duas frases juntas fazem a
+		## tela parecer quebrada, e escondem a noticia de verdade, que e' o
+		## quadro vazio.
 		var vazio:= Label.new()
-		vazio.text = "Carregando..." if temporada == -2 else "Nenhuma temporada encerrada ainda."
+		if temporada == -2:
+			vazio.text = "Carregando..."
+		elif temporada < 0:
+			vazio.text = "Nenhuma temporada encerrada ainda."
+		else:
+			vazio.text = "A temporada %d fechou sem ninguém no quadro." % (temporada + 1)
 		vazio.position = Vector2(210, 1)
 		vazio.size = Vector2(cont.size.x - 220, 24)
 		vazio.add_theme_font_size_override("font_size", 12)
@@ -939,12 +956,24 @@ func _draw_podio(ctrl: Control, entradas: Array) -> void :
 		var dx: float = px - dw * 0.5
 
 		if idx >= entradas.size():
-			ctrl.draw_rect(Rect2(dx, BASE_Y - ph, dw, ph), 
-				Color(pcor.r * 0.05, pcor.g * 0.05, pcor.b * 0.05, 0.65))
-			ctrl.draw_rect(Rect2(dx, BASE_Y - ph, dw, ph), 
-				Color(pcor.r * 0.2, pcor.g * 0.2, pcor.b * 0.2, 0.3), false, 1.5)
-			m._draw_text_centered(ctrl, "—", Vector2(px, BASE_Y - ph * 0.5 + 6.0), 
-				14, Color(pcor.r * 0.4, pcor.g * 0.4, pcor.b * 0.4, 0.4))
+			## Degrau vago: LEGIVEL como convite, e nao como caixa apagada.
+			##
+			## Com o quadro vazio, os tres degraus saiam em 0.05 de cor com um
+			## travessao de 0.4 -- caixas escuras com um risco no meio, que nao
+			## leem como "este lugar esta' livre", leem como tela que nao
+			## carregou. E' a mesma queixa que trouxe esta tela: "o ranking nao
+			## funciona".
+			##
+			## O lugar em aberto e' a melhor noticia que esta tela tem para dar
+			## quando nao ha' ninguem, entao ele e' dito com todas as letras.
+			ctrl.draw_rect(Rect2(dx, BASE_Y - ph, dw, ph),
+				Color(pcor.r * 0.10, pcor.g * 0.10, pcor.b * 0.10, 0.80))
+			ctrl.draw_rect(Rect2(dx, BASE_Y - ph, dw, ph),
+				Color(pcor.r, pcor.g, pcor.b, 0.42), false, 1.5)
+			m._draw_text_centered(ctrl, plbl, Vector2(px, BASE_Y - ph * 0.5 - 2.0),
+				20, Color(pcor.r, pcor.g, pcor.b, 0.70))
+			m._draw_text_centered(ctrl, "em aberto", Vector2(px, BASE_Y - ph * 0.5 + 16.0),
+				12, Color(pcor.r * 0.85 + 0.15, pcor.g * 0.85 + 0.15, pcor.b * 0.85 + 0.15, 0.55))
 			continue
 
 		var e: Dictionary = entradas[idx] as Dictionary
