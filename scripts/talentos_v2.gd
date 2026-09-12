@@ -55,6 +55,23 @@ var _sel_id     : String  = ""
 var _painel_esq : bool    = false   # lado do painel, fixado no momento da seleção
 var _hover_id   : String  = ""
 
+# ── Dedos ────────────────────────────────────────────────────────────────────
+#
+# O Nexo só ouvia roda de mouse e movimento de mouse. No celular, arrastar
+# funcionava por acidente: o Godot emula mouse a partir do PRIMEIRO dedo. O
+# segundo dedo não vira mouse nenhum, então a pinça não fazia absolutamente
+# nada -- num mapa de 59 nós que não cabe na tela, que é onde o zoom mais
+# importa. Os botões - e + no topo eram a única saída, e ninguém aprende a
+# usar botão de zoom num mapa depois de a pinça falhar.
+var _dedos        : Dictionary = {}      # índice do dedo -> posição na tela
+var _pinca        : bool    = false
+var _pinca_dist   : float   = 0.0
+var _pinca_centro : Vector2 = Vector2.ZERO
+# Depois de uma pinça, o dedo que sai ainda gera um clique emulado. Sem esta
+# trava, terminar um zoom COMPRA um talento por engano -- e talento comprado
+# não volta.
+var _trava_clique : float   = 0.0
+
 var _pulse        : float = 0.0
 var _flux         : float = 0.0   # fase das partículas de energia nos links
 var _abertura_t   : float = 0.0   # 0→1 animação de entrada
@@ -96,6 +113,11 @@ func _ready() -> void:
 	_zoom = 0.30
 	_zoom_alvo = 0.80
 	_abertura_t = 0.0
+	## Dedo que ficou anotado de uma abertura anterior faria a tela nascer
+	## achando que já há uma pinça em curso, e o primeiro toque daria um salto.
+	_dedos.clear()
+	_pinca = false
+	_trava_clique = 0.0
 
 
 func _recalc_dominio() -> void:
@@ -232,7 +254,13 @@ func _process(delta: float) -> void:
 	_flux  += delta * 0.55
 	if _abertura_t < 1.0:
 		_abertura_t = minf(_abertura_t + delta / 0.75, 1.0)
-	_zoom = lerpf(_zoom, _zoom_alvo, minf(delta * 9.0, 1.0))
+	if _trava_clique > 0.0:
+		_trava_clique = maxf(0.0, _trava_clique - delta)
+	# Durante a pinça o zoom é comandado pelos dedos, quadro a quadro. Deixar a
+	# suavização rodar junto faria ela puxar de volta o que o dedo acabou de
+	# fazer, e o zoom pareceria escapar da mão.
+	if not _pinca:
+		_zoom = lerpf(_zoom, _zoom_alvo, minf(delta * 9.0, 1.0))
 	# Câmera animada (foco no nó selecionado / centro)
 	if _cam_anim:
 		_cam = _cam.lerp(_cam_alvo, minf(delta * 6.0, 1.0))
@@ -306,7 +334,94 @@ func _input(event: InputEvent) -> void:
 			_fechar()
 
 
+## Pinça de dois dedos.
+##
+## Devolve `true` quando o evento foi de toque e já foi tratado aqui -- o
+## resto do _gui_input não pode vê-lo, senão o mouse emulado do primeiro dedo
+## continua arrastando o mapa no meio do zoom, e a câmera foge enquanto a
+## pessoa só queria aproximar.
+func _tratar_dedos(event: InputEvent) -> bool:
+	if event is InputEventScreenTouch:
+		var t := event as InputEventScreenTouch
+		if t.pressed:
+			_dedos[t.index] = t.position
+		else:
+			_dedos.erase(t.index)
+
+		if _dedos.size() >= 2:
+			_iniciar_pinca()
+			## O arrasto de um dedo só morre aqui, e não quando a pinça
+			## termina: se ele seguir vivo, o mapa desliza junto com o zoom.
+			_mouse_down = false
+			_dragging = false
+			_drag_vel = Vector2.ZERO
+			_cam_anim = false
+		elif _pinca:
+			_pinca = false
+			## Um dedo ainda na tela depois da pinça vira o novo ponto de
+			## partida do arrasto, em vez de um pulo da câmera.
+			if _dedos.size() == 1:
+				_press_pos = _dedos.values()[0] as Vector2
+			_trava_clique = 0.25
+		return true
+
+	if event is InputEventScreenDrag:
+		var d := event as InputEventScreenDrag
+		_dedos[d.index] = d.position
+		if _dedos.size() >= 2 and _pinca:
+			_aplicar_pinca()
+			return true
+		return _dedos.size() >= 2
+
+	## Alguns aparelhos e o desktop mandam o gesto já resolvido.
+	if event is InputEventMagnifyGesture:
+		var m := event as InputEventMagnifyGesture
+		if m.factor > 0.0:
+			_zoom_no_cursor(m.factor, m.position)
+		return true
+
+	return false
+
+
+func _iniciar_pinca() -> void:
+	var pontos : Array = _dedos.values()
+	var a : Vector2 = pontos[0] as Vector2
+	var b : Vector2 = pontos[1] as Vector2
+	_pinca_dist = maxf(1.0, a.distance_to(b))
+	_pinca_centro = (a + b) * 0.5
+	_pinca = true
+
+
+func _aplicar_pinca() -> void:
+	var pontos : Array = _dedos.values()
+	var a : Vector2 = pontos[0] as Vector2
+	var b : Vector2 = pontos[1] as Vector2
+	var dist : float = maxf(1.0, a.distance_to(b))
+	var centro : Vector2 = (a + b) * 0.5
+
+	## O centro anda junto: fechar a pinça sobre um nó tem que aproximar
+	## DAQUELE nó, e arrastar os dois dedos juntos tem que mover o mapa. Zoom
+	## ancorado num ponto fixo da tela faz o alvo escapar por baixo do dedo.
+	_cam -= (centro - _pinca_centro) / _zoom
+
+	var fator : float = dist / _pinca_dist
+	var mundo : Vector2 = _s2w(centro)
+	_zoom = clampf(_zoom * fator, ZOOM_MIN, ZOOM_MAX)
+	## O alvo acompanha, senão a suavização do _process desfaz a pinça no
+	## quadro seguinte e o zoom "volta sozinho" enquanto o dedo ainda está lá.
+	_zoom_alvo = _zoom
+	_cam = mundo - (centro - size * 0.5) / _zoom
+
+	_pinca_dist = dist
+	_pinca_centro = centro
+	_clamp_cam()
+	queue_redraw()
+
+
 func _gui_input(event: InputEvent) -> void:
+	if _tratar_dedos(event):
+		accept_event()
+		return
 	if event is InputEventMouseButton:
 		var mb := event as InputEventMouseButton
 		if mb.button_index == MOUSE_BUTTON_WHEEL_UP and mb.pressed:
@@ -322,7 +437,10 @@ func _gui_input(event: InputEvent) -> void:
 				_drag_vel   = Vector2.ZERO
 			else:
 				_mouse_down = false
-				if not _dragging:
+				## `_trava_clique` segura o clique emulado do dedo que sai de
+				## uma pinça. Sem ela, terminar um zoom em cima de um nó
+				## COMPRA aquele talento -- e talento comprado não volta.
+				if not _dragging and _trava_clique <= 0.0 and not _pinca:
 					_clique(mb.position)
 				_dragging = false
 		elif mb.button_index == MOUSE_BUTTON_RIGHT and mb.pressed:

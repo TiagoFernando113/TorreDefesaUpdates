@@ -277,13 +277,40 @@ func atualizar_avatar(nome: String, avatar_idx: int) -> void:
 	_http_avatar.request(url, _headers_json(), HTTPClient.METHOD_PATCH, body)
 
 
+## Por que a ultima partida NAO entrou no ranking. "" = entrou, ou ainda nao
+## houve partida nenhuma.
+##
+## Isto existe porque o ranking "nao funcionava" e nao havia como saber por
+## que. A tabela tem duas linhas, as duas de junho, temporada 1 -- TRES
+## temporadas inteiras sem uma entrada. E a funcao abaixo desistia em silencio
+## por tres motivos diferentes, todos com a mesma cara para quem joga: o
+## quadro vazio.
+##
+## Um recurso que falha calado nao e' um recurso quebrado, e' um recurso
+## invisivel: ninguem reporta, ninguem conserta, e o jogador conclui que o
+## jogo e' abandonado.
+var _motivo_nao_enviei : String = ""
+
+func motivo_nao_enviei() -> String:
+	return _motivo_nao_enviei
+
+
 func verificar_e_enviar(nome: String, score: int, wave: int) -> void:
 	# Aceita login Google (sem senha) OU conta antiga (com senha).
 	var _logado : bool = Auth.sessao_valida() or Salvar.senha_jogador != ""
-	if wave <= 0 or nome.strip_edges() == "" or not _logado:
+	if wave <= 0:
+		_motivo_nao_enviei = "A partida terminou na wave 0 — não há o que registrar."
+		return
+	if nome.strip_edges() == "":
+		_motivo_nao_enviei = "Escolha um nome de jogador para aparecer no ranking."
+		return
+	if not _logado:
+		_motivo_nao_enviei = "Entre na sua conta para o seu recorde contar no ranking."
 		return
 	if wave < Salvar.melhor_wave:
+		_motivo_nao_enviei = "Só o seu MELHOR resultado entra: esta partida ficou abaixo da wave %d." % Salvar.melhor_wave
 		return
+	_motivo_nao_enviei = ""
 	_fila_qualif.append({"nome": nome.strip_edges(), "score": score, "wave": wave, "avatar_idx": Salvar.avatar_idx, "ascensoes": Salvar.ascensoes})
 	_processar_fila()
 

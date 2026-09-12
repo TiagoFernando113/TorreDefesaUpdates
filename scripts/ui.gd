@@ -4,8 +4,6 @@ const ICONE_SCENE = preload("res://scripts/icone_upgrade.gd")
 const NumberFormatter = preload("res://scripts/number_formatter.gd")
 const UI_COIN_TEXTURE_PATH : String = "res://assets/sprites/ui_hud/cytron_coin_icon.png"
 const UI_CRYSTAL_TEXTURE_PATH : String = "res://assets/sprites/ui_hud/cyron_crystal_icon.png"
-const UI_STATS_BUTTON_SHEET_PATH : String = "res://assets/sprites/ui_hud/stats_button_sheet.png"
-const UI_STATS_BUTTON_FRAMES : int = 6
 
 var jogo = null
 
@@ -49,7 +47,6 @@ var _hud_gold : int = 0
 var _hud_cristais : int = 0
 var _hud_coin_tex : Texture2D = null
 var _hud_crystal_tex : Texture2D = null
-var _stats_button_tex : Texture2D = null
 
 const UPGRADES_INFO := {
 	"dano": {
@@ -194,39 +191,130 @@ func _draw_hud_texture_contain(c: Control, tex: Texture2D, rect: Rect2, alpha: f
 	return true
 
 
+## O botao de estatisticas da derrota: icone e rotulo, SEM moldura.
+##
+## Ele vinha de um spritesheet (stats_button_sheet.png) que trazia uma caixa
+## dourada grossa desenhada em volta do grafico. No canto da tela de derrota,
+## ao lado de botoes que sao retangulos limpos de borda fina, aquela caixa
+## pesada era a unica coisa emoldurada da tela -- e era o que se via primeiro,
+## em vez do que o botao faz.
+##
+## Duas coisas a mais que a troca resolve:
+##
+##   - A folha tinha SEIS quadros e nada nunca animava: `frame` nascia 0 e o
+##     unico lugar que o escrevia tambem escrevia 0. Cinco sextos de 363 KB
+##     iam no APK para nunca aparecer.
+##   - O desenho era `contain` num quadro de 256x256 cujo conteudo estava
+##     descentralizado (a arte ocupava de x=60 a x=231, de y=51 a y=250), entao
+##     o icone assentava fora do centro do proprio botao.
+##
+## Desenhado em codigo ele acompanha o tamanho do botao (ha' uma medida para
+## tela compacta e outra para tela grande), nao pesa no pacote, e usa a mesma
+## linguagem do resto da UI: ouro sobre escuro, sem caixa.
+const COR_STATS_OURO   : Color = Color(1.00, 0.84, 0.28)
+const COR_STATS_OURO_F : Color = Color(0.96, 0.62, 0.09)
+const ROTULO_STATS : String = "ESTATÍSTICAS"
+const CORPO_STATS_MIN : int = 8
+
+
+## O maior corpo de fonte, ate' `preferido`, em que `texto` ainda CABE em
+## `largura`.
+##
+## Existe porque `draw_string` com largura CORTA o texto que nao cabe -- nao
+## encolhe, nao avisa, nao quebra linha. Um tamanho chutado a partir da largura
+## do botao daria "ESTATÍSTIC" na tela estreita, e SO' na tela estreita: o
+## aparelho onde o dono testa mostraria tudo certo.
+##
+## Publica e separada do desenho para poder ser medida por um teste. O desenho
+## em si nao tem como ser conferido de fora; isto tem.
+func corpo_que_cabe(fonte: Font, texto: String, largura: float, preferido: int) -> int:
+	var corpo : int = maxi(CORPO_STATS_MIN, preferido)
+	if fonte == null or texto == "" or largura <= 0.0:
+		return corpo
+	while corpo > CORPO_STATS_MIN \
+			and fonte.get_string_size(texto, HORIZONTAL_ALIGNMENT_LEFT, -1.0, corpo).x > largura:
+		corpo -= 1
+	return corpo
+
 func _draw_stats_button_sprite(c: Control) -> void:
-	if _stats_button_tex == null:
-		_stats_button_tex = _load_hud_texture(UI_STATS_BUTTON_SHEET_PATH)
-	if _stats_button_tex == null:
-		var fallback_rect : Rect2 = Rect2(Vector2.ZERO, c.size).grow(-8.0)
-		c.draw_rect(fallback_rect, Color(0.05, 0.035, 0.0, 0.78), true)
-		c.draw_rect(fallback_rect, Color(1.0, 0.76, 0.08, 0.92), false, 2.0)
-		c.draw_string(ThemeDB.fallback_font, Vector2(0.0, c.size.y * 0.58),
-			"ESTATISTICAS", HORIZONTAL_ALIGNMENT_CENTER, c.size.x, 18, Color(1.0, 0.85, 0.1))
+	var w : float = c.size.x
+	var h : float = c.size.y
+	if w <= 0.0 or h <= 0.0:
 		return
-	var frame_count : int = max(1, UI_STATS_BUTTON_FRAMES)
-	var frame_idx : int = 0
-	if c.has_meta("frame"):
-		frame_idx = int(c.get_meta("frame"))
-	frame_idx = frame_idx % frame_count
-	var frame_w : float = float(_stats_button_tex.get_width()) / float(frame_count)
-	var frame_h : float = float(_stats_button_tex.get_height())
-	if frame_w <= 0.0 or frame_h <= 0.0:
-		return
-	var src_rect : Rect2 = Rect2(Vector2(frame_w * float(frame_idx), 0.0), Vector2(frame_w, frame_h))
-	var scale : float = minf(c.size.x / frame_w, c.size.y / frame_h)
-	var dst_size : Vector2 = Vector2(frame_w * scale, frame_h * scale)
-	var dst_rect : Rect2 = Rect2((c.size - dst_size) * 0.5, dst_size)
-	c.draw_texture_rect_region(_stats_button_tex, dst_rect, src_rect, Color.WHITE)
+
 	var hot: bool = c.get_meta("hot", false) == true
 	var pressed: bool = c.get_meta("pressed", false) == true
+
+	## O unico retangulo que sobrou, e so' enquanto o dedo esta em cima: serve
+	## de recibo do toque, nao de moldura permanente.
 	if hot or pressed:
-		var accent := Color(0.35, 0.85, 1.0, 0.26 if hot else 0.0)
-		if pressed:
-			accent = Color(1.0, 0.82, 0.22, 0.34)
-		var glow_rect := Rect2(Vector2.ZERO, c.size).grow(-6.0)
-		c.draw_rect(glow_rect, Color(accent.r, accent.g, accent.b, accent.a * 0.22), true)
-		c.draw_rect(glow_rect, Color(accent.r, accent.g, accent.b, accent.a), false, 2.0)
+		var realce := StyleBoxFlat.new()
+		realce.bg_color = Color(1.0, 0.82, 0.22, 0.17 if pressed else 0.09)
+		realce.border_color = Color(1.0, 0.82, 0.22, 0.58 if pressed else 0.30)
+		for _lado in ["left", "right", "top", "bottom"]:
+			realce.set("border_width_" + _lado, 2)
+		for _canto in ["top_left", "top_right", "bottom_left", "bottom_right"]:
+			realce.set("corner_radius_" + _canto, 14)
+		c.draw_style_box(realce, Rect2(Vector2.ZERO, c.size))
+
+	var ouro : Color = COR_STATS_OURO
+	var ouro_f : Color = COR_STATS_OURO_F
+	if pressed:
+		ouro = ouro.lightened(0.18)
+		ouro_f = ouro_f.lightened(0.18)
+
+	## O rotulo primeiro, porque e' ele que reserva a faixa de baixo.
+	##
+	## O tamanho e' MEDIDO, e nao chutado a partir da largura: `draw_string`
+	## com largura CORTA o texto quando ele nao cabe -- nao encolhe. Chutar
+	## daria "ESTATÍSTIC" na tela estreita, e so' na tela estreita, que e'
+	## justamente onde ninguem testa.
+	var fonte : Font = ThemeDB.fallback_font
+	var corpo : int = corpo_que_cabe(fonte, ROTULO_STATS, w - 6.0, int(clampf(w * 0.125, 10.0, 18.0)))
+	var faixa : float = float(corpo) + 8.0
+	if fonte != null:
+		c.draw_string(fonte, Vector2(0.0, h - 4.0), ROTULO_STATS,
+			HORIZONTAL_ALIGNMENT_CENTER, w, corpo, Color(ouro.r, ouro.g, ouro.b, 0.94))
+
+	## A area do grafico e' o que sobra, com respiro dos lados.
+	var area := Rect2(
+		Vector2(w * 0.20, h * 0.12),
+		Vector2(w * 0.60, maxf(8.0, h - faixa - h * 0.18)))
+	var base_y : float = area.position.y + area.size.y
+	var aw : float = area.size.x
+	var ah : float = area.size.y
+
+	## Tres barras subindo: a leitura de "estatisticas" sem precisar da palavra.
+	var larg : float = aw * 0.21
+	var vao : float = aw * 0.105
+	var x0 : float = area.position.x + (aw - (larg * 3.0 + vao * 2.0)) * 0.5
+	var alturas : Array = [0.38, 0.55, 0.76]
+	for i in 3:
+		var alt : float = ah * float(alturas[i])
+		var barra := Rect2(Vector2(x0 + float(i) * (larg + vao), base_y - alt), Vector2(larg, alt))
+		c.draw_rect(barra, Color(ouro_f.r, ouro_f.g, ouro_f.b, 0.96), true)
+		## Uma lasca clara no topo da barra: da' volume sem precisar de gradiente.
+		c.draw_rect(Rect2(barra.position, Vector2(larg, maxf(2.0, alt * 0.13))), ouro, true)
+
+	## A seta passa POR CIMA das barras, sempre acima do topo de cada uma.
+	var p0 := Vector2(x0 + larg * 0.5, base_y - ah * 0.50)
+	var p1 := Vector2(x0 + larg * 1.5 + vao, base_y - ah * 0.67)
+	var p2 := Vector2(x0 + larg * 2.5 + vao * 2.0, base_y - ah * 0.88)
+	var grossura : float = maxf(2.0, aw * 0.055)
+	c.draw_polyline(PackedVector2Array([p0, p1, p2]), ouro, grossura, true)
+
+	## Ponta da seta na direcao do ultimo trecho, e nao numa diagonal fixa:
+	## assim ela continua apontando certo se as alturas mudarem.
+	var dir : Vector2 = (p2 - p1).normalized()
+	if dir == Vector2.ZERO:
+		dir = Vector2.RIGHT
+	var perp := Vector2(-dir.y, dir.x)
+	var ponta : float = maxf(6.0, aw * 0.17)
+	c.draw_colored_polygon(PackedVector2Array([
+		p2 + dir * ponta * 0.62,
+		p2 - dir * ponta * 0.38 + perp * ponta * 0.44,
+		p2 - dir * ponta * 0.38 - perp * ponta * 0.44,
+	]), ouro)
 
 
 func _draw_hud_currency_pill(c: Control, rect: Rect2, tex: Texture2D, amount: int, accent: Color, fallback_crystal: bool = false) -> void:
