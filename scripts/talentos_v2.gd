@@ -35,6 +35,11 @@ const ANG_INICIO   : float = -PI / 2.0  # ramo P aponta para cima
 const ZOOM_MIN : float = 0.42
 const ZOOM_MAX : float = 1.65
 
+## Verde do "disponivel". Uma cor so', usada no contador do cabecalho E nas
+## marcas dos nos, porque o ponto e' justamente ligar as duas coisas: o numero
+## la' em cima anunciava 15 e nada no mapa dizia quais.
+const COR_DISPONIVEL : Color = Color(0.30, 1.0, 0.55)
+
 # ── Estado ───────────────────────────────────────────────────────────────────
 var _pos      : Dictionary = {}   # id -> Vector2 mundo
 var _ramo_de  : Dictionary = {}   # id -> letra do ramo ("" = especial)
@@ -63,6 +68,12 @@ var _hover_id   : String  = ""
 # nada -- num mapa de 59 nós que não cabe na tela, que é onde o zoom mais
 # importa. Os botões - e + no topo eram a única saída, e ninguém aprende a
 # usar botão de zoom num mapa depois de a pinça falhar.
+# Nomes a escrever no quadro, juntados durante o desenho dos nós e resolvidos
+# depois, em _draw_rotulos(). Ver o comentário de lá.
+var _rotulos_pend : Array = []
+# As caixas que _draw_rotulos() realmente reservou neste quadro. Ver lá.
+var _rotulos_caixas : Array[Rect2] = []
+
 var _dedos        : Dictionary = {}      # índice do dedo -> posição na tela
 var _pinca        : bool    = false
 var _pinca_dist   : float   = 0.0
@@ -503,6 +514,37 @@ func _clique(sp: Vector2) -> void:
 	queue_redraw()
 
 
+## Leva a câmera ao próximo nó comprável, um por toque, dando a volta.
+##
+## Devolve o id para onde foi, ou "" se nao ha' nenhum -- os testes leem isso,
+## e uma funcao que so' mexe na camera nao teria como ser conferida de fora.
+##
+## Percorre em ordem ESTAVEL (a ordem das chaves) e a partir do atual, para
+## tocar varias vezes passear por todos, em vez de ficar pulando entre os dois
+## mais proximos do centro.
+func _ir_ao_proximo_disponivel() -> String:
+	var compraveis : Array = []
+	for tid in _pos.keys():
+		var id : String = tid as String
+		if Salvar.pode_comprar_talento(id) and not Salvar.talento_ativo(id):
+			compraveis.append(id)
+	if compraveis.is_empty():
+		return ""
+
+	var de : int = compraveis.find(_sel_id)
+	var alvo : String = compraveis[(de + 1) % compraveis.size()] as String
+
+	_sel_id = alvo
+	_cam_alvo = _pos[alvo] as Vector2
+	_cam_anim = true
+	## Aproxima o bastante para o nome aparecer (os rotulos comecam em 0.72),
+	## senao a camera leva ate' um no que continua sem dizer o que e'.
+	_zoom_alvo = maxf(_zoom_alvo, 0.85)
+	_painel_esq = _w2s(_pos[alvo] as Vector2).x > size.x * 0.5
+	queue_redraw()
+	return alvo
+
+
 func _acao_ui(nome: String) -> void:
 	match nome:
 		"fechar":
@@ -515,6 +557,8 @@ func _acao_ui(nome: String) -> void:
 			_cam_alvo = Vector2.ZERO
 			_cam_anim = true
 			_zoom_alvo = 0.8
+		"ir_disponivel":
+			_ir_ao_proximo_disponivel()
 		"reset":
 			if _reset_arm_t > 0.0:
 				var devolvido : int = Salvar.redefinir_talentos()
@@ -767,13 +811,21 @@ func _draw_fundo() -> void:
 		if not _cor_ramo.has(br):
 			continue
 		var cor : Color = _cor_ramo[br] as Color
-		var neb_a : float = 0.055 if bool(_dominado.get(br, false)) else 0.022
+		## As nebulosas sao SEIS ramos x QUATRO blobs = 24 circulos de ate' 130
+		## de raio, e eles se sobrepoem. Cada um sozinho e' discreto; somados,
+		## viram manchas grandes que lavam a metade externa do mapa e fazem os
+		## nos de la' parecerem ruido de fundo em vez de conteudo.
+		##
+		## Alfa menor e blob menor: o fundo continua tendo cor e profundidade,
+		## e para de disputar atencao com o que se clica. Ramo DOMINADO segue
+		## mais forte de proposito -- ali a mancha e' a recompensa.
+		var neb_a : float = 0.040 if bool(_dominado.get(br, false)) else 0.012
 		var ang0 : float = ANG_INICIO + TAU * float(i) / float(BRANCH_ORDER.size())
 		for k in range(4):
 			var ang : float = ang0 + deg_to_rad(ESPIRAL_DEG) * float(k + 1)
 			var raio : float = RAIO_T1 + RAIO_STEP * (float(k) + 0.5)
 			var p : Vector2 = _w2s(Vector2(cos(ang), sin(ang)) * raio)
-			var rr : float = (130.0 - float(k) * 12.0) * _zoom
+			var rr : float = (104.0 - float(k) * 12.0) * _zoom
 			draw_circle(p, rr, Color(cor.r, cor.g, cor.b, neb_a))
 	# Starfield com parallax
 	for s_any in _estrelas:
@@ -843,6 +895,39 @@ func _arco_link(de: Vector2, para: Vector2) -> PackedVector2Array:
 	return pts
 
 
+## Este nó encosta em algo que já é seu?
+##
+## Serve ao degrau do meio da clareza dos nos: "bloqueado, mas logo ali". Vale
+## nos DOIS sentidos -- um requisito ja' comprado (o no vem a seguir) ou um
+## filho ja' comprado (o no e' um caminho alternativo para onde voce ja' esta').
+##
+## O resultado e' guardado por quadro: _draw_no roda para cada um dos 59 nos, e
+## refazer a varredura de requisitos em todos eles seria a mesma resposta
+## calculada dezenas de vezes por quadro. A memoria e' limpa junto com a lista
+## de rotulos, no comeco de _draw_nos, porque comprar um talento muda todas as
+## respostas de uma vez.
+var _cache_vizinho : Dictionary = {}
+
+func _vizinho_de_comprado(id: String) -> bool:
+	if _cache_vizinho.has(id):
+		return bool(_cache_vizinho[id])
+	var perto : bool = false
+	for r_any in Salvar.requisitos_talento(id):
+		if Salvar.talento_ativo(r_any as String):
+			perto = true
+			break
+	if not perto:
+		for tid in Salvar.TALENTOS_INFO.keys():
+			var outro : String = tid as String
+			if not Salvar.talento_ativo(outro):
+				continue
+			if Salvar.requisitos_talento(outro).has(id):
+				perto = true
+				break
+	_cache_vizinho[id] = perto
+	return perto
+
+
 func _draw_links() -> void:
 	for tid in Salvar.TALENTOS_INFO.keys():
 		var id : String = tid as String
@@ -892,6 +977,8 @@ func _draw_links() -> void:
 
 
 func _draw_nos() -> void:
+	_rotulos_pend.clear()
+	_cache_vizinho.clear()
 	var margem := Rect2(Vector2.ZERO, size).grow(90.0)
 	for tid in _pos.keys():
 		var id : String = tid as String
@@ -902,6 +989,7 @@ func _draw_nos() -> void:
 		if ab <= 0.01:
 			continue
 		_draw_no(id, sp, ab)
+	_draw_rotulos()
 	# Labels de ramo quando afastado
 	if _zoom < 0.62:
 		for i in range(BRANCH_ORDER.size()):
@@ -927,6 +1015,78 @@ func _draw_nos() -> void:
 				cor_lbl = Color(cor.r, cor.g, cor.b, 0.85 * _abertura_t)
 			var w : float = _fonte.get_string_size(txt, HORIZONTAL_ALIGNMENT_LEFT, -1, 15).x
 			draw_string(_fonte, p - Vector2(w * 0.5, -5.0), txt, HORIZONTAL_ALIGNMENT_LEFT, -1, 15, cor_lbl)
+
+
+## Escreve os nomes DEPOIS de todos os nós, e nenhum por cima de outro.
+##
+## O defeito: cada nó escrevia o proprio nome na hora, centrado embaixo de si,
+## sem saber de mais ninguem. Nos vizinhos produziam nomes sobrepostos, e nome
+## cortado pela metade nao le como "esta cheio aqui", le como defeito.
+##
+## A regra e' simples e por isso confiavel: quem tem mais prioridade escreve
+## primeiro e reserva o espaco; quem viria depois e bateria nesse espaco
+## simplesmente NAO escreve. Some um nome em vez de mostrar dois ilegiveis --
+## e o nome sempre pode ser lido tocando o no, que abre o painel.
+##
+## Primeiro tenta embaixo, depois em cima: dois nos lado a lado costumam caber
+## quando um dos nomes sobe.
+func _draw_rotulos() -> void:
+	if _rotulos_pend.is_empty():
+		return
+
+	## Maior prioridade primeiro. Empate: o mais alto na tela, para a ordem ser
+	## estavel entre quadros -- ordem que muda sozinha faz os nomes piscarem.
+	_rotulos_pend.sort_custom(func(a, b):
+		var pa : int = int((a as Dictionary)["prio"])
+		var pb : int = int((b as Dictionary)["prio"])
+		if pa != pb:
+			return pa > pb
+		return ((a as Dictionary)["sp"] as Vector2).y < ((b as Dictionary)["sp"] as Vector2).y
+	)
+
+	var fs : int = 11
+	## As caixas efetivamente reservadas ficam guardadas, e nao so' numa
+	## variavel local, porque sao a UNICA prova de fora do que esta funcao
+	## decidiu. Sem isso, um teste so' consegue refazer a mesma conta por
+	## conta propria -- e um teste que recalcula o que deveria conferir passa
+	## a concordar consigo mesmo: sabotei a colisao de verdade e ele continuou
+	## verde.
+	_rotulos_caixas.clear()
+	var ocupado : Array[Rect2] = _rotulos_caixas
+	for item_any in _rotulos_pend:
+		var item : Dictionary = item_any as Dictionary
+		var id : String = item["id"] as String
+		var info : Dictionary = Salvar.TALENTOS_INFO.get(id, {}) as Dictionary
+		var nome : String = str(info.get("nome", id)).replace("\n", " ")
+		if nome == "":
+			continue
+		var sp : Vector2 = item["sp"] as Vector2
+		var rr : float = float(item["rr"])
+		var w : float = _fonte.get_string_size(nome, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
+
+		var escolhido := Rect2()
+		var achou : bool = false
+		for dy in [rr + 15.0, -rr - 6.0]:
+			## Dois px de folga de cada lado: encostar nao e' sobrepor, mas dois
+			## nomes colados leem como um so'.
+			var caixa := Rect2(sp.x - w * 0.5 - 2.0, sp.y + dy - float(fs) - 2.0,
+					w + 4.0, float(fs) + 6.0)
+			var bate : bool = false
+			for usado in ocupado:
+				if usado.intersects(caixa):
+					bate = true
+					break
+			if not bate:
+				escolhido = caixa
+				achou = true
+				break
+		if not achou:
+			continue
+
+		ocupado.append(escolhido)
+		draw_string(_fonte, Vector2(sp.x - w * 0.5, escolhido.position.y + float(fs) + 2.0), nome,
+				HORIZONTAL_ALIGNMENT_LEFT, -1, fs,
+				Color(0.82, 0.88, 1.0, 0.85 * float(item["ab"])))
 
 
 func _draw_no(id: String, sp: Vector2, ab: float) -> void:
@@ -988,14 +1148,49 @@ func _draw_no(id: String, sp: Vector2, ab: float) -> void:
 		var rot_dir : float = 1.0 if ativo else 0.35
 		_draw_hex(sp, rr * 1.34, _pulse * 0.30 * rot_dir, Color(cor.r, cor.g, cor.b, (0.32 if ativo else 0.12) * ab), 1.2)
 
-	# Partícula orbitando os compráveis
+	# ── O que da' para comprar AGORA tem que saltar aos olhos ──────────────
+	#
+	# O cabecalho anuncia "15 DISPONÍVEIS" e, no mapa, nada dizia quais. O
+	# sinal existente era uma particula orbitando e o nome embaixo -- e o nome
+	# some abaixo de zoom 0.72, que e' onde a arvore inteira cabe na tela. Ou
+	# seja: quanto mais o mapa era util, menos ele mostrava o que fazer.
+	#
+	# O anel abaixo e' desenhado em QUALQUER zoom, na mesma cor do contador la'
+	# em cima, para que o numero e as marcas sejam obviamente a mesma coisa.
 	if pode and not ativo:
+		var puls : float = 0.55 + 0.45 * sin(_pulse * 2.6)
+		var rd : float = rr * 1.5
+		draw_arc(sp, rd, 0.0, TAU, 34, Color(COR_DISPONIVEL.r, COR_DISPONIVEL.g, COR_DISPONIVEL.b,
+				(0.30 + 0.45 * puls) * ab), maxf(1.6, 2.2 * sqrt(_zoom)))
+		## Quatro tiques nos cantos: o anel sozinho some no meio dos outros
+		## circulos do mapa; os tiques nao aparecem em mais nada.
+		for k in 4:
+			var aa : float = TAU * float(k) / 4.0 + PI * 0.25 + _pulse * 0.6
+			var dir := Vector2(cos(aa), sin(aa))
+			draw_line(sp + dir * rd * 1.06, sp + dir * rd * 1.30,
+					Color(COR_DISPONIVEL.r, COR_DISPONIVEL.g, COR_DISPONIVEL.b, (0.35 + 0.5 * puls) * ab),
+					maxf(1.4, 1.8 * sqrt(_zoom)))
 		var oa : float = _pulse * 2.2 + sp.y * 0.013
 		var op : Vector2 = sp + Vector2(cos(oa), sin(oa)) * rr * 1.32
 		draw_circle(op, 2.6 * sqrt(_zoom), Color(cor.r * 0.5 + 0.5, cor.g * 0.5 + 0.5, cor.b * 0.5 + 0.5, 0.9 * ab))
 
 	# Glifo
-	var glifo_a : float = (1.0 if (ativo or pode) else 0.40) * ab
+	## TRES degraus de clareza, e nao dois.
+	##
+	## Antes havia so' "aceso" (comprado ou comprável) e "apagado" (todo o
+	## resto, a 0.40). Com 59 nos, esse "resto" e' a maior parte da tela, e
+	## tudo nele tinha exatamente o mesmo peso: o que esta' a um passo de
+	## distancia parecia igual ao que esta' a seis. Sem degrau nenhum entre os
+	## dois, a metade externa do mapa vira textura em vez de destino.
+	##
+	## O degrau do meio e' o VIZINHO: bloqueado, mas ligado a algo que ja' e'
+	## seu. E' o proximo passo depois do proximo passo -- o que responde "e
+	## depois deste, o que vem?", que e' a pergunta que faz olhar o mapa.
+	var glifo_a : float = 0.28 * ab
+	if ativo or pode:
+		glifo_a = 1.0 * ab
+	elif _vizinho_de_comprado(id):
+		glifo_a = 0.58 * ab
 	_draw_glifo(id, sp, rr * 0.52, Color(cor.r * 0.6 + 0.4, cor.g * 0.6 + 0.4, cor.b * 0.6 + 0.4, glifo_a))
 
 	# Cadeado nos legado não conquistados
@@ -1010,16 +1205,24 @@ func _draw_no(id: String, sp: Vector2, ab: float) -> void:
 	elif id == _hover_id:
 		draw_arc(sp, rr * 1.42, 0.0, TAU, 30, Color(1, 1, 1, 0.30 * ab), 1.2)
 
-	# Nome abaixo — só onde importa: compráveis, selecionado e hover
-	# (comprados/bloqueados ficam limpos; tooltip e painel cobrem o resto)
+	# O nome NAO e' desenhado aqui.
+	#
+	# Ele ia direto para a tela, centrado sob cada no, sem ninguem olhar se ja'
+	# havia outro nome naquele lugar. Com os nos proximos uns dos outros, os
+	# rotulos se atropelavam -- "Coletor de Cytr", "Fluxo Ler", "Escamas de Aç"
+	# --, e nome cortado pela metade parece defeito, nao densidade.
+	#
+	# Agora eles sao juntados numa lista e desenhados DEPOIS de todos os nos,
+	# em _draw_rotulos(), que recusa quem colidiria com um ja' escrito. Isso
+	# exige duas coisas que aqui dentro nao existem: conhecer todos os nos antes
+	# de escrever qualquer um, e uma ordem de prioridade entre eles.
 	if _zoom >= 0.72 and (pode or id == _sel_id or id == _hover_id):
-		var info : Dictionary = Salvar.TALENTOS_INFO.get(id, {}) as Dictionary
-		var nome : String = str(info.get("nome", id)).replace("\n", " ")
-		var fs : int = 11
-		var w : float = _fonte.get_string_size(nome, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
-		draw_string(_fonte, sp + Vector2(-w * 0.5, rr + 15.0), nome,
-				HORIZONTAL_ALIGNMENT_LEFT, -1, fs,
-				Color(0.82, 0.88, 1.0, 0.85 * ab))
+		var prio : int = 0                      # comprável
+		if id == _hover_id:
+			prio = 1
+		if id == _sel_id:
+			prio = 2                            # o selecionado nunca cede lugar
+		_rotulos_pend.append({"id": id, "sp": sp, "rr": rr, "ab": ab, "prio": prio})
 
 
 func _req_conquista_ok(id: String) -> bool:
@@ -1177,9 +1380,21 @@ func _draw_header() -> void:
 		if Salvar.pode_comprar_talento(tid as String):
 			disp += 1
 	if disp > 0:
+		## O contador vira BOTAO: tocar nele leva ate' o proximo no comprável.
+		##
+		## Antes era so' um numero. Ele anunciava quinze coisas para fazer e
+		## nao dizia onde nenhuma delas estava, num mapa de 59 nos que nao cabe
+		## na tela -- a informacao existia e nao levava a lugar nenhum.
 		var dpls : float = 0.65 + 0.35 * sin(_pulse * 2.8)
-		draw_string(_fonte, Vector2(486, 33), "%d DISPONÍVEL%s" % [disp, "" if disp == 1 else "EIS"],
-				HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color(0.30, 1.0, 0.55, dpls * a))
+		var dtxt : String = "%d DISPONÍVEL%s ›" % [disp, "" if disp == 1 else "EIS"]
+		var dw : float = _fonte.get_string_size(dtxt, HORIZONTAL_ALIGNMENT_LEFT, -1, 13).x
+		var dr := Rect2(482, 12, dw + 14.0, 28)
+		_ui_hit["ir_disponivel"] = dr
+		if dr.has_point(get_local_mouse_position()):
+			draw_rect(dr, Color(COR_DISPONIVEL.r, COR_DISPONIVEL.g, COR_DISPONIVEL.b, 0.16 * a), true)
+		draw_string(_fonte, Vector2(489, 33), dtxt,
+				HORIZONTAL_ALIGNMENT_LEFT, -1, 13,
+				Color(COR_DISPONIVEL.r, COR_DISPONIVEL.g, COR_DISPONIVEL.b, dpls * a))
 
 	# Botões à direita
 	var bx : float = size.x - 110.0
