@@ -186,7 +186,15 @@ func _relatorio() -> String:
 		else:
 			for id in baixados.keys():
 				var v := int(baixados[id])
-				var ja := carr != null and carr.aplicados.any(func(a): return a.begins_with(str(id)))
+				## Tipo escrito na mao, e nao `:=`.
+				##
+				## `carr` vem de um autoload por nome, entao e' Variant, e
+				## `carr.aplicados.any(...)` tambem. O Godot 4.6 recusa inferir
+				## o tipo de um `and` com Variant do lado direito -- e recusar
+				## aqui derrubava o ARQUIVO INTEIRO, que e' autoload: o painel
+				## de desenvolvedor nao carregava em nenhuma execucao, e o erro
+				## so' aparecia no log de importacao, onde ninguem olha.
+				var ja : bool = carr != null and carr.aplicados.any(func(a): return a.begins_with(str(id)))
 				if not ja:
 					p.append("  [color=#7fe08a]baixado: %s v%d — vale na próxima abertura[/color]" % [str(id), v])
 

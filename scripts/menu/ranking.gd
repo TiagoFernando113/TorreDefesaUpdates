@@ -613,6 +613,25 @@ func _popular_lista(entradas: Array, is_estimado: bool) -> void :
 		vazio.add_theme_font_size_override("font_size", 22)
 		vazio.add_theme_color_override("font_color", Color(0.5, 0.55, 0.6))
 		_ranking_lista.add_child(vazio)
+
+		## O rotulo de posicao tinha que ser LIMPO aqui, e nao era: o `return`
+		## logo abaixo pulava a unica linha que o escreve, e ele ficava com o
+		## texto da vez anterior. Resultado na tela, ao mesmo tempo:
+		##
+		##   "Nenhum recorde por wave registrado ainda."
+		##   "Sua posição: 1º lugar"
+		##
+		## Ser primeiro de nada nao quer dizer nada, e as duas frases juntas
+		## fazem a tela parecer quebrada -- que foi exatamente como ela foi
+		## reportada.
+		##
+		## E, ja' que ha' um lugar para dizer algo, ele diz o que FALTA. O
+		## envio desistia em silencio por tres motivos diferentes; agora o
+		## motivo aparece aqui, que e' onde a pessoa vai procurar.
+		if _ranking_pos_lbl and is_instance_valid(_ranking_pos_lbl):
+			var porque : String = RankingOnline.motivo_nao_enviei()
+			_ranking_pos_lbl.text = porque if porque != "" \
+				else "Jogue uma partida para abrir a temporada."
 		return
 
 	var nome_local: String = Salvar.nome_jogador.strip_edges()
