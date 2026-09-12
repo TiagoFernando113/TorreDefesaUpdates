@@ -79,7 +79,48 @@ func _run() -> void:
 	Salvar.senha_jogador = senha_antes
 
 	_checar_tela_vazia()
+	_checar_campeoes_vazios()
 	_finalizar()
+
+
+## "CAMPEOES TEMP. 4" e "Nenhuma temporada encerrada ainda" apareciam na MESMA
+## linha. A temporada 4 encerrou; o que nao houve foi gente nela. A condicao
+## juntava dois estados diferentes e dava a ambos a frase errada, escondendo a
+## noticia de verdade.
+func _checar_campeoes_vazios() -> void:
+	var codigo := _codigo("res://scripts/menu/ranking.gd")
+
+	var i: int = codigo.find("Nenhuma temporada encerrada ainda")
+	_esperar(i >= 0, "A frase de 'nenhuma temporada encerrada' sumiu do ranking.gd.")
+	_esperar(codigo.contains("fechou sem ninguém no quadro"),
+		"Temporada que ENCERROU sem ninguem precisa de frase propria -- dizer que "
+		+ "nenhuma encerrou, ao lado do titulo 'CAMPEOES TEMP. N', se contradiz.")
+	## E os tres casos tem que continuar separados: carregando, nunca encerrou,
+	## e encerrou vazia.
+	_esperar(codigo.contains("Carregando..."), "O estado 'carregando' tem que continuar existindo.")
+
+	## O degrau vago do podio nao pode voltar a ser uma caixa apagada com um
+	## risco: com o quadro vazio isso le como tela que nao carregou.
+	_esperar(codigo.contains("em aberto"),
+		"O degrau sem dono tem que se explicar ('em aberto'), e nao ser um travessao.")
+	_esperar(not codigo.contains('"—"'),
+		"O travessao no degrau vazio tem que sair: ele parece tela quebrada.")
+
+
+func _codigo(caminho: String) -> String:
+	var f := FileAccess.open(caminho, FileAccess.READ)
+	if f == null:
+		_falhas.append("Nao achei o %s." % caminho)
+		return ""
+	var texto := f.get_as_text()
+	f.close()
+	# Comentario nao e' codigo: os comentarios destes consertos CITAM as frases
+	# antigas de proposito.
+	var limpo := ""
+	for linha in texto.split("\n"):
+		var corte: int = linha.find("#")
+		limpo += (linha if corte < 0 else linha.substr(0, corte)) + "\n"
+	return limpo
 
 
 ## A tela nao pode mais deixar "Sua posição: 1º lugar" sobrando sobre uma

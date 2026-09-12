@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://tests/test_nexo_visual.gd" id="1_nexv"]
+
+[node name="TestNexoVisual" type="Node"]
+script = ExtResource("1_nexv")
