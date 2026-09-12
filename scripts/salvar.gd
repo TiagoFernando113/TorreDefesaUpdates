@@ -134,7 +134,7 @@ const TALENTOS_INFO : Dictionary = {
 	"p1": {
 		"nome": "Fogo\nInterior",
 		"desc": "+30 de dano\nbase permanente.",
-		"efeito": "Bônus de +30 dano aplicado ao início\nde cada partida. Equivale a 3× Força.",
+		"efeito": "Bônus de +30 dano aplicado ao início\nde cada partida. Equivale a 3× Força.\nComo toda tecnologia, também reforça o núcleo em +1,5%.",
 		"custo": 9, "req": ["raiz"],
 		"cor": Color(1.0, 0.42, 0.1),
 	},
@@ -197,7 +197,7 @@ const TALENTOS_INFO : Dictionary = {
 	# ── Tier 4 dos ramos existentes ───────────────────────────────────────────
 	"p4": {
 		"nome": "Arsenal\nPesado",
-		"desc": "+80 de dano\nbase permanente.",
+		"desc": "+52 de dano\nbase permanente.",
 		"efeito": "Torre começa com +80 dano extra.\nCombinado com p1 (+30) = +110 de poder total.",
 		"custo": 90, "req": ["p3"],
 		"cor": Color(1.0, 0.22, 0.02),
@@ -378,8 +378,8 @@ const TALENTOS_INFO : Dictionary = {
 	# ── Nó Cross-ramo — Colosso ───────────────────────────────────────────────
 	"colosso": {
 		"nome": "Chassi\nColosso",
-		"desc": "Requer P+R+F nv1:\n+50 dano, +50 HP\n+0.3 cadência.",
-		"efeito": "Fusao de Arsenal, Defesa e Recompensas. Bonus: +50 dano, +50 HP e +0.3 cadencia.",
+		"desc": "Requer P+R+F nv1:\n+33 dano, +50 HP\n+0.3 cadência.",
+		"efeito": "Fusao de Arsenal, Defesa e Recompensas. Bonus: +33 dano, +50 HP e +0.3 cadencia.",
 		"custo": 60, "req": ["p1", "r1", "f1"],
 		"cor": Color(0.88, 0.88, 0.88),
 	},
@@ -517,8 +517,8 @@ const TALENTOS_INFO : Dictionary = {
 	},
 	"tita": {
 		"nome": "Projeto\nTita",
-		"desc": "Requer P4+R4:\n+150 dano\n+200 HP.",
-		"efeito": "Fusao avancada de Arsenal e Defesa. +150 dano base e +200 HP maximo.",
+		"desc": "Requer P4+R4:\n+98 dano\n+200 HP.",
+		"efeito": "Fusao avancada de Arsenal e Defesa. +98 dano base e +200 HP maximo.",
 		"custo": 150, "req": ["p4", "r4"], "cor": Color(0.84, 0.84, 0.84),
 	},
 	"relamp": {

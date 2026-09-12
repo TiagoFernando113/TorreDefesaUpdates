@@ -110,30 +110,40 @@ func _horda(w: int) -> Dictionary:
 			"dur": float(n) * float(cfg.get("intervalo", 0.5))}
 
 
-## Monta a torre exatamente como _criar_torre monta, com a loja e os talentos
-## que o bot já comprou.
-func _montar_torre(melhorias: Dictionary, talentos: Dictionary) -> Node:
-	var t = TORRE.new()
-	add_child(t)
-	t.damage    += float(int(melhorias.get("forca", 0))) * 8.0
-	t.max_hp    += float(int(melhorias.get("resistencia", 0))) * 40.0
-	t.range_r   += float(int(melhorias.get("visao", 0))) * 25.0
-	t.fire_rate += float(int(melhorias.get("cadencia", 0))) * 0.2
-	# Raiz, sempre ativa
-	t.damage += 10.0
-	t.max_hp += 20.0
-	if talentos.get("p1", false): t.damage    += 30.0
-	if talentos.get("p2", false): t.fire_rate += 0.5
-	if talentos.get("p4", false): t.damage    += 80.0
-	if talentos.get("r1", false): t.damage_reduction = 0.25
-	if talentos.get("r2", false): t.regen_rate += 4.0
-	if talentos.get("r4", false): t.max_hp     += 100.0
-	if talentos.get("colosso", false):
-		t.damage += 50.0; t.max_hp += 50.0; t.fire_rate += 0.3
-	if talentos.get("tita", false):
-		t.damage += 150.0; t.max_hp += 200.0
-	if talentos.get("sobrev", false): t.regen_rate += 1.0
-	t.hp = t.max_hp
+## A torre montada pelo PRÓPRIO _criar_torre do jogo.
+##
+## A primeira versão disto repetia a sequência de bônus aqui dentro. Custou
+## caro: quando o jogo ganhou o reforço por tecnologia, o bot continuou
+## medindo a versão antiga e reportou, com confiança, uma zona morta que já
+## tinha sido consertada. Um simulador que duplica o código mede o passado.
+##
+## Agora ele empresta o estado ao `Salvar` de verdade e chama a função de
+## verdade. Tudo que _criar_torre fizer daqui em diante -- talento novo, skin,
+## equipamento, bônus de conta -- entra aqui sozinho.
+func _montar_torre(melhorias: Dictionary, talentos: Dictionary, asc: int = 0) -> Node:
+	var mel_antes : Dictionary = Salvar.melhorias.duplicate(true)
+	var tal_antes : Dictionary = Salvar.talentos.duplicate(true)
+	var asc_antes : int = Salvar.ascensoes
+
+	for k in melhorias.keys():
+		Salvar.melhorias[k] = int(melhorias[k])
+	Salvar.talentos = talentos.duplicate(true)
+	Salvar.ascensoes = asc
+
+	## NAO entra na arvore de proposito: o `_ready` do main faz `ui_node = $UI`,
+	## e num Main pelado esse filho nao existe. `add_child` funciona em no
+	## solto, entao `_criar_torre` roda inteiro sem o `_ready` junto.
+	var jogo = MAIN.new()
+	jogo.call("_criar_torre")
+	var t : Node = jogo.torre
+	if t != null and is_instance_valid(t):
+		jogo.remove_child(t)
+		add_child(t)
+	jogo.free()
+
+	Salvar.melhorias = mel_antes
+	Salvar.talentos = tal_antes
+	Salvar.ascensoes = asc_antes
 	return t
 
 
@@ -152,8 +162,8 @@ func _dps(t: Node, arma: Dictionary) -> float:
 ## `politica` diz como o bot gasta energia. Duas de propósito: um jogador que
 ## só empilha dano e um que distribui. A diferença entre as duas diz se a
 ## progressão depende de saber jogar ou não.
-func _jogar(melhorias: Dictionary, talentos: Dictionary, politica: String, arma: Dictionary) -> Dictionary:
-	var t : Node = _montar_torre(melhorias, talentos)
+func _jogar(melhorias: Dictionary, talentos: Dictionary, politica: String, arma: Dictionary, asc: int = 0) -> Dictionary:
+	var t : Node = _montar_torre(melhorias, talentos, asc)
 	var p = PAINEL.new(null)
 	# O painel precisa da base da torre; sem o `jogo` ele não captura sozinho.
 	p._base = {"dano": float(t.damage), "cadencia": float(t.fire_rate),
@@ -217,8 +227,9 @@ func _jogar(melhorias: Dictionary, talentos: Dictionary, politica: String, arma:
 
 		# ── renda da wave, com as fórmulas do jogo ──
 		ouro += int(float(5 + wave * 2) * 0.45)
-		ouro += int(float(h["ouro"]) * 0.45)
-		cristais += maxi(1, wave / 10)
+		ouro += int(float(h["ouro"]) * 0.45 * (1.0 + float(Salvar.bonus_ascensao_stats(asc).get("ouro_mult", 0.0))))
+		var _cm : float = float(Salvar.bonus_ascensao_stats(asc).get("cristais_mult", 1.0))
+		cristais += maxi(1, int(round(float(maxi(1, wave / 10)) * _cm)))
 		energia += int(round(float(int(h["n"]) + 5 + wave) * (1.0 + float(p._niveis.get("energia", 0)) * 0.06)))
 
 	t.free()
@@ -228,7 +239,8 @@ func _jogar(melhorias: Dictionary, talentos: Dictionary, politica: String, arma:
 
 # ── A carreira: partida após partida, comprando o que dá ─────────────────────
 
-func _comprar_talentos(talentos: Dictionary, cristais: int) -> int:
+func _comprar_talentos(talentos: Dictionary, cristais: int, asc: int = 0) -> int:
+	var _desc : float = float(Salvar.bonus_ascensao_stats(asc).get("talento_desconto", 0.0))
 	## Mais barato primeiro, respeitando requisito. É a ordem que um jogador
 	## racional segue, e a mais rápida de zerar -- então o tempo que sai daqui
 	## é o MELHOR caso.
@@ -242,7 +254,7 @@ func _comprar_talentos(talentos: Dictionary, cristais: int) -> int:
 			if id == "raiz" or talentos.get(id, false):
 				continue
 			var info : Dictionary = Salvar.TALENTOS_INFO[id] as Dictionary
-			var custo : int = int(info.get("custo", 0))
+			var custo : int = maxi(1, int(round(float(int(info.get("custo", 0))) * (1.0 - _desc))))
 			if custo > cristais or custo >= melhor_custo:
 				continue
 			var ok : bool = true
@@ -278,55 +290,60 @@ func _comprar_loja(melhorias: Dictionary, ouro: int) -> int:
 	return ouro
 
 
+## A carreira INTEIRA, ate' o teto do bonus de ascensao.
+##
+## "Zerar" nunca foi completar a arvore uma vez: a ascensao ZERA a arvore e as
+## melhorias e pede tudo de novo, e o bonus so' para de crescer no nivel 50.
+## Esse e' o jogo longo, e ninguem tinha medido quanto ele dura.
 func _carreira(politica: String, arma_nome: String, arma: Dictionary) -> void:
 	var melhorias : Dictionary = {"forca": 0, "resistencia": 0, "visao": 0, "cadencia": 0, "fortuna": 0}
 	var talentos : Dictionary = {}
 	var cristais : int = 0
 	var ouro : int = 0
 	var minutos : float = 0.0
+	var asc : int = 0
+	var partidas : int = 0
 	var total_talentos : int = 0
 	for tid in Salvar.TALENTOS_INFO.keys():
 		if str(tid) != "raiz":
 			total_talentos += 1
+	var teto_asc : int = int(ceil(Salvar.ASCENSAO_MAX_DANO_VIDA / Salvar.ASCENSAO_DANO_VIDA_POR_NIVEL))
 
-	print("\n═══ %s · politica de gasto: %s ═══" % [arma_nome, politica])
-	print(" part. | wave |  min  | talentos | loja  |  torre no inicio  | horas")
+	print("\n═══ %s · %s ═══" % [arma_nome, politica])
+	print(" part. | wave | tecs | dano | horas   (ascensao)")
 
-	var loja_cheia : int = -1
-	for n in range(1, MAX_PARTIDAS + 1):
-		var tt : Node = _montar_torre(melhorias, talentos)
+	while asc < teto_asc and partidas < MAX_PARTIDAS:
+		var tt : Node = _montar_torre(melhorias, talentos, asc)
 		var dano_ini : float = float(tt.damage)
-		var hp_ini : float = float(tt.max_hp)
 		tt.free()
-		var r : Dictionary = _jogar(melhorias, talentos, politica, arma)
+		var r : Dictionary = _jogar(melhorias, talentos, politica, arma, asc)
+		partidas += 1
 		minutos += float(r["min"])
 		cristais += int(r["cristais"])
 		ouro += int(r["ouro"])
-		cristais = _comprar_talentos(talentos, cristais)
+		cristais = _comprar_talentos(talentos, cristais, asc)
 		ouro = _comprar_loja(melhorias, ouro)
-
-		var nt : int = talentos.size()
-		var nl : int = 0
-		for k in melhorias.keys():
-			nl += int(melhorias[k])
-		if nl >= 15 and loja_cheia < 0:
-			loja_cheia = n
-
-		if true:
-			print("  %4d | %4d | %5.0f |  %3d/%d  | %2d/15 | dano %5.0f hp %4.0f | %6.1f h"
-					% [n, int(r["wave"]), float(r["min"]), nt, total_talentos, nl, dano_ini, hp_ini, minutos / 60.0])
-		if nt >= total_talentos:
-			print("  ➜ TUDO comprado na partida %d, com %.1f horas de jogo." % [n, minutos / 60.0])
-			if loja_cheia > 0:
-				print("  ➜ A loja ja' estava cheia na partida %d." % loja_cheia)
-			return
-	print("  ➜ nao zerou em %d partidas (%.0f h)" % [MAX_PARTIDAS, minutos / 60.0])
+		if asc == 0 and partidas <= 22:
+			print("  %4d | %4d | %3d  | %4.0f | %5.1f h" % [partidas, int(r["wave"]), talentos.size(), dano_ini, minutos / 60.0])
+		if talentos.size() >= total_talentos and cristais >= Salvar.ascensao_custo_cristais(asc + 1):
+			cristais -= Salvar.ascensao_custo_cristais(asc + 1)
+			talentos.clear()
+			for k in melhorias.keys():
+				melhorias[k] = 0
+			ouro = 0
+			asc += 1
+			if asc <= 2 or asc % 10 == 0 or asc == teto_asc:
+				print("  ---- ascensao %d em %d partidas, %.0f h" % [asc, partidas, minutos / 60.0])
+	print("  ➜ %d ascensoes · %d partidas · %.0f horas · %.1f MESES a 1h/dia"
+			% [asc, partidas, minutos / 60.0, minutos / 60.0 / 30.0])
 
 
 func _run() -> void:
 	_jogo_aux = MAIN.new()
 	print("BOT DE PROGRESSAO — Cyron Defense")
 	print("Combate e' MODELO; economia, custos e escalas sao o codigo real.")
-	_carreira("dano", "arma Padrao", {"cad": 1.0, "dano": 1.0})
+	print("Reforco por tecnologia lido do jogo: %.1f%% | p4 %.0f tita %.0f colosso %.0f\n"
+			% [MAIN.NUCLEO_POR_TECNOLOGIA * 100.0, MAIN.P4_DANO, MAIN.TITA_DANO, MAIN.COLOSSO_DANO])
+	_carreira("dano", "jogo atual", {"cad": 1.0, "dano": 1.0})
 	_jogo_aux.free()
 	get_tree().quit(0)
