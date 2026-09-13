@@ -134,7 +134,7 @@ const TALENTOS_INFO : Dictionary = {
 	"p1": {
 		"nome": "Fogo\nInterior",
 		"desc": "+30 de dano\nbase permanente.",
-		"efeito": "Bônus de +30 dano aplicado ao início\nde cada partida. Equivale a 3× Força.",
+		"efeito": "Bônus de +30 dano aplicado ao início\nde cada partida. Equivale a 3× Força.\nComo toda tecnologia, também reforça o núcleo em +1,5%.",
 		"custo": 9, "req": ["raiz"],
 		"cor": Color(1.0, 0.42, 0.1),
 	},
@@ -197,7 +197,7 @@ const TALENTOS_INFO : Dictionary = {
 	# ── Tier 4 dos ramos existentes ───────────────────────────────────────────
 	"p4": {
 		"nome": "Arsenal\nPesado",
-		"desc": "+80 de dano\nbase permanente.",
+		"desc": "+52 de dano\nbase permanente.",
 		"efeito": "Torre começa com +80 dano extra.\nCombinado com p1 (+30) = +110 de poder total.",
 		"custo": 90, "req": ["p3"],
 		"cor": Color(1.0, 0.22, 0.02),
@@ -378,8 +378,8 @@ const TALENTOS_INFO : Dictionary = {
 	# ── Nó Cross-ramo — Colosso ───────────────────────────────────────────────
 	"colosso": {
 		"nome": "Chassi\nColosso",
-		"desc": "Requer P+R+F nv1:\n+50 dano, +50 HP\n+0.3 cadência.",
-		"efeito": "Fusao de Arsenal, Defesa e Recompensas. Bonus: +50 dano, +50 HP e +0.3 cadencia.",
+		"desc": "Requer P+R+F nv1:\n+33 dano, +50 HP\n+0.3 cadência.",
+		"efeito": "Fusao de Arsenal, Defesa e Recompensas. Bonus: +33 dano, +50 HP e +0.3 cadencia.",
 		"custo": 60, "req": ["p1", "r1", "f1"],
 		"cor": Color(0.88, 0.88, 0.88),
 	},
@@ -517,8 +517,8 @@ const TALENTOS_INFO : Dictionary = {
 	},
 	"tita": {
 		"nome": "Projeto\nTita",
-		"desc": "Requer P4+R4:\n+150 dano\n+200 HP.",
-		"efeito": "Fusao avancada de Arsenal e Defesa. +150 dano base e +200 HP maximo.",
+		"desc": "Requer P4+R4:\n+98 dano\n+200 HP.",
+		"efeito": "Fusao avancada de Arsenal e Defesa. +98 dano base e +200 HP maximo.",
 		"custo": 150, "req": ["p4", "r4"], "cor": Color(0.84, 0.84, 0.84),
 	},
 	"relamp": {
@@ -643,6 +643,13 @@ var atributos_conta : Dictionary = {
 }
 
 var total_partidas          : int        = 0
+## Quantas vezes o jogo foi VENCIDO (wave final limpa).
+##
+## Guardado separado do recorde de wave de propósito: chegar na wave 300 e
+## LIMPAR a wave 300 são coisas diferentes, e quem venceu merece que o jogo
+## lembre disso mesmo depois de uma ascensão zerar a árvore.
+var vitorias                : int        = 0
+var vitoria_primeira_em     : String     = ""   # data ISO da primeira vitória
 var partidas_facil          : int        = 0
 var partidas_normal         : int        = 0
 var partidas_dificil        : int        = 0
@@ -1574,6 +1581,22 @@ func _salvar_disco() -> void:
 	# Mantém save.json como ponteiro de conta (bootstrap na próxima abertura)
 	if nome_jogador != "" and _save_path() != SAVE_PATH_GUEST:
 		_escrever_seguro(SAVE_PATH_GUEST, JSON.stringify({"nome_jogador": nome_jogador}))
+
+
+## Registra uma VITÓRIA. Chamado só quando a wave final é limpa.
+##
+## Não substitui o registrar_fim_partida: a vitória é um fim de partida como
+## qualquer outro (ouro, recorde, ranking) MAIS este carimbo. Os dois são
+## chamados, e trocar um pelo outro perderia metade do que a run rendeu.
+func registrar_vitoria(wave: int, score_val: int) -> void:
+	vitorias += 1
+	if vitoria_primeira_em == "":
+		vitoria_primeira_em = Time.get_datetime_string_from_system(true, true)
+	## O recorde de wave e o de score já são tratados pelo registrar_fim_partida
+	## e pelo atualizar_high_score do main. Aqui só o carimbo da vitória, para
+	## não haver DUAS funções escrevendo o mesmo recorde por caminhos
+	## diferentes -- que é como um deles acaba divergindo do outro.
+	salvar()
 
 
 func registrar_fim_partida(wave: int, score_val: int, ouro: int,

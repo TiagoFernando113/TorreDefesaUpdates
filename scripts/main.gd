@@ -1,6 +1,42 @@
 extends Node2D
 
 const TORRE_SCENE = preload("res://scenes/Torre.tscn")
+
+## A última wave. Vencer a 300 é VENCER O JOGO.
+##
+## Antes daqui o jogo não tinha fim. A dificuldade congelava na wave 250 -- HP
+## dos mobs em 40×, a horda no teto de 105, o intervalo no piso de 0.20s -- e
+## dali em diante NADA mudava. Quem vencia a 250 vencia a 1000: a run só
+## acabava quando a pessoa fechava o app ou a bateria descarregava.
+##
+## Um jogo que não pode ser vencido não tem o que comemorar, e um placar de
+## "maior wave" num jogo infinito mede paciência, não habilidade.
+const WAVE_FINAL : int = 300
+
+## O prêmio de vencer, em cristais.
+##
+## Sai da mesma conta das waves para não ser um número solto: a wave final dá
+## `wave / 10` = 30, e vencer vale mais dez dessas. Quem chegou até aqui gastou
+## horas numa run só.
+const CRISTAIS_VITORIA : int = 300
+
+## Quanto cada tecnologia comprada soma ao dano e ao HP do núcleo.
+##
+## Existe porque o poder da árvore estava concentrado em três talentos e os
+## outros 56 não mexiam no dano -- ver o comentário longo em _criar_torre. O
+## valor saiu de uma varredura do bot de progressão, e não de palpite.
+##
+## Público e nomeado para o teste poder conferir a conta sem copiá-la.
+const NUCLEO_POR_TECNOLOGIA : float = 0.015
+
+## Os três gigantes, encolhidos pela METADE para o topo da curva ficar onde
+## estava. 35% não bastou: o teste mediu o dano da árvore cheia subindo de 345
+## para 467, porque 59 tecnologias a 1.5% multiplicam por 1.88 -- e o bot não
+## viu isso porque duplicava a montagem da torre em vez de ler estes números. Aqui e não soltos no meio do código: eram três
+## números mágicos que ninguém achava para ajustar.
+const P4_DANO      : float = 40.0    # era 80
+const TITA_DANO    : float = 75.0    # era 150
+const COLOSSO_DANO : float = 25.0    # era 50
 const MOB_SCENE   = preload("res://scenes/Mob.tscn")
 
 # Configuração das waves: [qtd_normal, qtd_fast, qtd_tank, intervalo_spawn]
@@ -335,7 +371,7 @@ func _criar_torre() -> void:
 	if Salvar.talento_ativo("p1"): torre.damage   += 30.0
 	if Salvar.talento_ativo("p2"): torre.fire_rate += 0.5
 	if Salvar.talento_ativo("p3"): torre.multi_shot = true; torre.multi_lvl += 1
-	if Salvar.talento_ativo("p4"): torre.damage   += 80.0
+	if Salvar.talento_ativo("p4"): torre.damage   += P4_DANO
 	# Ramo R (Resiliência)
 	if Salvar.talento_ativo("r1"): torre.damage_reduction = 0.25
 	if Salvar.talento_ativo("r2"): torre.regen_rate      += 4.0
@@ -350,13 +386,13 @@ func _criar_torre() -> void:
 	if Salvar.talento_ativo("s1"): torre.veneno_dps += 5.0
 	# Colosso (cross-ramo)
 	if Salvar.talento_ativo("colosso"):
-		torre.damage    += 50.0
+		torre.damage    += COLOSSO_DANO
 		torre.max_hp    += 50.0
 		torre.hp         = torre.max_hp
 		torre.fire_rate += 0.3
 	# Tita — Fusão P4+R4
 	if Salvar.talento_ativo("tita"):
-		torre.damage  += 150.0
+		torre.damage  += TITA_DANO
 		torre.max_hp  += 200.0
 		torre.hp       = torre.max_hp
 	# Sobrevivente — +1 HP/s regen
@@ -366,6 +402,29 @@ func _criar_torre() -> void:
 	if Salvar.talento_ativo("genoci"):
 		var kills_acima : int = max(0, Salvar.total_mobs_mortos - 10000) / 1000
 		torre.damage += float(kills_acima) * 2.0
+	# ── O NÚCLEO CRESCE COM CADA TECNOLOGIA ─────────────────────────────────
+	#
+	# Antes daqui, o poder da árvore morava em TRÊS talentos: p4 (+80), tita
+	# (+150) e colosso (+50). Os outros 56 não mexiam em `damage`, e o efeito
+	# disso foi medido, não suposto -- um bot que joga o jogo (tools/
+	# bot_progressao.gd) mostrou SETE HORAS seguidas em que o jogador compra 21
+	# talentos e a torre não ganha um ponto de dano. Wave 39, partida após
+	# partida, dano 89, 89, 89. É onde se desinstala um jogo.
+	#
+	# Agora cada tecnologia comprada soma uma fatia pequena e VISÍVEL, e os três
+	# gigantes encolheram para o topo da curva não explodir. Uma regra só, que
+	# cabe numa frase na tela: cada tecnologia fortalece o núcleo.
+	#
+	# Os números saíram de uma varredura do mesmo bot: +1.5% deixa cada compra
+	# mover o dano e a wave subir toda partida; +2% e +3% quebravam o jogo cedo
+	# demais (a carreira inteira caía de 143h para 124h).
+	var _tecs : int = Salvar.talentos_liberados_para_ascensao()
+	if _tecs > 0:
+		var _reforco : float = 1.0 + NUCLEO_POR_TECNOLOGIA * float(_tecs)
+		torre.damage *= _reforco
+		torre.max_hp *= _reforco
+		torre.hp      = torre.max_hp
+
 	# Skin: aplica bônus de atributo da skin equipada
 	var skin_id : String = Salvar.skin_ativa
 	if Salvar.SKINS_INFO.has(skin_id):
@@ -1524,6 +1583,17 @@ func _fim_wave() -> void:
 		Salvar.tutorial_jogo_visto = true
 		Salvar.salvar()
 		_tut_fechar_dica()
+	## A ÚLTIMA WAVE. Vencer a 300 encerra a run em VITÓRIA.
+	##
+	## Fica aqui, no instante em que a wave é limpa, e ANTES de qualquer coisa
+	## que prepare a próxima: cartas, sorteio de modificador, spawn. Se a
+	## vitória fosse conferida no início da wave seguinte, a 301 chegaria a
+	## existir por um quadro -- e o jogador veria o jogo continuar antes de
+	## receber o aviso de que tinha acabado.
+	if wave >= WAVE_FINAL:
+		_vencer()
+		return
+
 	estado = "cartas"
 	var wave_gold_mult : float = 1.0 if modo_abismo else 0.45
 	gold += int(float(5 + wave * 2) * wave_gold_mult)
@@ -2019,6 +2089,38 @@ func registrar_impacto_combate(pos: Vector2, cor: Color, forte: bool = false) ->
 		_impactos_combate.pop_front()
 	_trigger_shake(4.5 if forte else 1.6, 0.12 if forte else 0.06)
 	queue_redraw()
+
+
+## Venceu o jogo.
+##
+## Passa pelo MESMO caminho de fim de partida que a derrota -- ouro depositado,
+## recorde, ranking, save na nuvem --, porque tudo isso vale igual e esquecer
+## um deles pune justamente quem foi mais longe. O que muda é a tela e o
+## prêmio.
+##
+## Sem revive aqui, de propósito: não há o que reviver. A run terminou por
+## cima.
+func _vencer() -> void:
+	if _game_over_confirmado:
+		return
+	if ui_node:
+		ui_node.fechar_cartas()
+		ui_node.fechar_overlay_boss()
+	estado = "vitoria"
+
+	## O prêmio de vencer sai da mesma conta da wave, para não virar um número
+	## solto: dez waves de cristais de uma vez.
+	Salvar.depositar_cristais(CRISTAIS_VITORIA)
+	Salvar.registrar_vitoria(wave, score)
+
+	if ui_node and ui_node.has_method("mostrar_vitoria"):
+		ui_node.mostrar_vitoria(score, wave, gold, func(): _finalizar_game_over())
+	elif ui_node:
+		## Guarda: se a tela de vitória não existir (pacote antigo), a partida
+		## ainda TEM que terminar. Um fim que não fecha é pior que fim nenhum.
+		ui_node.mostrar_game_over(score, wave, gold, 0, Callable(), false, Callable(),
+				func(): _finalizar_game_over())
+	get_tree().paused = true
 
 
 func game_over() -> void:
