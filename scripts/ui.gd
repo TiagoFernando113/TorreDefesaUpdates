@@ -2342,6 +2342,28 @@ func esconder_boss_hp_bar() -> void:
 	_boss_hp_bar = null
 
 
+## A tela de VITÓRIA: a wave final foi limpa.
+##
+## É a irmã da tela de derrota e reaproveita a montagem dela de propósito --
+## fundo, botões, tween, o botão de estatísticas, tudo. Uma segunda tela
+## escrita à mão envelheceria separado: a correção que a derrota recebesse
+## (como a moldura do botão de estatísticas, consertada nesta mesma sessão)
+## não chegaria aqui.
+##
+## O que muda é o que o jogador lê -- e é a diferença entre "você perdeu" e
+## "você venceu o jogo", que não é detalhe.
+func mostrar_vitoria(score: int, wave: int, gold: int = 0,
+		cb_sair: Callable = Callable()) -> void:
+	_vitoria_em_curso = true
+	mostrar_game_over(score, wave, gold, 0, Callable(), false, Callable(), cb_sair)
+	_vitoria_em_curso = false
+
+
+## Ligado só durante a montagem da tela de vitória. Lido pelos poucos trechos
+## do game over que precisam falar diferente.
+var _vitoria_em_curso : bool = false
+
+
 func mostrar_game_over(score: int, wave: int, gold: int = 0,
 		custo_alma: int = 0, cb_alma: Callable = Callable(),
 		tem_vela: bool = false, cb_vela: Callable = Callable(),
@@ -2377,9 +2399,15 @@ func mostrar_game_over(score: int, wave: int, gold: int = 0,
 	flash.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	ov.add_child(flash)
 
-	# ── DERROTA — desenho customizado ──────────────────
-	var _go_cor := Color(0.88, 0.06, 0.06)
-	var _go_txt := "DERROTA"
+	# ── DERROTA (ou VITÓRIA) — desenho customizado ─────
+	#
+	# Uma tela só, dois finais. O vermelho vira dourado e a palavra vira
+	# VITÓRIA; todo o resto -- fundo, stats, botões, animação -- é o mesmo
+	# código. Escrever uma segunda tela à mão faria ela envelhecer separado:
+	# o conserto que a derrota recebesse não chegaria na vitória.
+	var _venceu : bool = _vitoria_em_curso
+	var _go_cor : Color = Color(1.0, 0.80, 0.12) if _venceu else Color(0.88, 0.06, 0.06)
+	var _go_txt : String = "VITÓRIA" if _venceu else "DERROTA"
 	var titulo := Control.new()
 	titulo.size = Vector2(vp_w, 112 if compacto_go else 130)
 	titulo.position = Vector2(0, -180)
@@ -2394,16 +2422,17 @@ func mostrar_game_over(score: int, wave: int, gold: int = 0,
 		for _gi in range(4):
 			titulo.draw_string(_font, Vector2(0, _ty - float(_gi)*1.5), _go_txt,
 				HORIZONTAL_ALIGNMENT_CENTER, _bw, _fs,
-				Color(_go_cor.r, 0.0, 0.0, 0.07 - float(_gi)*0.015))
+				Color(_go_cor.r, _go_cor.g * 0.6, _go_cor.b, 0.07 - float(_gi)*0.015))
 		titulo.draw_string(_font, Vector2(0, _ty), _go_txt,
 			HORIZONTAL_ALIGNMENT_CENTER, _bw, _fs, _go_cor)
 		titulo.draw_string(_font, Vector2(0, _ty - 8.0), _go_txt,
-			HORIZONTAL_ALIGNMENT_CENTER, _bw, _fs, Color(1.0, 0.6, 0.6, 0.10))
+			HORIZONTAL_ALIGNMENT_CENTER, _bw, _fs,
+			Color(1.0, 0.95, 0.75, 0.14) if _venceu else Color(1.0, 0.6, 0.6, 0.10))
 	)
 	ov.add_child(titulo)
 
 	var sep := ColorRect.new()
-	sep.color = Color(_go_cor.r, 0.04, 0.04, 0.0)
+	sep.color = Color(_go_cor.r, _go_cor.g * 0.5, _go_cor.b, 0.0)
 	sep.size = Vector2(520, 2); sep.position = Vector2((vp_w-520)*0.5, 122 if compacto_go else 152)
 	sep.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	ov.add_child(sep)
@@ -2443,6 +2472,14 @@ func mostrar_game_over(score: int, wave: int, gold: int = 0,
 		["Recorde: %s" % _fmt_num(hs_val), Color(0.5,0.5,0.55), 22],
 		["+ %s ouro depositado" % _fmt_num(gold), Color(1.0,0.85,0.15), 26],
 	]
+	## Quem venceu tem que LER que venceu, e não deduzir pela cor do título.
+	## A wave final e o prêmio saem do próprio jogo: repetir os números aqui
+	## faria a tela mentir no dia em que alguém mudasse a constante.
+	if _venceu and jogo and is_instance_valid(jogo):
+		_stats.append(["NÚCLEO DEFENDIDO — wave %d limpa" % int(jogo.get("WAVE_FINAL")),
+				Color(1.0, 0.88, 0.30), 24])
+		_stats.append(["◆ %d cristais de vitória" % int(jogo.get("CRISTAIS_VITORIA")),
+				Color(0.55, 0.95, 1.0), 24])
 	var _sy : float = 168.0 if compacto_go else 210.0
 	var _sd : float = 0.95
 	for _st in _stats:
@@ -2522,7 +2559,9 @@ func mostrar_game_over(score: int, wave: int, gold: int = 0,
 	var _bd2 : float = _sd + 0.22
 
 	var btn := Button.new()
-	btn.text = "JOGAR NOVAMENTE"; btn.focus_mode = Control.FOCUS_NONE
+	## Quem venceu não "joga novamente" -- começa de novo, e a palavra importa.
+	btn.text = "JOGAR DE NOVO" if _venceu else "JOGAR NOVAMENTE"
+	btn.focus_mode = Control.FOCUS_NONE
 	btn.custom_minimum_size = Vector2(_btn_w_go,_nav_main_h); btn.size = Vector2(_btn_w_go,_nav_main_h)
 	btn.position = Vector2(_bx1, _by1); btn.z_index = 1; btn.modulate.a = 0.0
 	btn.add_theme_font_size_override("font_size", 27 if compacto_go else 33)

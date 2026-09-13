@@ -48,9 +48,10 @@ const PAINEL := preload("res://scripts/partida/painel_comando.gd")
 
 ## Quantas partidas simular antes de desistir de "zerar".
 const MAX_PARTIDAS : int = 4000
-## Teto de wave por partida. A dificuldade congela na 250; passar muito disso
-## só gastaria tempo de CPU dizendo a mesma coisa.
-const MAX_WAVE : int = 300
+## O bot para na wave final do jogo -- e le' o numero DE LA', em vez de
+## repeti-lo. Foi o erro que ja' custou uma medicao inteira: numero copiado
+## envelhece calado.
+var MAX_WAVE : int = MAIN.WAVE_FINAL
 
 var _cfg_cache : Dictionary = {}
 var _hp_cache  : Dictionary = {}
@@ -233,7 +234,8 @@ func _jogar(melhorias: Dictionary, talentos: Dictionary, politica: String, arma:
 		energia += int(round(float(int(h["n"]) + 5 + wave) * (1.0 + float(p._niveis.get("energia", 0)) * 0.06)))
 
 	t.free()
-	return {"wave": wave, "ouro": ouro, "cristais": cristais, "min": segundos / 60.0,
+	return {"wave": wave, "venceu": wave >= MAX_WAVE and hp > 0.0,
+			"ouro": ouro, "cristais": cristais, "min": segundos / 60.0,
 			"dano_fim": float(t.damage) if is_instance_valid(t) else 0.0}
 
 
@@ -303,6 +305,8 @@ func _carreira(politica: String, arma_nome: String, arma: Dictionary) -> void:
 	var minutos : float = 0.0
 	var asc : int = 0
 	var partidas : int = 0
+	var vitorias : int = 0
+	var primeira_vitoria : int = -1
 	var total_talentos : int = 0
 	for tid in Salvar.TALENTOS_INFO.keys():
 		if str(tid) != "raiz":
@@ -321,10 +325,17 @@ func _carreira(politica: String, arma_nome: String, arma: Dictionary) -> void:
 		minutos += float(r["min"])
 		cristais += int(r["cristais"])
 		ouro += int(r["ouro"])
+		if bool(r["venceu"]):
+			vitorias += 1
+			if primeira_vitoria < 0:
+				primeira_vitoria = asc
+				print("  ★ PRIMEIRA VITORIA na ascensao %d, partida %d, %.0f h"
+						% [asc, partidas, minutos / 60.0])
 		cristais = _comprar_talentos(talentos, cristais, asc)
 		ouro = _comprar_loja(melhorias, ouro)
 		if asc == 0 and partidas <= 22:
-			print("  %4d | %4d | %3d  | %4.0f | %5.1f h" % [partidas, int(r["wave"]), talentos.size(), dano_ini, minutos / 60.0])
+			print("  %4d | %4d%s | %3d  | %4.0f | %5.1f h" % [partidas, int(r["wave"]),
+					" VENCEU" if bool(r["venceu"]) else "      ", talentos.size(), dano_ini, minutos / 60.0])
 		if talentos.size() >= total_talentos and cristais >= Salvar.ascensao_custo_cristais(asc + 1):
 			cristais -= Salvar.ascensao_custo_cristais(asc + 1)
 			talentos.clear()
@@ -336,6 +347,12 @@ func _carreira(politica: String, arma_nome: String, arma: Dictionary) -> void:
 				print("  ---- ascensao %d em %d partidas, %.0f h" % [asc, partidas, minutos / 60.0])
 	print("  ➜ %d ascensoes · %d partidas · %.0f horas · %.1f MESES a 1h/dia"
 			% [asc, partidas, minutos / 60.0, minutos / 60.0 / 30.0])
+	if primeira_vitoria < 0:
+		print("  ➜ NUNCA venceu a wave %d em %d partidas -- o fim existe e nao foi alcancado."
+				% [MAX_WAVE, partidas])
+	else:
+		print("  ➜ venceu a wave %d em %d de %d partidas (a primeira na ascensao %d)"
+				% [MAX_WAVE, vitorias, partidas, primeira_vitoria])
 
 
 func _run() -> void:

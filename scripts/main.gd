@@ -2,6 +2,24 @@ extends Node2D
 
 const TORRE_SCENE = preload("res://scenes/Torre.tscn")
 
+## A última wave. Vencer a 300 é VENCER O JOGO.
+##
+## Antes daqui o jogo não tinha fim. A dificuldade congelava na wave 250 -- HP
+## dos mobs em 40×, a horda no teto de 105, o intervalo no piso de 0.20s -- e
+## dali em diante NADA mudava. Quem vencia a 250 vencia a 1000: a run só
+## acabava quando a pessoa fechava o app ou a bateria descarregava.
+##
+## Um jogo que não pode ser vencido não tem o que comemorar, e um placar de
+## "maior wave" num jogo infinito mede paciência, não habilidade.
+const WAVE_FINAL : int = 300
+
+## O prêmio de vencer, em cristais.
+##
+## Sai da mesma conta das waves para não ser um número solto: a wave final dá
+## `wave / 10` = 30, e vencer vale mais dez dessas. Quem chegou até aqui gastou
+## horas numa run só.
+const CRISTAIS_VITORIA : int = 300
+
 ## Quanto cada tecnologia comprada soma ao dano e ao HP do núcleo.
 ##
 ## Existe porque o poder da árvore estava concentrado em três talentos e os
@@ -1565,6 +1583,17 @@ func _fim_wave() -> void:
 		Salvar.tutorial_jogo_visto = true
 		Salvar.salvar()
 		_tut_fechar_dica()
+	## A ÚLTIMA WAVE. Vencer a 300 encerra a run em VITÓRIA.
+	##
+	## Fica aqui, no instante em que a wave é limpa, e ANTES de qualquer coisa
+	## que prepare a próxima: cartas, sorteio de modificador, spawn. Se a
+	## vitória fosse conferida no início da wave seguinte, a 301 chegaria a
+	## existir por um quadro -- e o jogador veria o jogo continuar antes de
+	## receber o aviso de que tinha acabado.
+	if wave >= WAVE_FINAL:
+		_vencer()
+		return
+
 	estado = "cartas"
 	var wave_gold_mult : float = 1.0 if modo_abismo else 0.45
 	gold += int(float(5 + wave * 2) * wave_gold_mult)
@@ -2060,6 +2089,38 @@ func registrar_impacto_combate(pos: Vector2, cor: Color, forte: bool = false) ->
 		_impactos_combate.pop_front()
 	_trigger_shake(4.5 if forte else 1.6, 0.12 if forte else 0.06)
 	queue_redraw()
+
+
+## Venceu o jogo.
+##
+## Passa pelo MESMO caminho de fim de partida que a derrota -- ouro depositado,
+## recorde, ranking, save na nuvem --, porque tudo isso vale igual e esquecer
+## um deles pune justamente quem foi mais longe. O que muda é a tela e o
+## prêmio.
+##
+## Sem revive aqui, de propósito: não há o que reviver. A run terminou por
+## cima.
+func _vencer() -> void:
+	if _game_over_confirmado:
+		return
+	if ui_node:
+		ui_node.fechar_cartas()
+		ui_node.fechar_overlay_boss()
+	estado = "vitoria"
+
+	## O prêmio de vencer sai da mesma conta da wave, para não virar um número
+	## solto: dez waves de cristais de uma vez.
+	Salvar.depositar_cristais(CRISTAIS_VITORIA)
+	Salvar.registrar_vitoria(wave, score)
+
+	if ui_node and ui_node.has_method("mostrar_vitoria"):
+		ui_node.mostrar_vitoria(score, wave, gold, func(): _finalizar_game_over())
+	elif ui_node:
+		## Guarda: se a tela de vitória não existir (pacote antigo), a partida
+		## ainda TEM que terminar. Um fim que não fecha é pior que fim nenhum.
+		ui_node.mostrar_game_over(score, wave, gold, 0, Callable(), false, Callable(),
+				func(): _finalizar_game_over())
+	get_tree().paused = true
 
 
 func game_over() -> void:

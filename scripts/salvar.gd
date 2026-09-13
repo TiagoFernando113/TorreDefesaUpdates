@@ -643,6 +643,13 @@ var atributos_conta : Dictionary = {
 }
 
 var total_partidas          : int        = 0
+## Quantas vezes o jogo foi VENCIDO (wave final limpa).
+##
+## Guardado separado do recorde de wave de propósito: chegar na wave 300 e
+## LIMPAR a wave 300 são coisas diferentes, e quem venceu merece que o jogo
+## lembre disso mesmo depois de uma ascensão zerar a árvore.
+var vitorias                : int        = 0
+var vitoria_primeira_em     : String     = ""   # data ISO da primeira vitória
 var partidas_facil          : int        = 0
 var partidas_normal         : int        = 0
 var partidas_dificil        : int        = 0
@@ -1574,6 +1581,22 @@ func _salvar_disco() -> void:
 	# Mantém save.json como ponteiro de conta (bootstrap na próxima abertura)
 	if nome_jogador != "" and _save_path() != SAVE_PATH_GUEST:
 		_escrever_seguro(SAVE_PATH_GUEST, JSON.stringify({"nome_jogador": nome_jogador}))
+
+
+## Registra uma VITÓRIA. Chamado só quando a wave final é limpa.
+##
+## Não substitui o registrar_fim_partida: a vitória é um fim de partida como
+## qualquer outro (ouro, recorde, ranking) MAIS este carimbo. Os dois são
+## chamados, e trocar um pelo outro perderia metade do que a run rendeu.
+func registrar_vitoria(wave: int, score_val: int) -> void:
+	vitorias += 1
+	if vitoria_primeira_em == "":
+		vitoria_primeira_em = Time.get_datetime_string_from_system(true, true)
+	## O recorde de wave e o de score já são tratados pelo registrar_fim_partida
+	## e pelo atualizar_high_score do main. Aqui só o carimbo da vitória, para
+	## não haver DUAS funções escrevendo o mesmo recorde por caminhos
+	## diferentes -- que é como um deles acaba divergindo do outro.
+	salvar()
 
 
 func registrar_fim_partida(wave: int, score_val: int, ouro: int,
